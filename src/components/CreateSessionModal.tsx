@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Modal, Form, Input, Button, message, Space } from 'antd'
 import { FolderOutlined, CodeOutlined, DesktopOutlined } from '@ant-design/icons'
 import { invoke } from '@tauri-apps/api/core'
@@ -10,14 +10,23 @@ interface CreateSessionModalProps {
   visible: boolean
   onClose: () => void
   sessionType: SessionType
+  defaultProjectPath?: string
 }
 
-function CreateSessionModal({ visible, onClose, sessionType }: CreateSessionModalProps) {
+function CreateSessionModal({ visible, onClose, sessionType, defaultProjectPath }: CreateSessionModalProps) {
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
   const [selectingFolder, setSelectingFolder] = useState(false)
   const [selectedPath, setSelectedPath] = useState('')
   const createSession = useSessionStore((state) => state.createSession)
+
+  // 当默认路径变化时，更新表单
+  useEffect(() => {
+    if (visible && defaultProjectPath) {
+      setSelectedPath(defaultProjectPath)
+      form.setFieldsValue({ projectPath: defaultProjectPath })
+    }
+  }, [visible, defaultProjectPath, form])
 
   const handleSelectFolder = async () => {
     if (selectingFolder) return // 防止重复点击

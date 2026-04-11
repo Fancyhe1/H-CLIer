@@ -10,6 +10,16 @@ import {
   DeleteOutlined,
   CodeOutlined,
   DesktopOutlined,
+  HistoryOutlined,
+  FileTextOutlined,
+  CopyOutlined,
+  FolderOpenOutlined,
+  CheckCircleOutlined,
+  ExperimentOutlined,
+  FileSearchOutlined,
+  CloudDownloadOutlined,
+  CompressOutlined,
+  RocketOutlined,
 } from '@ant-design/icons'
 import {
   Button,
@@ -18,6 +28,7 @@ import {
   Dropdown,
   Tag,
   Modal,
+  message,
 } from 'antd'
 import type { MenuProps } from 'antd'
 import { useSessionStore } from '../stores/sessionStore'
@@ -45,6 +56,7 @@ function Sidebar(_props: SidebarProps) {
   const [searchValue, setSearchValue] = useState('')
   const [activeTab, setActiveTab] = useState<SessionType>('claude')
   const [createModalVisible, setCreateModalVisible] = useState(false)
+  const [defaultProjectPath, setDefaultProjectPath] = useState<string | undefined>(undefined)
   const [editingSession, setEditingSession] = useState<string | null>(null)
   const [newTitle, setNewTitle] = useState('')
 
@@ -65,14 +77,43 @@ function Sidebar(_props: SidebarProps) {
   }, [fetchSessions])
 
   // 处理导出
-  const handleExportClick = async (sessionId: string, format: 'md' | 'html') => {
+  const handleExportClick = async (sessionId: string, format: 'md' | 'html' | 'json') => {
     const session = sessions.find((s) => s.id === sessionId)
     if (!session) return
+    if (format === 'json') {
+      message.info('JSON 导出功能开发中')
+      return
+    }
     await handleExportSession(session, format)
   }
 
+  // 复制项目路径
+  const handleCopyProjectPath = (projectPath: string) => {
+    navigator.clipboard.writeText(projectPath)
+    message.success('项目路径已复制到剪贴板')
+  }
+
+  // 以此项目新建会话
+  const handleNewFromProject = (projectPath: string) => {
+    setDefaultProjectPath(projectPath)
+    setCreateModalVisible(true)
+  }
+
+  // 通过 VS Code 打开项目
+  const handleOpenInVSCode = async (projectPath: string) => {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      await invoke('open_in_vscode', { projectPath })
+      message.success('正在打开 VS Code...')
+    } catch (err) {
+      message.error('打开失败: ' + String(err))
+    }
+  }
+
   // 创建右键菜单
-  const createMenuItems = (sessionId: string, isFavorite: boolean): MenuProps['items'] => [
+  const createMenuItems = (sessionId: string, isFavorite: boolean, projectPath: string): MenuProps['items'] => [
+    // 第一组：基本操作
+    { type: 'divider', key: 'd1' },
     {
       key: 'rename',
       icon: <EditOutlined />,
@@ -105,6 +146,42 @@ function Sidebar(_props: SidebarProps) {
         onClick: () => setSessionColor(sessionId, c.value || ''),
       })),
     },
+    { type: 'divider', key: 'd2' },
+
+    // 第二组：信息查看
+    {
+      key: 'history',
+      icon: <HistoryOutlined />,
+      label: '查看历史',
+      onClick: () => message.info('查看历史功能开发中'),
+    },
+    {
+      key: 'summary',
+      icon: <FileTextOutlined />,
+      label: '查看摘要',
+      onClick: () => message.info('查看摘要功能开发中'),
+    },
+    {
+      key: 'ai-summary',
+      icon: <ExperimentOutlined />,
+      label: 'AI记忆摘要',
+      onClick: () => message.info('AI记忆摘要功能开发中'),
+    },
+    {
+      key: 'file-changes',
+      icon: <FileSearchOutlined />,
+      label: '查看文件变更',
+      onClick: () => message.info('查看文件变更功能开发中'),
+    },
+    {
+      key: 'checkpoint',
+      icon: <CheckCircleOutlined />,
+      label: '检查点管理',
+      onClick: () => message.info('检查点管理功能开发中'),
+    },
+    { type: 'divider', key: 'd3' },
+
+    // 第三组：导出
     {
       key: 'export',
       icon: <ExportOutlined />,
@@ -112,16 +189,60 @@ function Sidebar(_props: SidebarProps) {
       children: [
         {
           key: 'export-md',
+          icon: <FileTextOutlined />,
           label: '导出为 Markdown',
           onClick: () => handleExportClick(sessionId, 'md'),
         },
         {
           key: 'export-html',
+          icon: <CloudDownloadOutlined />,
           label: '导出为 HTML',
           onClick: () => handleExportClick(sessionId, 'html'),
         },
+        {
+          key: 'export-json',
+          icon: <CodeOutlined />,
+          label: '导出为 JSON',
+          onClick: () => handleExportClick(sessionId, 'json'),
+        },
       ],
     },
+    { type: 'divider', key: 'd4' },
+
+    // 第四组：其他操作
+    {
+      key: 'new-from-project',
+      icon: <FolderOpenOutlined />,
+      label: '以此项目新建',
+      onClick: () => handleNewFromProject(projectPath),
+    },
+    {
+      key: 'clone',
+      icon: <CopyOutlined />,
+      label: '克隆',
+      onClick: () => message.info('克隆功能开发中'),
+    },
+    {
+      key: 'open-vscode',
+      icon: <RocketOutlined />,
+      label: '通过 VS Code 打开',
+      onClick: () => handleOpenInVSCode(projectPath),
+    },
+    {
+      key: 'compress',
+      icon: <CompressOutlined />,
+      label: '压缩会话',
+      onClick: () => message.info('压缩会话功能开发中'),
+    },
+    {
+      key: 'copy-path',
+      icon: <CopyOutlined />,
+      label: '复制项目路径',
+      onClick: () => handleCopyProjectPath(projectPath),
+    },
+    { type: 'divider', key: 'd5' },
+
+    // 删除
     {
       key: 'delete',
       icon: <DeleteOutlined />,
@@ -140,7 +261,7 @@ function Sidebar(_props: SidebarProps) {
   // 渲染会话项
   const renderSessionItem = (session: (typeof sessions)[0]) => (
     <Dropdown
-      menu={{ items: createMenuItems(session.id, session.isFavorite) }}
+      menu={{ items: createMenuItems(session.id, session.isFavorite, session.projectPath) }}
       trigger={['contextMenu']}
     >
       <div
@@ -300,8 +421,12 @@ function Sidebar(_props: SidebarProps) {
 
       <CreateSessionModal
         visible={createModalVisible}
-        onClose={() => setCreateModalVisible(false)}
+        onClose={() => {
+          setCreateModalVisible(false)
+          setDefaultProjectPath(undefined)
+        }}
         sessionType={activeTab}
+        defaultProjectPath={defaultProjectPath}
       />
 
       <Modal

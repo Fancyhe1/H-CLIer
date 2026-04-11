@@ -191,6 +191,19 @@ async fn write_text_file(path: String, content: String) -> Result<(), String> {
     fs::write(file_path, content).map_err(|e| e.to_string())
 }
 
+// 通过 VS Code 打开项目
+#[tauri::command]
+async fn open_in_vscode(project_path: String) -> Result<(), String> {
+    use std::process::Command;
+
+    Command::new("code")
+        .arg(&project_path)
+        .spawn()
+        .map_err(|e| format!("无法启动 VS Code: {}。请确保已安装 VS Code 并添加到 PATH。", e))?;
+
+    Ok(())
+}
+
 // CLI工具命令
 #[tauri::command]
 fn check_claude_installation() -> Result<bool, String> {
@@ -294,6 +307,7 @@ pub fn run() {
             select_folder,
             save_file_dialog,
             write_text_file,
+            open_in_vscode,
             // PTY终端
             create_pty,
             read_terminal_history,
