@@ -19,6 +19,7 @@ export interface GeneralConfig {
   theme: string
   terminal_font_size: number
   auto_start_claude: boolean
+  default_export_path: string | null
 }
 
 export interface AppConfig {
@@ -41,7 +42,8 @@ const defaultConfig: AppConfig = {
   general: {
     theme: 'dark',
     terminal_font_size: 14,
-    auto_start_claude: false,  // 默认不自动启动
+    auto_start_claude: false,
+    default_export_path: null,
   },
 }
 
@@ -61,6 +63,7 @@ interface SettingsState {
   setTerminalFontSize: (size: number) => void
   setTheme: (theme: string) => void
   setAutoStartClaude: (auto: boolean) => void
+  setDefaultExportPath: (path: string | null) => void
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -165,5 +168,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setAutoStartClaude: (auto) => {
     const { config, updateGeneralConfig } = get()
     updateGeneralConfig({ ...config.general, auto_start_claude: auto })
+  },
+
+  // 设置默认导出路径
+  setDefaultExportPath: (path: string | null) => {
+    const { config, updateGeneralConfig } = get()
+    updateGeneralConfig({ ...config.general, default_export_path: path })
   },
 }))

@@ -146,6 +146,51 @@ async fn select_folder(app: tauri::AppHandle) -> Result<Option<String>, String> 
     Ok(result.map(|p| p.to_string()))
 }
 
+// 保存文件对话框
+#[tauri::command]
+async fn save_file_dialog(
+    app: tauri::AppHandle,
+    default_path: Option<String>,
+    filters: Option<Vec<(String, Vec<String>)>>,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+
+    let mut dialog = app.dialog().file();
+
+    if let Some(path) = default_path {
+        dialog = dialog.set_file_name(path);
+    }
+
+    if let Some(filter_list) = filters {
+        for (name, extensions) in filter_list {
+            let ext_refs: Vec<&str> = extensions.iter().map(|s| s.as_str()).collect();
+            dialog = dialog.add_filter(name, &ext_refs);
+        }
+    }
+
+    let result = dialog.blocking_save_file();
+
+    Ok(result.map(|p| p.to_string()))
+}
+
+// 写入文件
+#[tauri::command]
+async fn write_text_file(path: String, content: String) -> Result<(), String> {
+    use std::fs;
+    use std::path::Path;
+
+    let file_path = Path::new(&path);
+
+    // 确保父目录存在
+    if let Some(parent) = file_path.parent() {
+        if !parent.exists() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+    }
+
+    fs::write(file_path, content).map_err(|e| e.to_string())
+}
+
 // CLI工具命令
 #[tauri::command]
 fn check_claude_installation() -> Result<bool, String> {
@@ -207,6 +252,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
             // 初始化数据库
             let app_handle = app.handle();
@@ -246,6 +292,8 @@ pub fn run() {
             delete_session,
             // 文件对话框
             select_folder,
+            save_file_dialog,
+            write_text_file,
             // PTY终端
             create_pty,
             read_terminal_history,

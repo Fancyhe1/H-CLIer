@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { PlusOutlined } from '@ant-design/icons'
 import { Button, Tabs, Empty } from 'antd'
 import type { TabsProps } from 'antd'
 import { useSessionStore } from '../stores/sessionStore'
+import { useTerminalStore } from '../stores/terminalStore'
 import '../styles/TabBar.css'
 
 interface TabItem {
@@ -14,8 +15,46 @@ interface TabItem {
 function TabBar() {
   const [tabs, setTabs] = useState<TabItem[]>([])
   const [activeKey, setActiveKey] = useState<string>()
+  const prevSessionsRef = useRef<typeof sessions>([])
 
   const { sessions, activeSessionId, setActiveSession } = useSessionStore()
+  const { disposeTerminal } = useTerminalStore()
+
+  // 监听会话删除，关闭对应的标签页并清理终端
+  useEffect(() => {
+    const prevSessions = prevSessionsRef.current
+    const currentSessionIds = new Set(sessions.map(s => s.id))
+    const deletedSessionIds = prevSessions
+      .filter(s => !currentSessionIds.has(s.id))
+      .map(s => s.id)
+
+    if (deletedSessionIds.length > 0) {
+      // 清理被删除会话的终端实例
+      deletedSessionIds.forEach(sessionId => {
+        disposeTerminal(sessionId).catch(console.error)
+      })
+
+      setTabs((prev) => {
+        const newTabs = prev.filter(tab => !deletedSessionIds.includes(tab.key))
+        return newTabs
+      })
+
+      // 如果当前激活的标签页被删除，切换到其他标签页
+      if (deletedSessionIds.includes(activeKey || '')) {
+        const remainingTabs = tabs.filter(tab => !deletedSessionIds.includes(tab.key))
+        if (remainingTabs.length > 0) {
+          const newActiveKey = remainingTabs[remainingTabs.length - 1].key
+          setActiveKey(newActiveKey)
+          setActiveSession(newActiveKey)
+        } else {
+          setActiveKey(undefined)
+          setActiveSession(null)
+        }
+      }
+    }
+
+    prevSessionsRef.current = sessions
+  }, [sessions, activeKey, setActiveSession, tabs, disposeTerminal])
 
   // 当激活会话变化时，添加到标签栏
   useEffect(() => {
@@ -62,6 +101,12 @@ function TabBar() {
       ) as HTMLButtonElement
       btn?.click()
     } else {
+      // 关闭标签页（不删除会话，只清理终端实例）
+      const sessionId = targetKey as string
+
+      // 清理终端实例
+      disposeTerminal(sessionId).catch(console.error)
+
       const newTabs = tabs.filter((tab) => tab.key !== targetKey)
       setTabs(newTabs)
 

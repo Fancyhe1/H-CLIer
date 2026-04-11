@@ -33,6 +33,9 @@ function TerminalPanel({ sessionId, projectPath }: TerminalPanelProps) {
       },
       rows: 30,
       cols: 80,
+      allowProposedApi: true,
+      // 启用选择功能
+      rightClickSelectsWord: true,
     })
 
     const fitAddon = new FitAddon()
@@ -102,6 +105,34 @@ function TerminalPanel({ sessionId, projectPath }: TerminalPanelProps) {
 
     xtermRef.current = term
     fitAddonRef.current = fitAddon
+
+    // 右键复制粘贴
+    terminalRef.current.addEventListener('contextmenu', async (e) => {
+      e.preventDefault()
+      const selection = term.getSelection()
+      if (selection) {
+        // 有选中内容时复制
+        try {
+          await navigator.clipboard.writeText(selection)
+          term.writeln('\x1b[90m已复制到剪贴板\x1b[0m')
+        } catch {
+          // 静默失败
+        }
+      } else {
+        // 无选中内容时粘贴
+        try {
+          const text = await navigator.clipboard.readText()
+          if (text && ptyIdRef.current) {
+            await invoke('write_to_pty', {
+              ptyId: ptyIdRef.current,
+              data: text,
+            })
+          }
+        } catch {
+          // 静默失败
+        }
+      }
+    })
 
     // 窗口大小改变时调整终端
     const handleResize = () => {

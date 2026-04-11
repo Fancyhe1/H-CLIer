@@ -61,6 +61,8 @@ pub struct GeneralConfig {
     pub terminal_font_size: u32,
     /// 是否自动启动 Claude
     pub auto_start_claude: bool,
+    /// 默认导出路径
+    pub default_export_path: Option<String>,
 }
 
 impl Default for AppConfig {
@@ -77,7 +79,8 @@ impl Default for GeneralConfig {
         Self {
             theme: "dark".to_string(),
             terminal_font_size: 14,
-            auto_start_claude: false,  // 默认不自动启动
+            auto_start_claude: false,
+            default_export_path: None,
         }
     }
 }

@@ -24,7 +24,9 @@ import {
   CodeOutlined,
   GlobalOutlined,
   FontSizeOutlined,
+  FolderOutlined,
 } from '@ant-design/icons'
+import { invoke } from '@tauri-apps/api/core'
 import { useSessionStore } from '../stores/sessionStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import '../styles/SettingsPanel.css'
@@ -56,6 +58,7 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
     getClaudeVersion,
     updateClaudeConfig,
     updateGeneralConfig,
+    setDefaultExportPath,
   } = useSettingsStore()
 
   // 加载配置
@@ -77,6 +80,7 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
       generalForm.setFieldsValue({
         terminal_font_size: config.general.terminal_font_size,
         auto_start_claude: config.general.auto_start_claude,
+        default_export_path: config.general.default_export_path || '',
       })
       apiForm.setFieldsValue({
         use_custom_api: config.claude.api_config.use_custom_api,
@@ -110,6 +114,7 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
         ...config.general,
         terminal_font_size: values.terminal_font_size,
         auto_start_claude: values.auto_start_claude,
+        default_export_path: values.default_export_path || null,
       }
       await updateGeneralConfig(newConfig)
       message.success('通用配置已保存')
@@ -120,6 +125,19 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
       }
     } catch (err) {
       message.error('保存失败: ' + String(err))
+    }
+  }
+
+  // 选择默认导出路径
+  const handleSelectExportPath = async () => {
+    try {
+      const path = await invoke<string | null>('select_folder')
+      if (path) {
+        generalForm.setFieldsValue({ default_export_path: path })
+        setDefaultExportPath(path)
+      }
+    } catch (err) {
+      message.error('选择文件夹失败: ' + String(err))
     }
   }
 
@@ -217,6 +235,26 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
             <Form.Item>
               <Text type="secondary">当前共有 {sessions.length} 个会话</Text>
             </Form.Item>
+
+            <Form.Item
+              name="default_export_path"
+              label="默认导出路径"
+              help="导出会话时的默认保存位置"
+            >
+              <Space.Compact style={{ width: '100%' }}>
+                <Input
+                  placeholder="未设置（每次导出时选择）"
+                  readOnly
+                />
+                <Button
+                  icon={<FolderOutlined />}
+                  onClick={handleSelectExportPath}
+                >
+                  浏览
+                </Button>
+              </Space.Compact>
+            </Form.Item>
+
             <Form.Item>
               <Button
                 danger

@@ -15,10 +15,13 @@ interface CreateSessionModalProps {
 function CreateSessionModal({ visible, onClose, sessionType }: CreateSessionModalProps) {
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
+  const [selectingFolder, setSelectingFolder] = useState(false)
   const [selectedPath, setSelectedPath] = useState('')
   const createSession = useSessionStore((state) => state.createSession)
 
   const handleSelectFolder = async () => {
+    if (selectingFolder) return // 防止重复点击
+    setSelectingFolder(true)
     try {
       const path = await invoke<string | null>('select_folder')
       if (path) {
@@ -27,6 +30,8 @@ function CreateSessionModal({ visible, onClose, sessionType }: CreateSessionModa
       }
     } catch (err) {
       message.error('选择文件夹失败: ' + String(err))
+    } finally {
+      setSelectingFolder(false)
     }
   }
 
@@ -92,6 +97,8 @@ function CreateSessionModal({ visible, onClose, sessionType }: CreateSessionModa
             <Button
               icon={<FolderOutlined />}
               onClick={handleSelectFolder}
+              loading={selectingFolder}
+              disabled={selectingFolder}
             >
               浏览
             </Button>

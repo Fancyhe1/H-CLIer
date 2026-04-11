@@ -1,5 +1,7 @@
 import type { Session } from '../types/session'
 import { message } from 'antd'
+import { invoke } from '@tauri-apps/api/core'
+import { useSettingsStore } from '../stores/settingsStore'
 
 export function exportToMarkdown(session: Session, messages: string[]): string {
   const timestamp = new Date().toLocaleString()
@@ -107,79 +109,15 @@ function escapeHtml(text: string): string {
     .replace(/'/g, '&#039;')
 }
 
-// 使用 File System Access API 保存文件
-async function saveFileWithPicker(
-  content: string,
-  suggestedName: string,
-  mimeType: string
-): Promise<string | null> {
-  try {
-    // @ts-ignore - File System Access API
-    if (!window.showSaveFilePicker) {
-      return null
-    }
-
-    const opts = {
-      suggestedName,
-      types: [
-        {
-          description: mimeType.includes('markdown') ? 'Markdown 文件' : 'HTML 文件',
-          accept: {
-            [mimeType]: mimeType.includes('markdown') ? ['.md'] : ['.html'],
-          },
-        },
-      ],
-    }
-
-    // @ts-ignore
-    const handle = await window.showSaveFilePicker(opts)
-    const writable = await handle.createWritable()
-    await writable.write(content)
-    await writable.close()
-
-    return handle.name
-  } catch (err) {
-    // 用户取消或API不支持
-    console.log('Save picker error or cancelled:', err)
-    return null
-  }
-}
-
-// 备用：传统下载方式
-function downloadFileFallback(content: string, filename: string, type: string): void {
-  const blob = new Blob([content], { type })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
-}
-
-export async function saveExportFile(
-  content: string,
-  filename: string,
-  mimeType: string
-): Promise<{ success: boolean; method: 'picker' | 'download'; filename: string }> {
-  // 首先尝试使用系统保存对话框
-  const savedName = await saveFileWithPicker(content, filename, mimeType)
-
-  if (savedName) {
-    return { success: true, method: 'picker', filename: savedName }
-  }
-
-  // 回退到下载方式
-  downloadFileFallback(content, filename, mimeType)
-  return { success: true, method: 'download', filename }
-}
-
 // 统一的导出处理函数
 export async function handleExportSession(
   session: Session,
   format: 'md' | 'html'
 ): Promise<void> {
+  // 获取默认导出路径
+  const config = useSettingsStore.getState().config
+  const defaultPath = config.general.default_export_path
+
   // 模拟消息数据（实际应从终端获取历史记录）
   const messages = [
     '用户: 你好，请帮我分析这个代码',
@@ -189,21 +127,34 @@ export async function handleExportSession(
 
   const safeTitle = session.title.replace(/[\\/:*?"<>|]/g, '_')
   const filename = format === 'md' ? `${safeTitle}.md` : `${safeTitle}.html`
-  const mimeType = format === 'md' ? 'text/markdown' : 'text/html'
 
   try {
+    // 弹出保存对话框
+    const filters = format === 'md'
+      ? [['Markdown 文件', ['md']]]
+      : [['HTML 文件', ['html']]]
+
+    const savePath = await invoke<string | null>('save_file_dialog', {
+      defaultPath: defaultPath ? `${defaultPath}\\${filename}` : filename,
+      filters: filters,
+    })
+
+    if (!savePath) {
+      // 用户取消
+      return
+    }
+
+    // 生成内容
     const content = format === 'md'
       ? exportToMarkdown(session, messages)
       : exportToHTML(session, messages)
 
-    const result = await saveExportFile(content, filename, mimeType)
+    // 保存文件
+    await invoke('write_text_file', { path: savePath, content })
 
-    if (result.method === 'picker') {
-      message.success(`已保存到: ${result.filename}`, 3)
-    } else {
-      message.success(`已导出: ${result.filename} (文件已保存到下载文件夹)`, 4)
-    }
+    message.success(`已保存到: ${savePath}`, 3)
   } catch (err) {
+    console.error('导出失败:', err)
     message.error('导出失败: ' + String(err))
   }
 }

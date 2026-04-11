@@ -180,53 +180,56 @@
 
 /* 暗色主题支持 */
 .dark .sidebar {
-  background: #141414;
+  background: #1e1e1e;
 }
 
 .dark .sidebar-header,
 .dark .sidebar-tabs,
 .dark .sidebar-actions {
-  border-color: #303030;
+  border-color: #363636;
 }
 
 .dark .sidebar-tabs {
-  background: #1f1f1f;
+  background: #262626;
 }
 
 .dark .sidebar-tab {
-  color: #999;
+  color: #b3b3b3;
 }
 
 .dark .sidebar-tab:hover {
-  color: #1677ff;
-  background: #1f1f1f;
+  color: #4096ff;
+  background: #2a2a2a;
 }
 
 .dark .sidebar-tab.active {
-  color: #1677ff;
-  background: #111b26;
+  color: #4096ff;
+  background: #1a3a5c;
 }
 
 .dark .sidebar-tab .tab-count {
-  background: #303030;
+  background: #404040;
+  color: #ccc;
 }
 
 .dark .sidebar-tab.active .tab-count {
-  background: #1677ff;
+  background: #4096ff;
+  color: #fff;
 }
 
 .dark .group-title {
-  color: #999;
+  color: #b3b3b3;
 }
 
 .dark .session-item:hover {
-  background: #1f1f1f;
+  background: #2a2a2a;
 }
 
 .dark .session-item.active {
-  background: #111b26;
+  background: #1a3a5c;
+  border-left-color: #4096ff;
 }
 
 .dark .session-title {
-  color: #d9d9d9;
+  color: #e6e6e6;
 }

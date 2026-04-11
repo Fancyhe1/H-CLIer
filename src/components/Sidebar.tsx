@@ -5,7 +5,6 @@ import {
   FolderOutlined,
   StarOutlined,
   StarFilled,
-  MoreOutlined,
   EditOutlined,
   ExportOutlined,
   DeleteOutlined,
@@ -140,22 +139,21 @@ function Sidebar(_props: SidebarProps) {
 
   // 渲染会话项
   const renderSessionItem = (session: (typeof sessions)[0]) => (
-    <div
-      className={`session-item ${session.id === activeSessionId ? 'active' : ''}`}
-      onClick={() => setActiveSession(session.id)}
+    <Dropdown
+      menu={{ items: createMenuItems(session.id, session.isFavorite) }}
+      trigger={['contextMenu']}
     >
-      <div className="session-info">
-        {session.color && <Tag color={session.color} className="color-tag" />}
-        {session.isFavorite && <StarFilled className="favorite-icon" />}
-        <span className="session-title">{session.title}</span>
-      </div>
-      <Dropdown
-        menu={{ items: createMenuItems(session.id, session.isFavorite) }}
-        trigger={['click']}
+      <div
+        className={`session-item ${session.id === activeSessionId ? 'active' : ''}`}
+        onClick={() => setActiveSession(session.id)}
       >
-        <Button type="text" size="small" icon={<MoreOutlined />} onClick={(e) => e.stopPropagation()} />
-      </Dropdown>
-    </div>
+        <div className="session-info">
+          {session.color && <Tag color={session.color} className="color-tag" />}
+          {session.isFavorite && <StarFilled className="favorite-icon" />}
+          <span className="session-title">{session.title}</span>
+        </div>
+      </div>
+    </Dropdown>
   )
 
   // 构建会话列表树

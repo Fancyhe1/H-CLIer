@@ -97,6 +97,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
         rows: 30,
         cols: 80,
         scrollback: 50000,
+        allowProposedApi: true,
       })
 
       const fitAddon = new FitAddon()
@@ -190,6 +191,59 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
       // 处理输入
       term.onData((data) => {
         invoke('write_to_pty', { ptyId, data }).catch(console.error)
+      })
+
+      // Ctrl+C 复制选中内容，Ctrl+V 粘贴
+      container.addEventListener('keydown', async (e) => {
+        if (e.ctrlKey && e.key === 'c') {
+          const selection = term.getSelection()
+          if (selection) {
+            e.preventDefault()
+            e.stopPropagation()
+            try {
+              await navigator.clipboard.writeText(selection)
+            } catch {
+              // 静默失败
+            }
+          }
+          // 如果没有选中，让 Ctrl+C 正常发送到终端（中断信号）
+        }
+
+        if (e.ctrlKey && e.key === 'v') {
+          e.preventDefault()
+          try {
+            const text = await navigator.clipboard.readText()
+            if (text) {
+              await invoke('write_to_pty', { ptyId, data: text })
+            }
+          } catch {
+            // 静默失败
+          }
+        }
+      })
+
+      // 右键复制粘贴
+      container.addEventListener('contextmenu', async (e) => {
+        e.preventDefault()
+        const selection = term.getSelection()
+        if (selection) {
+          // 有选中内容时复制
+          try {
+            await navigator.clipboard.writeText(selection)
+          } catch {
+            // 静默失败
+          }
+        } else {
+          // 无选中内容时粘贴
+          try {
+            const text = await navigator.clipboard.readText()
+            if (text) {
+              await invoke('write_to_pty', { ptyId, data: text })
+            }
+          } catch {
+            // 静默失败
+          }
+        }
       })
 
       const terminalInstance: TerminalInstance = {

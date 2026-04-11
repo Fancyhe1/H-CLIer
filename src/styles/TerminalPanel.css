@@ -54,10 +54,23 @@
   height: 100%;
 }
 
+.xterm-helpers {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+}
+
 .xterm-screen {
   background: #1e1e1e !important;
 }
 
 .xterm-viewport {
   background: #1e1e1e !important;
+}
+
+/* 确保终端可以选择文本 */
+.xterm .xterm-screen {
+  user-select: text;
+  -webkit-user-select: text;
 }
