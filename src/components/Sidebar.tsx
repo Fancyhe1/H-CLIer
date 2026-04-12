@@ -950,6 +950,7 @@ function Sidebar(_props: SidebarProps) {
           icon={<PlusOutlined />}
           block
           onClick={() => setCreateModalVisible(true)}
+          data-testid="new-session-btn"
         >
           新建{activeTab === 'claude' ? ' Claude' : '终端'}会话
         </Button>
