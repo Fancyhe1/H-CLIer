@@ -87,6 +87,7 @@ function Sidebar(_props: SidebarProps) {
   const [historyMessages, setHistoryMessages] = useState<Array<{role: 'user' | 'assistant', content: string}>>([])
   const [summaryModalVisible, setSummaryModalVisible] = useState(false)
   const [summaryData, setSummaryData] = useState<any>(null)
+  const [expandedKeys, setExpandedKeys] = useState<string[]>([])
 
   const {
     sessions,
@@ -104,6 +105,42 @@ function Sidebar(_props: SidebarProps) {
   useEffect(() => {
     fetchSessions()
   }, [fetchSessions])
+
+  // 初始化展开状态
+  useEffect(() => {
+    const sessionList = activeTab === 'claude' ? claudeSessions() : terminalSessions()
+    const favoriteSessions = sessionList.filter((s) => s.isFavorite)
+    const normalSessions = sessionList.filter((s) => !s.isFavorite)
+
+    const groupedSessions = normalSessions.reduce(
+      (acc, session) => {
+        const path = session.projectPath
+        if (!acc[path]) acc[path] = []
+        acc[path].push(session)
+        return acc
+      },
+      {} as Record<string, typeof normalSessions>
+    )
+
+    // 默认展开所有分组
+    const keys: string[] = []
+    if (favoriteSessions.length > 0) {
+      keys.push('favorites')
+    }
+    Object.keys(groupedSessions).forEach(path => keys.push(path))
+
+    setExpandedKeys(keys)
+  }, [activeTab, sessions])
+
+  // 切换分组展开/收起
+  const toggleExpand = (key: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (expandedKeys.includes(key)) {
+      setExpandedKeys(expandedKeys.filter(k => k !== key))
+    } else {
+      setExpandedKeys([...expandedKeys, key])
+    }
+  }
 
   // 处理导出
   const handleExportClick = async (sessionId: string, format: 'md' | 'html' | 'json') => {
@@ -802,7 +839,10 @@ function Sidebar(_props: SidebarProps) {
             trigger={['contextMenu']}
             overlayClassName="session-context-menu"
           >
-            <div className="group-title-wrapper">
+            <div
+              className="group-title-wrapper"
+              onClick={(e) => toggleExpand('favorites', e)}
+            >
               <span className="group-title">
                 <StarFilled style={{ color: '#faad14' }} /> 收藏
               </span>
@@ -827,7 +867,10 @@ function Sidebar(_props: SidebarProps) {
             trigger={['contextMenu']}
             overlayClassName="session-context-menu"
           >
-            <div className="group-title-wrapper">
+            <div
+              className="group-title-wrapper"
+              onClick={(e) => toggleExpand(path, e)}
+            >
               <span className="group-title">
                 <FolderOutlined /> {path.split('/').pop()}
               </span>
@@ -929,7 +972,8 @@ function Sidebar(_props: SidebarProps) {
         ) : (
           <Tree
             treeData={buildTreeData(currentSessionList)}
-            defaultExpandAll
+            expandedKeys={expandedKeys}
+            onExpand={(keys) => setExpandedKeys(keys as string[])}
             className="session-tree"
             selectable={false}
           />
