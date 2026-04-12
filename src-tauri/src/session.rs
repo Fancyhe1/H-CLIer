@@ -228,4 +228,13 @@ impl SessionManager {
 
         Ok(())
     }
+
+    pub fn delete_sessions_by_path(&self, project_path: &str) -> Result<usize, rusqlite::Error> {
+        let rows_affected = self.conn.execute(
+            "UPDATE sessions SET is_active = 0 WHERE project_path = ?1",
+            params![project_path],
+        )?;
+
+        Ok(rows_affected)
+    }
 }

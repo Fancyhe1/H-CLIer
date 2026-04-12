@@ -23,6 +23,9 @@ import {
   UserOutlined,
   RobotOutlined,
   CloseOutlined,
+  ImportOutlined,
+  SettingOutlined,
+  CodeFilled,
 } from '@ant-design/icons'
 import {
   Button,
@@ -129,6 +132,214 @@ function Sidebar(_props: SidebarProps) {
     } catch (err) {
       message.error('打开失败: ' + String(err))
     }
+  }
+
+  // 在资源管理器中打开
+  const handleOpenInExplorer = async (projectPath: string) => {
+    try {
+      await invoke('open_in_explorer', { projectPath })
+    } catch (err) {
+      message.error('打开失败: ' + String(err))
+    }
+  }
+
+  // 通过 IDEA 打开项目
+  const handleOpenInIDEA = async (projectPath: string) => {
+    try {
+      await invoke('open_in_idea', { projectPath })
+      message.success('正在打开 IntelliJ IDEA...')
+    } catch (err) {
+      message.error(String(err))
+    }
+  }
+
+  // 导入会话
+  const handleImportSession = async (projectPath: string) => {
+    try {
+      const filePath = await invoke<string | null>('select_file', {
+        filters: [['JSON 文件', ['json']]],
+      })
+
+      if (!filePath) return
+
+      const content = await invoke<string>('read_text_file', { path: filePath })
+      const data = JSON.parse(content)
+
+      // 验证数据格式
+      if (!data.session || !data.session.title) {
+        message.error('无效的会话文件格式')
+        return
+      }
+
+      // 创建新会话
+      const newSession = await createSession({
+        projectPath: projectPath,
+        title: data.session.title,
+        sessionType: data.session.sessionType || 'claude',
+      })
+
+      if (newSession && data.messages && data.messages.length > 0) {
+        // 写入历史记录
+        const historyContent = data.messages.join('\n\n---\n\n')
+        await invoke('write_terminal_history', {
+          sessionId: newSession.id,
+          content: historyContent,
+        })
+      }
+
+      message.success('会话导入成功')
+    } catch (err) {
+      message.error('导入失败: ' + String(err))
+    }
+  }
+
+  // 批量导出会话（一个一个弹出）
+  const handleBatchExport = async (
+    projectPath: string,
+    format: 'md' | 'html' | 'json'
+  ) => {
+    const sessionsToExport = sessions.filter(s => s.projectPath === projectPath)
+
+    if (sessionsToExport.length === 0) {
+      message.info('该目录下没有会话')
+      return
+    }
+
+    for (let i = 0; i < sessionsToExport.length; i++) {
+      const session = sessionsToExport[i]
+      message.loading({
+        content: `正在导出 (${i + 1}/${sessionsToExport.length}): ${session.title}`,
+        key: 'batch-export',
+        duration: 0,
+      })
+
+      try {
+        await handleExportSession(session, format)
+      } catch (err) {
+        console.error(`导出 ${session.title} 失败:`, err)
+      }
+
+      // 给用户一点时间看到保存对话框关闭
+      if (i < sessionsToExport.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 300))
+      }
+    }
+
+    message.destroy('batch-export')
+    message.success(`已导出 ${sessionsToExport.length} 个会话`)
+  }
+
+  // 移除整个目录
+  const handleRemoveDirectory = (projectPath: string, sessionCount: number) => {
+    Modal.confirm({
+      title: '确认移除目录',
+      content: `确定要移除此目录吗？将删除 ${sessionCount} 个会话，此操作不可恢复。`,
+      okText: '移除',
+      cancelText: '取消',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await invoke('delete_sessions_by_path', { projectPath })
+          message.success(`已移除 ${sessionCount} 个会话`)
+          fetchSessions()
+        } catch (err) {
+          message.error('移除失败: ' + String(err))
+        }
+      },
+    })
+  }
+
+  // 创建分组文件夹的右键菜单
+  const createGroupMenuItems = (
+    projectPath: string,
+    sessionCount: number,
+    isFavorite: boolean = false
+  ): MenuProps['items'] => {
+    if (isFavorite) {
+      // 收藏分组的菜单（功能较少）
+      return [
+        {
+          key: 'new-session',
+          icon: <PlusOutlined />,
+          label: '新建会话',
+          onClick: () => handleNewFromProject(projectPath),
+        },
+      ]
+    }
+
+    return [
+      // 第一组：创建
+      {
+        key: 'new-session',
+        icon: <PlusOutlined />,
+        label: '新建会话',
+        onClick: () => handleNewFromProject(projectPath),
+      },
+      {
+        key: 'import-session',
+        icon: <ImportOutlined />,
+        label: '导入会话',
+        onClick: () => handleImportSession(projectPath),
+      },
+      { type: 'divider', key: 'g1' },
+
+      // 第二组：导出
+      {
+        key: 'export-md',
+        icon: <FileTextOutlined />,
+        label: '导出 Markdown',
+        onClick: () => handleBatchExport(projectPath, 'md'),
+      },
+      {
+        key: 'export-html',
+        icon: <CloudDownloadOutlined />,
+        label: '导出 HTML',
+        onClick: () => handleBatchExport(projectPath, 'html'),
+      },
+      {
+        key: 'export-json',
+        icon: <CodeOutlined />,
+        label: '导出 JSON',
+        onClick: () => handleBatchExport(projectPath, 'json'),
+      },
+      { type: 'divider', key: 'g2' },
+
+      // 第三组：项目管理
+      {
+        key: 'project-memory',
+        icon: <SettingOutlined />,
+        label: '项目记忆管理',
+        onClick: () => message.info('项目记忆管理功能开发中'),
+      },
+      {
+        key: 'open-explorer',
+        icon: <FolderOpenOutlined />,
+        label: '在文件管理器打开',
+        onClick: () => handleOpenInExplorer(projectPath),
+      },
+      {
+        key: 'open-idea',
+        icon: <CodeFilled />,
+        label: '通过 IDEA 打开',
+        onClick: () => handleOpenInIDEA(projectPath),
+      },
+      {
+        key: 'copy-path',
+        icon: <CopyOutlined />,
+        label: '复制项目路径',
+        onClick: () => handleCopyProjectPath(projectPath),
+      },
+      { type: 'divider', key: 'g3' },
+
+      // 第四组：删除
+      {
+        key: 'remove-directory',
+        icon: <DeleteOutlined />,
+        label: `移除整个目录 (${sessionCount})`,
+        danger: true,
+        onClick: () => handleRemoveDirectory(projectPath, sessionCount),
+      },
+    ]
   }
 
   // 解析终端历史记录为消息列表
@@ -580,14 +791,24 @@ function Sidebar(_props: SidebarProps) {
     const treeData = []
 
     if (favoriteSessions.length > 0) {
+      // 获取收藏会话的项目路径（用于新建会话）
+      const favoriteProjectPaths = [...new Set(favoriteSessions.map(s => s.projectPath))]
+      const defaultProjectPath = favoriteProjectPaths[0] || ''
+
       treeData.push({
         title: (
-          <div className="group-title-wrapper">
-            <span className="group-title">
-              <StarFilled style={{ color: '#faad14' }} /> 收藏
-            </span>
-            <span className="group-count">{favoriteSessions.length}</span>
-          </div>
+          <Dropdown
+            menu={{ items: createGroupMenuItems(defaultProjectPath, favoriteSessions.length, true) }}
+            trigger={['contextMenu']}
+            overlayClassName="session-context-menu"
+          >
+            <div className="group-title-wrapper">
+              <span className="group-title">
+                <StarFilled style={{ color: '#faad14' }} /> 收藏
+              </span>
+              <span className="group-count">{favoriteSessions.length}</span>
+            </div>
+          </Dropdown>
         ),
         key: 'favorites',
         children: favoriteSessions.map((session) => ({
@@ -601,12 +822,18 @@ function Sidebar(_props: SidebarProps) {
     Object.entries(groupedSessions).forEach(([path, pathSessions]) => {
       treeData.push({
         title: (
-          <div className="group-title-wrapper">
-            <span className="group-title">
-              <FolderOutlined /> {path.split('/').pop()}
-            </span>
-            <span className="group-count">{pathSessions.length}</span>
-          </div>
+          <Dropdown
+            menu={{ items: createGroupMenuItems(path, pathSessions.length, false) }}
+            trigger={['contextMenu']}
+            overlayClassName="session-context-menu"
+          >
+            <div className="group-title-wrapper">
+              <span className="group-title">
+                <FolderOutlined /> {path.split('/').pop()}
+              </span>
+              <span className="group-count">{pathSessions.length}</span>
+            </div>
+          </Dropdown>
         ),
         key: path,
         children: pathSessions.map((session) => ({

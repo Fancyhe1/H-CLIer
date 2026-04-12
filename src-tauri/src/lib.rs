@@ -215,6 +215,77 @@ async fn open_in_vscode(project_path: String) -> Result<(), String> {
     Ok(())
 }
 
+// 在资源管理器中打开
+#[tauri::command]
+async fn open_in_explorer(project_path: String) -> Result<(), String> {
+    use std::process::Command;
+
+    Command::new("explorer")
+        .arg(&project_path)
+        .spawn()
+        .map_err(|e| format!("无法打开资源管理器: {}", e))?;
+
+    Ok(())
+}
+
+// 通过 IDEA 打开项目
+#[tauri::command]
+async fn open_in_idea(project_path: String) -> Result<(), String> {
+    use std::process::Command;
+
+    // 尝试常见的 IDEA 启动命令
+    let idea_commands = ["idea64", "idea", " IntelliJ"];
+
+    for cmd in &idea_commands {
+        if Command::new(cmd).arg(&project_path).spawn().is_ok() {
+            return Ok(());
+        }
+    }
+
+    Err("无法启动 IntelliJ IDEA。请确保已安装 IDEA 并添加到 PATH。".to_string())
+}
+
+// 选择文件对话框（用于导入）
+#[tauri::command]
+async fn select_file(
+    app: tauri::AppHandle,
+    filters: Option<Vec<(String, Vec<String>)>>,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+
+    let mut dialog = app.dialog().file();
+
+    if let Some(filter_list) = filters {
+        for (name, extensions) in filter_list {
+            let ext_refs: Vec<&str> = extensions.iter().map(|s| s.as_str()).collect();
+            dialog = dialog.add_filter(name, &ext_refs);
+        }
+    }
+
+    let result = dialog.blocking_pick_file();
+
+    Ok(result.map(|p| p.to_string()))
+}
+
+// 读取文本文件
+#[tauri::command]
+async fn read_text_file(path: String) -> Result<String, String> {
+    use std::fs;
+
+    fs::read_to_string(&path).map_err(|e| format!("读取文件失败: {}", e))
+}
+
+// 删除指定项目路径下的所有会话
+#[tauri::command]
+fn delete_sessions_by_path(
+    state: tauri::State<AppState>,
+    project_path: String,
+) -> Result<usize, String> {
+    let manager = state.session_manager.lock().map_err(|e| e.to_string())?;
+    manager.delete_sessions_by_path(&project_path)
+        .map_err(|e| e.to_string())
+}
+
 // CLI工具命令
 #[tauri::command]
 fn check_claude_installation() -> Result<bool, String> {
@@ -314,11 +385,16 @@ pub fn run() {
             get_sessions,
             update_session,
             delete_session,
+            delete_sessions_by_path,
             // 文件对话框
             select_folder,
+            select_file,
             save_file_dialog,
             write_text_file,
+            read_text_file,
             open_in_vscode,
+            open_in_explorer,
+            open_in_idea,
             // PTY终端
             create_pty,
             read_terminal_history,
