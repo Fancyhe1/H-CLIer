@@ -34,6 +34,9 @@
           "windows": ["main"],
           "permissions": [
             "core:default",
+            "core:window:default",
+            "core:window:allow-set-always-on-top",
+            "core:window:allow-is-always-on-top",
             "dialog:default",
             "clipboard-manager:allow-write-text",
             "clipboard-manager:allow-read-text"

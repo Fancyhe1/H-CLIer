@@ -24,9 +24,11 @@
 .app-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   background: #fafafa;
   border-bottom: 1px solid #e8e8e8;
   padding: 4px 4px 0;
+  height: 40px;
 }
 
 .dark .app-header {
@@ -39,17 +41,17 @@
 }
 
 .header-actions {
-  padding: 0 8px;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
+  margin-right: 140px; /* 为窗口控制按钮留出空间 */
 }
 
 .header-divider {
   width: 1px;
   height: 20px;
   background: #e8e8e8;
-  margin: 0 4px;
+  margin: 0 6px;
 }
 
 .dark .header-divider {
