@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Layout, theme, Button, Space, ConfigProvider, Dropdown } from 'antd'
-import type { MenuProps } from 'antd'
+import { Layout, theme, Button, Space, ConfigProvider } from 'antd'
 import {
   SettingOutlined,
   MoonOutlined,
@@ -9,7 +8,6 @@ import {
   ThunderboltOutlined,
   PushpinOutlined,
   DesktopOutlined,
-  CheckOutlined,
 } from '@ant-design/icons'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import Sidebar from './components/Sidebar'
@@ -94,27 +92,26 @@ function App() {
     }
   }
 
-  // 主题菜单
-  const themeMenuItems: MenuProps['items'] = [
-    {
-      key: 'light',
-      icon: currentTheme === 'light' ? <CheckOutlined /> : <SunOutlined />,
-      label: '浅色',
-      onClick: () => setThemeMode('light'),
-    },
-    {
-      key: 'dark',
-      icon: currentTheme === 'dark' ? <CheckOutlined /> : <MoonOutlined />,
-      label: '深色',
-      onClick: () => setThemeMode('dark'),
-    },
-    {
-      key: 'system',
-      icon: themeMode === 'system' ? <CheckOutlined /> : <DesktopOutlined />,
-      label: '跟随系统',
-      onClick: () => setThemeMode('system'),
-    },
-  ]
+  // 循环切换主题：light -> dark -> system -> light
+  const cycleTheme = () => {
+    const nextMode: ThemeMode = themeMode === 'light' ? 'dark' : themeMode === 'dark' ? 'system' : 'light'
+    setThemeMode(nextMode)
+  }
+
+  // 获取主题图标
+  const getThemeIcon = () => {
+    if (themeMode === 'system') {
+      return <DesktopOutlined />
+    }
+    return currentTheme === 'dark' ? <MoonOutlined /> : <SunOutlined />
+  }
+
+  // 获取主题提示文字
+  const getThemeTitle = () => {
+    if (themeMode === 'light') return '浅色模式 (点击切换: 深色)'
+    if (themeMode === 'dark') return '深色模式 (点击切换: 跟随系统)'
+    return '跟随系统 (点击切换: 浅色)'
+  }
 
   const renderContent = () => {
     switch (activePanel) {
@@ -173,16 +170,12 @@ function App() {
                 onClick={toggleAlwaysOnTop}
                 title={isAlwaysOnTop ? '取消置顶' : '置顶显示'}
               />
-              <Dropdown
-                menu={{ items: themeMenuItems, selectedKeys: [themeMode] }}
-                trigger={['click']}
-              >
-                <Button
-                  type="text"
-                  icon={currentTheme === 'dark' ? <MoonOutlined /> : <SunOutlined />}
-                  title="切换主题"
-                />
-              </Dropdown>
+              <Button
+                type="text"
+                icon={getThemeIcon()}
+                onClick={cycleTheme}
+                title={getThemeTitle()}
+              />
               <Button
                 type="text"
                 icon={<SettingOutlined />}
