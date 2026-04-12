@@ -3,6 +3,27 @@ import { message } from 'antd'
 import { invoke } from '@tauri-apps/api/core'
 import { useSettingsStore } from '../stores/settingsStore'
 
+// 导出为JSON
+export function exportToJSON(session: Session, messages: string[]): string {
+  const data = {
+    version: '1.0',
+    exportedAt: new Date().toISOString(),
+    session: {
+      id: session.id,
+      title: session.title,
+      projectPath: session.projectPath,
+      sessionType: session.sessionType,
+      color: session.color,
+      isFavorite: session.isFavorite,
+      createdAt: session.createdAt,
+      lastActivityAt: session.lastActivityAt,
+      messageCount: session.messageCount,
+    },
+    messages: messages.length > 0 ? messages : [],
+  }
+  return JSON.stringify(data, null, 2)
+}
+
 export function exportToMarkdown(session: Session, messages: string[]): string {
   const timestamp = new Date().toLocaleString()
 
@@ -112,7 +133,7 @@ function escapeHtml(text: string): string {
 // 统一的导出处理函数
 export async function handleExportSession(
   session: Session,
-  format: 'md' | 'html'
+  format: 'md' | 'html' | 'json'
 ): Promise<void> {
   // 获取默认导出路径
   const config = useSettingsStore.getState().config
@@ -126,13 +147,19 @@ export async function handleExportSession(
   ]
 
   const safeTitle = session.title.replace(/[\\/:*?"<>|]/g, '_')
-  const filename = format === 'md' ? `${safeTitle}.md` : `${safeTitle}.html`
+  const ext = format === 'md' ? 'md' : format === 'html' ? 'html' : 'json'
+  const filename = `${safeTitle}.${ext}`
 
   try {
     // 弹出保存对话框
-    const filters = format === 'md'
-      ? [['Markdown 文件', ['md']]]
-      : [['HTML 文件', ['html']]]
+    const filters: Array<[string, string[]]> = []
+    if (format === 'md') {
+      filters.push(['Markdown 文件', ['md']])
+    } else if (format === 'html') {
+      filters.push(['HTML 文件', ['html']])
+    } else {
+      filters.push(['JSON 文件', ['json']])
+    }
 
     const savePath = await invoke<string | null>('save_file_dialog', {
       defaultPath: defaultPath ? `${defaultPath}\\${filename}` : filename,
@@ -145,9 +172,14 @@ export async function handleExportSession(
     }
 
     // 生成内容
-    const content = format === 'md'
-      ? exportToMarkdown(session, messages)
-      : exportToHTML(session, messages)
+    let content: string
+    if (format === 'md') {
+      content = exportToMarkdown(session, messages)
+    } else if (format === 'html') {
+      content = exportToHTML(session, messages)
+    } else {
+      content = exportToJSON(session, messages)
+    }
 
     // 保存文件
     await invoke('write_text_file', { path: savePath, content })

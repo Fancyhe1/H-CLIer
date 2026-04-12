@@ -90,6 +90,17 @@ fn was_running_claude(
 }
 
 #[tauri::command]
+fn write_terminal_history(
+    state: tauri::State<AppState>,
+    session_id: String,
+    content: String,
+) -> Result<(), String> {
+    let manager = state.pty_manager.lock().map_err(|e| e.to_string())?;
+    manager.write_history(&session_id, &content)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn write_to_pty(
     state: tauri::State<AppState>,
     pty_id: String,
@@ -312,6 +323,7 @@ pub fn run() {
             create_pty,
             read_terminal_history,
             was_running_claude,
+            write_terminal_history,
             write_to_pty,
             resize_pty,
             close_pty,

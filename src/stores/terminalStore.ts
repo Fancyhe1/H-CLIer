@@ -138,53 +138,52 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
 
       // 根据会话类型决定启动什么命令
       if (projectPath) {
-        // 从会话存储获取会话类型
+        // 从会话存储获取会话类型和Claude会话ID
         const { useSessionStore } = await import('./sessionStore')
         const sessions = useSessionStore.getState().sessions
         const session = sessions.find(s => s.id === sessionId)
         const sessionType = session?.sessionType || 'claude'
+        let cliSessionId = session?.cliSessionId
 
+        // 启动 PowerShell
+        await invoke('spawn_command_in_pty', {
+          ptyId,
+          command: 'powershell.exe',
+          args: [],
+          cwd: projectPath,
+        })
+
+        // 如果是 Claude 会话，自动执行启动命令
         if (sessionType === 'claude') {
-          // Claude 会话：自动启动/恢复 Claude
-          const hasClaude = await invoke<boolean>('check_claude_installation')
+          // 如果没有 cliSessionId，生成一个并保存
+          if (!cliSessionId) {
+            cliSessionId = sessionId  // 使用应用的 sessionId 作为 Claude 的 resume id
+            // 保存到数据库
+            if (session) {
+              await useSessionStore.getState().updateSession({
+                ...session,
+                cliSessionId: cliSessionId,
+              })
+            }
+          }
+
+          // 等待终端准备好
+          await new Promise(resolve => setTimeout(resolve, 300))
+
+          // 构建启动命令
+          const isWindows = navigator.platform.toLowerCase().includes('win')
+          const claudeCmd = config.claude.cli_path || (isWindows ? 'claude.cmd' : 'claude')
           const claudeArgs = config.claude.default_args || []
 
-          if (hasClaude) {
-            const isWindows = navigator.platform.toLowerCase().includes('win')
-            let claudeCmd = config.claude.cli_path || (isWindows ? 'claude.cmd' : 'claude')
-
-            // 检测是否需要恢复
-            const wasRunningClaude = await invoke<boolean>('was_running_claude', { sessionId })
-            let args: string[] = []
-            if (wasRunningClaude) {
-              args = ['--resume', ...claudeArgs]
-            } else {
-              args = [...claudeArgs]
-            }
-
-            await invoke('spawn_command_in_pty', {
-              ptyId,
-              command: claudeCmd,
-              args: args,
-              cwd: projectPath,
-            })
+          let cmd: string
+          if (claudeArgs.length > 0) {
+            cmd = `${claudeCmd} --resume ${cliSessionId} ${claudeArgs.join(' ')}`
           } else {
-            // Claude 未安装，启动 PowerShell
-            await invoke('spawn_command_in_pty', {
-              ptyId,
-              command: 'powershell.exe',
-              args: [],
-              cwd: projectPath,
-            })
+            cmd = `${claudeCmd} --resume ${cliSessionId}`
           }
-        } else {
-          // 普通终端会话：只启动 PowerShell
-          await invoke('spawn_command_in_pty', {
-            ptyId,
-            command: 'powershell.exe',
-            args: [],
-            cwd: projectPath,
-          })
+
+          // 自动执行命令
+          await invoke('write_to_pty', { ptyId, data: cmd + '\r' })
         }
       }
 

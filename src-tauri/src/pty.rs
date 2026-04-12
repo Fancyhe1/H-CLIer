@@ -49,6 +49,19 @@ impl PtyManager {
         }
     }
 
+    /// 写入历史日志内容（用于克隆会话）
+    pub fn write_history(&self, session_id: &str, content: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let log_path = self.get_log_path(session_id);
+        let mut file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&log_path)?;
+        file.write_all(content.as_bytes())?;
+        file.flush()?;
+        Ok(())
+    }
+
     /// 检测会话是否在运行 Claude（通过分析日志）
     pub fn was_running_claude(&self, session_id: &str) -> Result<bool, Box<dyn std::error::Error>> {
         let history = self.read_history(session_id)?;

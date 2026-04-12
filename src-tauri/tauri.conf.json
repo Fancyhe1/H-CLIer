@@ -21,7 +21,8 @@
         "center": true,
         "decorations": true,
         "transparent": false,
-        "theme": "Dark"
+        "theme": "Dark",
+        "devtools": true
       }
     ],
     "security": {
