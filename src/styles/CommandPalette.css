@@ -111,6 +111,25 @@
   border-color: #ffd591;
 }
 
+/* 暗色主题下的标签样式 */
+.dark .command-type-session {
+  background: #1a3a5c;
+  color: #69b1ff;
+  border-color: #165d96;
+}
+
+.dark .command-type-snippet {
+  background: #1b3a1b;
+  color: #95de64;
+  border-color: #237b1a;
+}
+
+.dark .command-type-action {
+  background: #3b2d1a;
+  color: #ffc069;
+  border-color: #8a5a0a;
+}
+
 .command-shortcut {
   padding: 2px 6px;
   background: #f5f5f5;
@@ -169,6 +188,14 @@
 
 .dark .command-item-icon {
   color: #999;
+}
+
+.dark .command-item-title {
+  color: #e6e6e6;
+}
+
+.dark .command-item-desc {
+  color: #888 !important;
 }
 
 .dark .command-footer {
