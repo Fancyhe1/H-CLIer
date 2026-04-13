@@ -741,6 +741,10 @@ function Sidebar(_props: SidebarProps) {
     if (session) {
       useSessionStore.getState().updateSession({ ...session, cliSessionId: undefined })
     }
+    // 如果关闭的是当前激活的会话，清除激活状态
+    if (activeSessionId === sessionId) {
+      setActiveSession(null)
+    }
   }
 
   // 删除会话
