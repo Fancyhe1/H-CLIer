@@ -72,3 +72,54 @@
 .dark .app-content {
   background: #141414;
 }
+
+/* 启动画面 */
+.app-splash {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+}
+
+.app-splash.dark {
+  background: #141414;
+}
+
+.splash-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.splash-logo {
+  font-size: 64px;
+  animation: float 2s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.splash-title {
+  font-size: 28px;
+  font-weight: bold;
+  color: #333;
+}
+
+.app-splash.dark .splash-title {
+  color: #fff;
+}
+
+.splash-subtitle {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.app-splash.dark .splash-subtitle {
+  color: #888;
+}

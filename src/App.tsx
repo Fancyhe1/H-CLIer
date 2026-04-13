@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Layout, theme, Button, Space, ConfigProvider } from 'antd'
+import { Layout, theme, Button, Space, ConfigProvider, Spin } from 'antd'
 import {
   SettingOutlined,
   MoonOutlined,
@@ -8,6 +8,7 @@ import {
   ThunderboltOutlined,
   PushpinOutlined,
   DesktopOutlined,
+  LoadingOutlined,
 } from '@ant-design/icons'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import Sidebar from './components/Sidebar'
@@ -35,6 +36,7 @@ function App() {
   const [commandPaletteVisible, setCommandPaletteVisible] = useState(false)
   const [activePanel, setActivePanel] = useState<PanelType>('terminal')
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
 
   const { loadConfig, setCurrentTheme } = useSettingsStore()
 
@@ -48,6 +50,10 @@ function App() {
       if (savedConfig?.general?.theme) {
         setThemeMode(savedConfig.general.theme as ThemeMode)
       }
+      // 加载完成后延迟一点显示主界面，避免闪烁
+      setTimeout(() => setIsLoading(false), 100)
+    }).catch(() => {
+      setIsLoading(false)
     })
   }, [loadConfig])
 
@@ -148,6 +154,20 @@ function App() {
       default:
         return <MultiTerminal />
     }
+  }
+
+  // 启动画面
+  if (isLoading) {
+    return (
+      <div className={`app-splash ${currentTheme}`}>
+        <div className="splash-content">
+          <div className="splash-logo">🚀</div>
+          <div className="splash-title">智码 AICoder</div>
+          <div className="splash-subtitle">AI 驱动的智能编程助手</div>
+          <Spin indicator={<LoadingOutlined style={{ fontSize: 24, color: currentTheme === 'dark' ? '#69b1ff' : '#1677ff' }} spin />} />
+        </div>
+      </div>
+    )
   }
 
   return (
