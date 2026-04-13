@@ -274,7 +274,8 @@ function MultiTerminal() {
   }
 
   return (
-    <div ref={containerRef} className="terminal-panel" style={{ position: 'relative' }}>
+    <div className="terminal-panel" style={{ position: 'relative' }}>
+      <div ref={containerRef} className="terminals-container" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
       {!activeSessionId && (
         <div className="terminal-empty-state">
           <div className="terminal-empty-icon">🚀</div>
