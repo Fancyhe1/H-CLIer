@@ -21,6 +21,8 @@ function MultiTerminal() {
   const terminalsRef = useRef<Map<string, TerminalInstance>>(new Map())
   // 用于记录创建终端时的配置，避免配置变化时重新创建
   const createdSessionIdsRef = useRef<Set<string>>(new Set())
+  // 记录上一次的会话 cliSessionId 状态
+  const prevSessionsStateRef = useRef<Map<string, string | undefined>>(new Map())
 
   const { sessions, activeSessionId } = useSessionStore()
   const { config } = useSettingsStore()
@@ -44,6 +46,40 @@ function MultiTerminal() {
       terminalsRef.current.delete(sessionId)
     }
   }
+
+  // 监听会话关闭状态变化，销毁已关闭会话的终端
+  useEffect(() => {
+    const prevStates = prevSessionsStateRef.current
+    const currentStates = new Map<string, string | undefined>()
+
+    sessions.forEach(session => {
+      currentStates.set(session.id, session.cliSessionId)
+
+      // 检测 cliSessionId 从有到无（会话被关闭）
+      const prevCliSessionId = prevStates.get(session.id)
+      if (prevCliSessionId && !session.cliSessionId) {
+        // 会话被关闭，销毁终端
+        disposeTerminal(session.id)
+        createdSessionIdsRef.current.delete(session.id)
+      }
+    })
+
+    prevSessionsStateRef.current = currentStates
+  }, [sessions])
+
+  // 当 activeSessionId 变为 null 时，确保没有终端显示
+  useEffect(() => {
+    if (!activeSessionId) {
+      // 隐藏所有终端
+      if (containerRef.current) {
+        const children = containerRef.current.children
+        for (let i = 0; i < children.length; i++) {
+          const child = children[i] as HTMLElement
+          child.style.display = 'none'
+        }
+      }
+    }
+  }, [activeSessionId])
 
   // 创建终端
   useEffect(() => {
