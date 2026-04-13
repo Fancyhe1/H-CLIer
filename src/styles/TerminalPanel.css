@@ -5,6 +5,15 @@
   position: relative;
 }
 
+/* 浅色主题 */
+.light .terminal-panel {
+  background: #ffffff;
+}
+
+.dark .terminal-panel {
+  background: #1e1e1e;
+}
+
 .terminals-container {
   width: 100%;
   height: 100%;
@@ -32,8 +41,12 @@
   color: #666;
   font-size: 14px;
   z-index: 100;
-  background: #1e1e1e;
+  background: #ffffff;
   pointer-events: auto;
+}
+
+.dark .terminal-empty-state {
+  background: #1e1e1e;
 }
 
 .terminal-empty-icon {
@@ -46,12 +59,20 @@
   font-weight: bold;
   font-size: 18px;
   margin-bottom: 12px;
-  color: #fff;
+  color: #333;
 }
 
 .terminal-empty-desc {
-  color: #888;
+  color: #666;
   margin-bottom: 24px;
+}
+
+.dark .terminal-empty-title {
+  color: #fff;
+}
+
+.dark .terminal-empty-desc {
+  color: #888;
 }
 
 .terminal-empty-hint {
@@ -107,10 +128,18 @@
 }
 
 .xterm-screen {
+  background: #ffffff !important;
+}
+
+.dark .xterm-screen {
   background: #1e1e1e !important;
 }
 
 .xterm-viewport {
+  background: #ffffff !important;
+}
+
+.dark .xterm-viewport {
   background: #1e1e1e !important;
 }
 
