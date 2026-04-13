@@ -13,6 +13,7 @@ interface TerminalInstance {
   fitAddon: FitAddon
   ptyId: string
   unlisten: () => void
+  sessionId: string
 }
 
 function MultiTerminal() {
@@ -22,18 +23,46 @@ function MultiTerminal() {
   const { sessions, activeSessionId } = useSessionStore()
   const { config } = useSettingsStore()
 
+  // 销毁指定会话的终端
+  const disposeTerminal = async (sessionId: string) => {
+    const instance = terminalsRef.current.get(sessionId)
+    if (instance) {
+      instance.unlisten()
+      if (instance.ptyId) {
+        await invoke('close_pty', { ptyId: instance.ptyId }).catch(console.error)
+      }
+      instance.term.dispose()
+
+      // 移除 DOM 元素
+      const terminalDiv = document.getElementById(`terminal-${sessionId}`)
+      if (terminalDiv && terminalDiv.parentNode) {
+        terminalDiv.parentNode.removeChild(terminalDiv)
+      }
+
+      terminalsRef.current.delete(sessionId)
+    }
+  }
+
   // 创建终端
   useEffect(() => {
     if (!activeSessionId || !containerRef.current) return
 
-    // 已存在则切换
-    if (terminalsRef.current.has(activeSessionId)) {
-      showTerminal(activeSessionId)
-      return
-    }
-
     const session = sessions.find(s => s.id === activeSessionId)
     if (!session) return
+
+    // 如果已有终端但会话已关闭（cliSessionId 被清除），销毁旧终端重新创建
+    const existingInstance = terminalsRef.current.get(activeSessionId)
+    if (existingInstance) {
+      // 检查会话是否已关闭
+      if (session.sessionType === 'claude' && !session.cliSessionId) {
+        // 销毁旧终端
+        disposeTerminal(activeSessionId)
+      } else {
+        // 会话仍然活跃，只切换显示
+        showTerminal(activeSessionId)
+        return
+      }
+    }
 
     // 创建终端容器
     const terminalDiv = document.createElement('div')
@@ -61,7 +90,7 @@ function MultiTerminal() {
     fitAddon.fit()
 
     // 创建终端实例（先保存，后续填充ptyId和unlisten）
-    terminalsRef.current.set(activeSessionId, { term, fitAddon, ptyId: '', unlisten: () => {} })
+    terminalsRef.current.set(activeSessionId, { term, fitAddon, ptyId: '', unlisten: () => {}, sessionId: activeSessionId })
 
     // 异步初始化PTY
     ;(async () => {
@@ -139,6 +168,15 @@ function MultiTerminal() {
     })()
 
   }, [activeSessionId, sessions, config])
+
+  // 当字体大小配置变化时，更新所有已存在终端的字体大小
+  useEffect(() => {
+    const fontSize = config?.general?.terminal_font_size || 14
+    terminalsRef.current.forEach((instance) => {
+      instance.term.options.fontSize = fontSize
+      instance.fitAddon.fit()
+    })
+  }, [config?.general?.terminal_font_size])
 
   // 显示指定终端，隐藏其他
   const showTerminal = (sessionId: string) => {
