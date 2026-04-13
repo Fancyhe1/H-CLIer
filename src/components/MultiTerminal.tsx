@@ -4,6 +4,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useSessionStore } from '../stores/sessionStore'
+import { useSettingsStore } from '../stores/settingsStore'
 import '@xterm/xterm/css/xterm.css'
 import '../styles/TerminalPanel.css'
 
@@ -19,6 +20,7 @@ function MultiTerminal() {
   const terminalsRef = useRef<Map<string, TerminalInstance>>(new Map())
 
   const { sessions, activeSessionId } = useSessionStore()
+  const { config } = useSettingsStore()
 
   // 创建终端
   useEffect(() => {
@@ -39,10 +41,13 @@ function MultiTerminal() {
     terminalDiv.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;width:100%;height:100%;'
     containerRef.current.appendChild(terminalDiv)
 
+    // 从配置获取字体大小
+    const fontSize = config?.general?.terminal_font_size || 14
+
     // 初始化 xterm
     const term = new Terminal({
       cursorBlink: true,
-      fontSize: 14,
+      fontSize: fontSize,
       fontFamily: 'Menlo, Monaco, "Courier New", monospace',
       theme: { background: '#1e1e1e', foreground: '#d4d4d4' },
       rows: 30,
@@ -107,10 +112,21 @@ function MultiTerminal() {
           // 等待 PowerShell 启动
           await new Promise(r => setTimeout(r, 500))
 
+          // 从配置获取 Claude 路径和参数
+          const claudeCmd = config?.claude?.cli_path || 'claude'
+          const claudeArgs = config?.claude?.default_args || []
+
           // 新会话用 --session-id，重开用 --resume
-          const cmd = isNewSession
-            ? `claude --session-id "${cliSessionId}"\r`
-            : `claude --resume "${cliSessionId}"\r`
+          let cmd: string
+          if (isNewSession) {
+            cmd = claudeArgs.length > 0
+              ? `${claudeCmd} --session-id "${cliSessionId}" ${claudeArgs.join(' ')}\r`
+              : `${claudeCmd} --session-id "${cliSessionId}"\r`
+          } else {
+            cmd = claudeArgs.length > 0
+              ? `${claudeCmd} --resume "${cliSessionId}" ${claudeArgs.join(' ')}\r`
+              : `${claudeCmd} --resume "${cliSessionId}"\r`
+          }
 
           await invoke('write_to_pty', { ptyId, data: cmd })
         }
@@ -122,7 +138,7 @@ function MultiTerminal() {
       }
     })()
 
-  }, [activeSessionId, sessions])
+  }, [activeSessionId, sessions, config])
 
   // 显示指定终端，隐藏其他
   const showTerminal = (sessionId: string) => {

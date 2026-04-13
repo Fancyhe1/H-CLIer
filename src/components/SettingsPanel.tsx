@@ -53,7 +53,6 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
     isLoading,
     claudeInstalled,
     claudeVersion,
-    loadConfig,
     checkClaudeInstallation,
     getClaudeVersion,
     updateClaudeConfig,
@@ -64,7 +63,7 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
   // 加载配置
   useEffect(() => {
     if (visible) {
-      loadConfig()
+      // 配置已在 App 启动时加载，这里只检查 Claude 安装状态
       checkClaudeInstallation()
       getClaudeVersion()
     }
@@ -201,9 +200,10 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
             form={generalForm}
             layout="vertical"
             onFinish={handleSaveGeneralConfig}
+            initialValues={{ theme }}
           >
             <Title level={5}>外观</Title>
-            <Form.Item label="主题" name="theme" initialValue={theme}>
+            <Form.Item label="主题" name="theme">
               <Select
                 onChange={onThemeChange}
                 options={[

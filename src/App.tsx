@@ -16,6 +16,7 @@ import MultiTerminal from './components/MultiTerminal'
 import SettingsPanel from './components/SettingsPanel'
 import TokenStatsPanel from './components/TokenStatsPanel'
 import CommandPalette from './components/CommandPalette'
+import { useSettingsStore } from './stores/settingsStore'
 import './styles/App.css'
 
 const { Content, Sider } = Layout
@@ -35,7 +36,14 @@ function App() {
   const [activePanel, setActivePanel] = useState<PanelType>('terminal')
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(false)
 
+  const { loadConfig } = useSettingsStore()
+
   const antTheme = currentTheme === 'dark' ? theme.darkAlgorithm : theme.defaultAlgorithm
+
+  // 应用启动时加载配置
+  useEffect(() => {
+    loadConfig()
+  }, [loadConfig])
 
   // 根据主题模式获取实际主题
   const resolveTheme = (mode: ThemeMode): 'light' | 'dark' => {
