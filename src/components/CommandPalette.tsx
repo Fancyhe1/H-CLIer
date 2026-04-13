@@ -245,7 +245,7 @@ function CommandPalette({
         </div>
 
         <div className="command-footer">
-          <Text type="secondary" style={{ fontSize: 12 }}>
+          <Text type="secondary" style={{ fontSize: 12 }} className="command-footer-text">
             <kbd>↑</kbd> <kbd>↓</kbd> 选择 <kbd>Enter</kbd> 执行
           </Text>
         </div>

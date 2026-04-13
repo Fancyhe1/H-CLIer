@@ -202,9 +202,17 @@
   border-color: #303030;
 }
 
+.dark .command-footer {
+  background: #1f1f1f;
+}
+
+.dark .command-footer-text {
+  color: #888 !important;
+}
+
 .dark .command-footer kbd,
 .dark .command-shortcut {
-  background: #303030;
-  border-color: #434343;
-  color: #d9d9d9;
+  background: #303030 !important;
+  border-color: #434343 !important;
+  color: #d9d9d9 !important;
 }
