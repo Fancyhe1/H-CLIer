@@ -19,6 +19,8 @@ interface TerminalInstance {
 function MultiTerminal() {
   const containerRef = useRef<HTMLDivElement>(null)
   const terminalsRef = useRef<Map<string, TerminalInstance>>(new Map())
+  // 用于记录创建终端时的配置，避免配置变化时重新创建
+  const createdSessionIdsRef = useRef<Set<string>>(new Set())
 
   const { sessions, activeSessionId } = useSessionStore()
   const { config } = useSettingsStore()
@@ -57,6 +59,7 @@ function MultiTerminal() {
       if (session.sessionType === 'claude' && !session.cliSessionId) {
         // 销毁旧终端
         disposeTerminal(activeSessionId)
+        createdSessionIdsRef.current.delete(activeSessionId)
       } else {
         // 会话仍然活跃，只切换显示
         showTerminal(activeSessionId)
@@ -64,14 +67,24 @@ function MultiTerminal() {
       }
     }
 
+    // 如果已经创建过且终端存在，不再重复创建
+    if (createdSessionIdsRef.current.has(activeSessionId) && terminalsRef.current.has(activeSessionId)) {
+      showTerminal(activeSessionId)
+      return
+    }
+
+    // 标记为已创建
+    createdSessionIdsRef.current.add(activeSessionId)
+
+    // 从 store 获取当前配置（只在创建时读取一次）
+    const currentConfig = useSettingsStore.getState().config
+    const fontSize = currentConfig?.general?.terminal_font_size || 14
+
     // 创建终端容器
     const terminalDiv = document.createElement('div')
     terminalDiv.id = `terminal-${activeSessionId}`
     terminalDiv.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;width:100%;height:100%;'
     containerRef.current.appendChild(terminalDiv)
-
-    // 从配置获取字体大小
-    const fontSize = config?.general?.terminal_font_size || 14
 
     // 初始化 xterm
     const term = new Terminal({
@@ -141,9 +154,9 @@ function MultiTerminal() {
           // 等待 PowerShell 启动
           await new Promise(r => setTimeout(r, 500))
 
-          // 从配置获取 Claude 路径和参数
-          const claudeCmd = config?.claude?.cli_path || 'claude'
-          const claudeArgs = config?.claude?.default_args || []
+          // 从当前配置获取 Claude 路径和参数
+          const claudeCmd = currentConfig?.claude?.cli_path || 'claude'
+          const claudeArgs = currentConfig?.claude?.default_args || []
 
           // 新会话用 --session-id，重开用 --resume
           let cmd: string
@@ -167,7 +180,7 @@ function MultiTerminal() {
       }
     })()
 
-  }, [activeSessionId, sessions, config])
+  }, [activeSessionId, sessions]) // 移除 config 依赖
 
   // 当字体大小配置变化时，更新所有已存在终端的字体大小
   useEffect(() => {

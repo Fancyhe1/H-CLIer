@@ -45,6 +45,13 @@ function App() {
     loadConfig()
   }, [loadConfig])
 
+  // 启动时检测 Claude 安装状态（异步，不阻塞 UI）
+  useEffect(() => {
+    const { checkClaudeInstallation, getClaudeVersion } = useSettingsStore.getState()
+    checkClaudeInstallation()
+    getClaudeVersion()
+  }, [])
+
   // 根据主题模式获取实际主题
   const resolveTheme = (mode: ThemeMode): 'light' | 'dark' => {
     if (mode === 'system') {

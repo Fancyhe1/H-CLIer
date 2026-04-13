@@ -60,14 +60,7 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
     setDefaultExportPath,
   } = useSettingsStore()
 
-  // 加载配置
-  useEffect(() => {
-    if (visible) {
-      // 配置已在 App 启动时加载，这里只检查 Claude 安装状态
-      checkClaudeInstallation()
-      getClaudeVersion()
-    }
-  }, [visible])
+  // 配置已在 App 启动时加载和检测，这里不需要再做
 
   // 同步表单数据
   useEffect(() => {
