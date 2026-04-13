@@ -36,12 +36,11 @@ function App() {
   const [currentTheme, setCurrentThemeLocal] = useState<'light' | 'dark'>('dark')
   const [settingsVisible, setSettingsVisible] = useState(false)
   const [commandPaletteVisible, setCommandPaletteVisible] = useState(false)
-  const [checkpointVisible, setCheckpointVisible] = useState(false)
   const [activePanel, setActivePanel] = useState<PanelType>('terminal')
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
-  const { loadConfig, setCurrentTheme } = useSettingsStore()
+  const { loadConfig, setCurrentTheme, checkpointVisible, setCheckpointVisible } = useSettingsStore()
 
   const antTheme = currentTheme === 'dark' ? theme.darkAlgorithm : theme.defaultAlgorithm
 

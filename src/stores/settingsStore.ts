@@ -53,6 +53,7 @@ interface SettingsState {
   claudeInstalled: boolean | null
   claudeVersion: string | null
   currentTheme: 'light' | 'dark'  // 当前生效的主题
+  checkpointVisible: boolean  // 检查点弹窗是否显示
 
   // Actions
   loadConfig: () => Promise<void>
@@ -66,6 +67,7 @@ interface SettingsState {
   setAutoStartClaude: (auto: boolean) => void
   setDefaultExportPath: (path: string | null) => void
   setCurrentTheme: (theme: 'light' | 'dark') => void
+  setCheckpointVisible: (visible: boolean) => void
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -74,6 +76,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   claudeInstalled: null,
   claudeVersion: null,
   currentTheme: 'dark',
+  checkpointVisible: false,
 
   // 加载配置
   loadConfig: async () => {
@@ -182,5 +185,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   // 设置当前生效的主题
   setCurrentTheme: (theme: 'light' | 'dark') => {
     set({ currentTheme: theme })
+  },
+
+  // 设置检查点弹窗可见性
+  setCheckpointVisible: (visible: boolean) => {
+    set({ checkpointVisible: visible })
   },
 }))

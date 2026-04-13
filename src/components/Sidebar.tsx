@@ -40,6 +40,7 @@ import type { MenuProps } from 'antd'
 import { invoke } from '@tauri-apps/api/core'
 import ReactMarkdown from 'react-markdown'
 import { useSessionStore } from '../stores/sessionStore'
+import { useSettingsStore } from '../stores/settingsStore'
 import CreateSessionModal from './CreateSessionModal'
 import { handleExportSession } from '../utils/export'
 import type { SessionType } from '../types/session'
@@ -653,7 +654,9 @@ function Sidebar(_props: SidebarProps) {
       key: 'checkpoint',
       icon: <CheckCircleOutlined />,
       label: '检查点管理',
-      onClick: () => message.info('检查点管理功能开发中'),
+      onClick: () => {
+        useSettingsStore.getState().setCheckpointVisible(true)
+      },
     },
     { type: 'divider', key: 'd3' },
 
