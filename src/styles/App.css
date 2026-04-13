@@ -7,6 +7,10 @@
   background: #141414;
 }
 
+.app-layout.light {
+  background: #ffffff;
+}
+
 .app-sidebar {
   display: flex;
   flex-direction: column;

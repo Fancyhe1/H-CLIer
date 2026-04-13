@@ -524,3 +524,112 @@
   padding: 40px 20px;
   color: #999;
 }
+
+/* 浅色主题样式 */
+.light .sidebar {
+  background: #ffffff;
+}
+
+.light .sidebar-header,
+.light .sidebar-tabs,
+.light .sidebar-actions {
+  border-color: #f0f0f0;
+}
+
+.light .sidebar-tabs {
+  background: #fafafa;
+}
+
+.light .sidebar-tab {
+  color: #666;
+}
+
+.light .sidebar-tab:hover {
+  color: #1677ff;
+  background: #e6f4ff;
+}
+
+.light .sidebar-tab.active {
+  color: #1677ff;
+  background: #e6f7ff;
+}
+
+.light .sidebar-tab .tab-count {
+  background: #f0f0f0;
+  color: #666;
+}
+
+.light .sidebar-tab.active .tab-count {
+  background: #1677ff;
+  color: #fff;
+}
+
+.light .group-title {
+  color: #666;
+}
+
+.light .group-count {
+  background: #f0f0f0;
+  color: #999;
+}
+
+.light .session-item {
+  background: transparent;
+}
+
+.light .session-item:hover {
+  background: #f5f5f5;
+}
+
+.light .session-item.active {
+  background: #e6f7ff;
+}
+
+.light .session-title {
+  color: #333;
+}
+
+.light .session-time {
+  color: #999;
+}
+
+.light .action-btn {
+  color: #666;
+}
+
+.light .action-btn:hover {
+  color: #1677ff;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.light .action-btn.close-btn:hover {
+  color: #ff4d4f;
+  background: rgba(255, 77, 79, 0.1);
+}
+
+.light .action-btn.delete-btn:hover {
+  background: rgba(255, 77, 79, 0.1);
+}
+
+.light .session-context-menu .ant-dropdown-menu {
+  background: #fff;
+  border: 1px solid #f0f0f0;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+
+.light .session-context-menu .ant-dropdown-menu-item {
+  color: #333;
+}
+
+.light .session-context-menu .ant-dropdown-menu-item:hover {
+  background: #f5f5f5;
+}
+
+.light .session-context-menu .menu-group-label {
+  color: #999;
+}
+
+.light .history-message.assistant .history-message-content {
+  background: #f5f5f5;
+  color: #333;
+}
