@@ -565,12 +565,12 @@
 }
 
 .light .group-title {
-  color: #666;
+  color: #333;
 }
 
 .light .group-count {
-  background: #f0f0f0;
-  color: #999;
+  background: #e8e8e8;
+  color: #666;
 }
 
 .light .session-item {
@@ -590,11 +590,11 @@
 }
 
 .light .session-time {
-  color: #999;
+  color: #888;
 }
 
 .light .action-btn {
-  color: #666;
+  color: #555;
 }
 
 .light .action-btn:hover {

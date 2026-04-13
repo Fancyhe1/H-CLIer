@@ -42,7 +42,13 @@ function App() {
 
   // 应用启动时加载配置
   useEffect(() => {
-    loadConfig()
+    loadConfig().then(() => {
+      // 从配置读取主题设置
+      const savedConfig = useSettingsStore.getState().config
+      if (savedConfig?.general?.theme) {
+        setThemeMode(savedConfig.general.theme as ThemeMode)
+      }
+    })
   }, [loadConfig])
 
   // 启动时检测 Claude 安装状态（异步，不阻塞 UI）
@@ -114,6 +120,9 @@ function App() {
   const cycleTheme = () => {
     const nextMode: ThemeMode = themeMode === 'light' ? 'dark' : themeMode === 'dark' ? 'system' : 'light'
     setThemeMode(nextMode)
+    // 保存到配置
+    const { config, updateGeneralConfig } = useSettingsStore.getState()
+    updateGeneralConfig({ ...config.general, theme: nextMode })
   }
 
   // 获取主题图标
@@ -214,6 +223,9 @@ function App() {
         theme={currentTheme}
         onThemeChange={(t) => {
           setThemeMode(t as ThemeMode)
+          // 保存到配置
+          const { config, updateGeneralConfig } = useSettingsStore.getState()
+          updateGeneralConfig({ ...config.general, theme: t as string })
         }}
       />
 

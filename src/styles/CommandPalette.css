@@ -216,3 +216,57 @@
   border-color: #434343 !important;
   color: #d9d9d9 !important;
 }
+
+/* 浅色主题样式 */
+.light .command-palette-modal .ant-modal-content {
+  background: #ffffff;
+}
+
+.light .command-input-wrapper {
+  border-color: #e8e8e8;
+}
+
+.light .command-search-icon {
+  color: #666;
+}
+
+.light .command-shortcut-hint {
+  color: #666;
+}
+
+.light .command-item {
+  border-color: #f0f0f0;
+}
+
+.light .command-item:hover,
+.light .command-item.selected {
+  background: #f5f5f5;
+}
+
+.light .command-item-icon {
+  color: #666;
+}
+
+.light .command-item-title {
+  color: #333;
+}
+
+.light .command-item-desc {
+  color: #666 !important;
+}
+
+.light .command-footer {
+  border-color: #e8e8e8;
+  background: #fafafa;
+}
+
+.light .command-footer-text {
+  color: #666 !important;
+}
+
+.light .command-footer kbd,
+.light .command-shortcut {
+  background: #e8e8e8 !important;
+  border-color: #d9d9d9 !important;
+  color: #333 !important;
+}
