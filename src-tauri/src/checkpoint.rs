@@ -245,23 +245,25 @@ impl CheckpointManager {
                     }
                 }
 
-                // 检查目标中是否有被删除的文件
+                // 检查目标中是否有检查点中不存在的文件（需要删除的）
                 if dst.exists() {
                     for entry in fs::read_dir(dst).map_err(|e| e.to_string())? {
                         let entry = entry.map_err(|e| e.to_string())?;
                         let dst_path = entry.path();
-                        let src_path = src.join(entry.file_name());
+                        let file_name = entry.file_name();
+                        let src_path = src.join(&file_name);
 
-                        if !src_path.exists() && entry.file_name().to_string_lossy() != "checkpoint.json" {
-                            // 文件在检查点中不存在，说明被删除了
-                            // 恢复这个文件
-                            if let Ok(content) = fs::read(&dst_path) {
-                                fs::write(&src_path, content).map_err(|e| e.to_string())?;
-                                diffs.push(CheckpointDiff {
-                                    path: entry.file_name().to_string_lossy().to_string(),
-                                    status: "restored".to_string(),
-                                });
+                        if !src_path.exists() && file_name.to_string_lossy() != "checkpoint.json" {
+                            // 文件在检查点中不存在，说明是多余的，需要删除
+                            if dst_path.is_dir() {
+                                fs::remove_dir_all(&dst_path).map_err(|e| e.to_string())?;
+                            } else {
+                                fs::remove_file(&dst_path).map_err(|e| e.to_string())?;
                             }
+                            diffs.push(CheckpointDiff {
+                                path: file_name.to_string_lossy().to_string(),
+                                status: "deleted".to_string(),
+                            });
                         }
                     }
                 }
