@@ -30,13 +30,13 @@ type ThemeMode = 'light' | 'dark' | 'system'
 function App() {
   const [collapsed] = useState(false)
   const [themeMode, setThemeMode] = useState<ThemeMode>('dark')
-  const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>('dark')
+  const [currentTheme, setCurrentThemeLocal] = useState<'light' | 'dark'>('dark')
   const [settingsVisible, setSettingsVisible] = useState(false)
   const [commandPaletteVisible, setCommandPaletteVisible] = useState(false)
   const [activePanel, setActivePanel] = useState<PanelType>('terminal')
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(false)
 
-  const { loadConfig } = useSettingsStore()
+  const { loadConfig, setCurrentTheme } = useSettingsStore()
 
   const antTheme = currentTheme === 'dark' ? theme.darkAlgorithm : theme.defaultAlgorithm
 
@@ -65,6 +65,7 @@ function App() {
     if (themeMode === 'system') {
       const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
       const handler = (e: MediaQueryListEvent) => {
+        setCurrentThemeLocal(e.matches ? 'dark' : 'light')
         setCurrentTheme(e.matches ? 'dark' : 'light')
       }
       mediaQuery.addEventListener('change', handler)
@@ -74,7 +75,9 @@ function App() {
 
   // 初始化主题
   useEffect(() => {
-    setCurrentTheme(resolveTheme(themeMode))
+    const resolved = resolveTheme(themeMode)
+    setCurrentThemeLocal(resolved)
+    setCurrentTheme(resolved)
   }, [themeMode])
 
   // 键盘快捷键监听

@@ -25,7 +25,7 @@ function MultiTerminal() {
   const prevSessionsStateRef = useRef<Map<string, string | undefined>>(new Map())
 
   const { sessions, activeSessionId } = useSessionStore()
-  const { config } = useSettingsStore()
+  const { config, currentTheme } = useSettingsStore()
 
   // 销毁指定会话的终端
   const disposeTerminal = async (sessionId: string) => {
@@ -123,12 +123,18 @@ function MultiTerminal() {
     terminalDiv.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;width:100%;height:100%;'
     containerRef.current.appendChild(terminalDiv)
 
-    // 初始化 xterm
+    // 初始化 xterm - 根据当前主题设置颜色
+    const themeState = useSettingsStore.getState()
+    const isDark = themeState.currentTheme === 'dark'
+    const termTheme = isDark
+      ? { background: '#1e1e1e', foreground: '#d4d4d4' }
+      : { background: '#ffffff', foreground: '#333333' }
+
     const term = new Terminal({
       cursorBlink: true,
       fontSize: fontSize,
       fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-      theme: { background: '#1e1e1e', foreground: '#d4d4d4' },
+      theme: termTheme,
       rows: 30,
       cols: 80,
       allowProposedApi: true,
@@ -227,6 +233,17 @@ function MultiTerminal() {
       instance.fitAddon.fit()
     })
   }, [config?.general?.terminal_font_size])
+
+  // 当主题变化时，更新所有已存在终端的颜色
+  useEffect(() => {
+    const isDark = currentTheme === 'dark'
+    const termTheme = isDark
+      ? { background: '#1e1e1e', foreground: '#d4d4d4' }
+      : { background: '#ffffff', foreground: '#333333' }
+    terminalsRef.current.forEach((instance) => {
+      instance.term.options.theme = termTheme
+    })
+  }, [currentTheme])
 
   // 显示指定终端，隐藏其他
   const showTerminal = (sessionId: string) => {

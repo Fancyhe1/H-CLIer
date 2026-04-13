@@ -52,6 +52,7 @@ interface SettingsState {
   isLoading: boolean
   claudeInstalled: boolean | null
   claudeVersion: string | null
+  currentTheme: 'light' | 'dark'  // 当前生效的主题
 
   // Actions
   loadConfig: () => Promise<void>
@@ -64,6 +65,7 @@ interface SettingsState {
   setTheme: (theme: string) => void
   setAutoStartClaude: (auto: boolean) => void
   setDefaultExportPath: (path: string | null) => void
+  setCurrentTheme: (theme: 'light' | 'dark') => void
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -71,6 +73,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   isLoading: false,
   claudeInstalled: null,
   claudeVersion: null,
+  currentTheme: 'dark',
 
   // 加载配置
   loadConfig: async () => {
@@ -174,5 +177,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setDefaultExportPath: (path: string | null) => {
     const { config, updateGeneralConfig } = get()
     updateGeneralConfig({ ...config.general, default_export_path: path })
+  },
+
+  // 设置当前生效的主题
+  setCurrentTheme: (theme: 'light' | 'dark') => {
+    set({ currentTheme: theme })
   },
 }))
