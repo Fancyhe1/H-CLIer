@@ -265,13 +265,28 @@ function MultiTerminal() {
     }
   }, [])
 
+  // 点击新建会话
+  const handleNewSession = () => {
+    const btn = document.querySelector(
+      '[data-testid="new-session-btn"]'
+    ) as HTMLButtonElement
+    btn?.click()
+  }
+
   return (
     <div ref={containerRef} className="terminal-panel" style={{ position: 'relative' }}>
       {!activeSessionId && (
         <div className="terminal-empty-state">
-          <div className="terminal-empty-icon">⌨️</div>
-          <div className="terminal-empty-title">欢迎使用 智码 AICoder</div>
-          <div className="terminal-empty-desc">请从左侧选择一个会话，或点击"新建会话"开始</div>
+          <div className="terminal-empty-icon">🚀</div>
+          <div className="terminal-empty-title">智码 AICoder</div>
+          <div className="terminal-empty-desc">AI 驱动的智能编程助手</div>
+          <div className="terminal-empty-hint" onClick={handleNewSession}>
+            <span className="terminal-empty-hint-icon">+</span>
+            <span className="terminal-empty-hint-text">新建会话</span>
+          </div>
+          <div className="terminal-empty-shortcut">
+            快捷键：<kbd>Ctrl</kbd> + <kbd>K</kbd>
+          </div>
         </div>
       )}
     </div>
