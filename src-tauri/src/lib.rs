@@ -2,10 +2,12 @@ mod session;
 mod pty;
 mod cli;
 mod config;
+mod checkpoint;
 
 use session::{Session, SessionManager};
 use pty::PtyManager;
 use config::{AppConfig, ConfigManager, ClaudeConfig, GeneralConfig};
+use checkpoint::{Checkpoint, CheckpointDiff, CheckpointManager};
 use std::sync::Mutex;
 use tauri::Manager;
 
@@ -13,6 +15,7 @@ pub struct AppState {
     session_manager: Mutex<SessionManager>,
     pty_manager: Mutex<PtyManager>,
     config_manager: Mutex<ConfigManager>,
+    checkpoint_manager: Mutex<CheckpointManager>,
 }
 
 // 会话管理命令
@@ -341,6 +344,60 @@ fn get_claude_version() -> Result<String, String> {
     cli::get_claude_version().map_err(|e| e.to_string())
 }
 
+// 检查点管理命令
+#[tauri::command]
+fn create_checkpoint(
+    state: tauri::State<AppState>,
+    session_id: String,
+    project_path: String,
+    name: String,
+    description: Option<String>,
+) -> Result<Checkpoint, String> {
+    let manager = state.checkpoint_manager.lock().map_err(|e| e.to_string())?;
+    manager.create_checkpoint(&session_id, &project_path, &name, description.as_deref())
+}
+
+#[tauri::command]
+fn list_checkpoints(
+    state: tauri::State<AppState>,
+    session_id: String,
+) -> Result<Vec<Checkpoint>, String> {
+    let manager = state.checkpoint_manager.lock().map_err(|e| e.to_string())?;
+    manager.list_checkpoints(&session_id)
+}
+
+#[tauri::command]
+fn restore_checkpoint(
+    state: tauri::State<AppState>,
+    session_id: String,
+    checkpoint_id: String,
+    project_path: String,
+) -> Result<CheckpointDiff, String> {
+    let manager = state.checkpoint_manager.lock().map_err(|e| e.to_string())?;
+    manager.restore_checkpoint(&session_id, &checkpoint_id, &project_path)
+}
+
+#[tauri::command]
+fn delete_checkpoint(
+    state: tauri::State<AppState>,
+    session_id: String,
+    checkpoint_id: String,
+) -> Result<(), String> {
+    let manager = state.checkpoint_manager.lock().map_err(|e| e.to_string())?;
+    manager.delete_checkpoint(&session_id, &checkpoint_id)
+}
+
+#[tauri::command]
+fn get_checkpoint_diff(
+    state: tauri::State<AppState>,
+    session_id: String,
+    checkpoint_id: String,
+    project_path: String,
+) -> Result<Vec<CheckpointDiff>, String> {
+    let manager = state.checkpoint_manager.lock().map_err(|e| e.to_string())?;
+    manager.get_checkpoint_diff(&session_id, &checkpoint_id, &project_path)
+}
+
 // 主函数
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -371,10 +428,14 @@ pub fn run() {
             let config_manager = ConfigManager::new(&config_dir)
                 .expect("Failed to create config manager");
 
+            // 初始化检查点管理器
+            let checkpoint_manager = CheckpointManager::new(&app_dir);
+
             app.manage(AppState {
                 session_manager: Mutex::new(session_manager),
                 pty_manager: Mutex::new(pty_manager),
                 config_manager: Mutex::new(config_manager),
+                checkpoint_manager: Mutex::new(checkpoint_manager),
             });
 
             Ok(())
@@ -413,6 +474,12 @@ pub fn run() {
             save_config,
             update_claude_config,
             update_general_config,
+            // 检查点管理
+            create_checkpoint,
+            list_checkpoints,
+            restore_checkpoint,
+            delete_checkpoint,
+            get_checkpoint_diff,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

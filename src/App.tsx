@@ -9,6 +9,7 @@ import {
   PushpinOutlined,
   DesktopOutlined,
   LoadingOutlined,
+  SaveOutlined,
 } from '@ant-design/icons'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import Sidebar from './components/Sidebar'
@@ -17,6 +18,7 @@ import MultiTerminal from './components/MultiTerminal'
 import SettingsPanel from './components/SettingsPanel'
 import TokenStatsPanel from './components/TokenStatsPanel'
 import CommandPalette from './components/CommandPalette'
+import CheckpointModal from './components/CheckpointModal'
 import { useSettingsStore } from './stores/settingsStore'
 import './styles/App.css'
 
@@ -34,6 +36,7 @@ function App() {
   const [currentTheme, setCurrentThemeLocal] = useState<'light' | 'dark'>('dark')
   const [settingsVisible, setSettingsVisible] = useState(false)
   const [commandPaletteVisible, setCommandPaletteVisible] = useState(false)
+  const [checkpointVisible, setCheckpointVisible] = useState(false)
   const [activePanel, setActivePanel] = useState<PanelType>('terminal')
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -210,6 +213,14 @@ function App() {
               >
                 Token统计
               </Button>
+              <Button
+                type="text"
+                icon={<SaveOutlined />}
+                onClick={() => setCheckpointVisible(true)}
+                title="检查点管理"
+              >
+                检查点
+              </Button>
               <div className="header-divider" />
               <Button
                 type={isAlwaysOnTop ? 'primary' : 'text'}
@@ -253,6 +264,12 @@ function App() {
         visible={commandPaletteVisible}
         onClose={() => setCommandPaletteVisible(false)}
         onOpenStats={() => setActivePanel('stats')}
+      />
+
+      <CheckpointModal
+        visible={checkpointVisible}
+        onClose={() => setCheckpointVisible(false)}
+        theme={currentTheme}
       />
     </ConfigProvider>
   )

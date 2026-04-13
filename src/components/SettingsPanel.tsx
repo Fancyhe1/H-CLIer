@@ -71,7 +71,6 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
       })
       generalForm.setFieldsValue({
         terminal_font_size: config.general.terminal_font_size,
-        auto_start_claude: config.general.auto_start_claude,
         default_export_path: config.general.default_export_path || '',
       })
       apiForm.setFieldsValue({
@@ -105,7 +104,6 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
       const newConfig = {
         ...config.general,
         terminal_font_size: values.terminal_font_size,
-        auto_start_claude: values.auto_start_claude,
         default_export_path: values.default_export_path || null,
       }
       await updateGeneralConfig(newConfig)
@@ -256,22 +254,6 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
               >
                 清除所有数据
               </Button>
-            </Form.Item>
-
-            <Divider />
-
-            <Title level={5}>Claude Code</Title>
-            <Form.Item
-              name="auto_start_claude"
-              valuePropName="checked"
-            >
-              <Switch
-                checkedChildren="开启"
-                unCheckedChildren="关闭"
-              />
-              <Text type="secondary" style={{ marginLeft: 8 }}>
-                会话启动时自动运行 Claude Code
-              </Text>
             </Form.Item>
 
             <Form.Item>
