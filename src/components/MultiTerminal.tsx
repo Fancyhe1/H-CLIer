@@ -52,16 +52,15 @@ function MultiTerminal() {
     const session = sessions.find(s => s.id === activeSessionId)
     if (!session) return
 
-    // 如果已有终端但会话已关闭（cliSessionId 被清除），销毁旧终端
+    // 如果已有终端实例
     const existingInstance = terminalsRef.current.get(activeSessionId)
     if (existingInstance) {
-      // 检查会话是否已关闭
+      // 检查会话是否已关闭（cliSessionId 被清除）
       if (session.sessionType === 'claude' && !session.cliSessionId) {
-        // 销毁旧终端
+        // 销毁旧终端，准备创建新终端（重新启动会话）
         disposeTerminal(activeSessionId)
         createdSessionIdsRef.current.delete(activeSessionId)
-        // 会话已关闭，不创建新终端，直接返回
-        return
+        // 继续往下执行，创建新终端
       } else {
         // 会话仍然活跃，只切换显示
         showTerminal(activeSessionId)
@@ -69,13 +68,8 @@ function MultiTerminal() {
       }
     }
 
-    // 如果会话已关闭（没有 cliSessionId），不创建新终端
-    if (session.sessionType === 'claude' && !session.cliSessionId) {
-      return
-    }
-
-    // 如果已经创建过且终端存在，不再重复创建
-    if (createdSessionIdsRef.current.has(activeSessionId) && terminalsRef.current.has(activeSessionId)) {
+    // 如果终端存在且没有被销毁，不再重复创建
+    if (terminalsRef.current.has(activeSessionId)) {
       showTerminal(activeSessionId)
       return
     }
