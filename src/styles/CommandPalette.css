@@ -57,8 +57,10 @@
 }
 
 .command-item:hover,
-.command-item.selected {
-  background: #f5f5f5;
+.command-item.selected,
+.command-list .ant-list-item:hover,
+.command-list .ant-list-item.selected {
+  background: #e8e8e8 !important;
 }
 
 .command-item-icon {
@@ -132,11 +134,12 @@
 
 .command-shortcut {
   padding: 2px 6px;
-  background: #f5f5f5;
-  border: 1px solid #d9d9d9;
+  background: #f0f0f0 !important;
+  border: 1px solid #d9d9d9 !important;
   border-radius: 4px;
   font-size: 11px;
   font-family: monospace;
+  color: #333 !important;
 }
 
 .command-footer {
@@ -148,11 +151,12 @@
 
 .command-footer kbd {
   padding: 2px 6px;
-  background: #f5f5f5;
-  border: 1px solid #d9d9d9;
+  background: #e8e8e8 !important;
+  border: 1px solid #d9d9d9 !important;
   border-radius: 4px;
   font-family: monospace;
   margin: 0 2px;
+  color: #333 !important;
 }
 
 /* 暗色主题 */
@@ -182,8 +186,21 @@
 }
 
 .dark .command-item:hover,
-.dark .command-item.selected {
-  background: #141414;
+.dark .command-item.selected,
+.dark .command-list .ant-list-item:hover,
+.dark .command-list .ant-list-item.selected,
+.dark .ant-list-item:hover,
+.dark .ant-list-item.selected {
+  background: #3a3a3a !important;
+}
+
+/* 最高优先级覆盖 Ant Design 列表选中状态 */
+.dark .command-palette-modal .ant-list-item:hover {
+  background: #3a3a3a !important;
+}
+
+.dark .command-palette-modal .ant-list-item.selected {
+  background: #3a3a3a !important;
 }
 
 .dark .command-item-icon {
@@ -200,9 +217,6 @@
 
 .dark .command-footer {
   border-color: #303030;
-}
-
-.dark .command-footer {
   background: #1f1f1f;
 }
 
@@ -210,11 +224,17 @@
   color: #888 !important;
 }
 
+.dark .command-footer-text kbd {
+  background: #3a3a3a !important;
+  border-color: #555 !important;
+  color: #ffffff !important;
+}
+
 .dark .command-footer kbd,
 .dark .command-shortcut {
-  background: #303030 !important;
-  border-color: #434343 !important;
-  color: #d9d9d9 !important;
+  background: #3a3a3a !important;
+  border-color: #555 !important;
+  color: #ffffff !important;
 }
 
 /* 浅色主题样式 */
@@ -240,7 +260,7 @@
 
 .light .command-item:hover,
 .light .command-item.selected {
-  background: #f5f5f5;
+  background: #d9d9d9 !important;
 }
 
 .light .command-item-icon {

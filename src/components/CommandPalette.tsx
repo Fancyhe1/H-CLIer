@@ -216,6 +216,9 @@ function CommandPalette({
               renderItem={(item, index) => (
                 <List.Item
                   className={`command-item ${index === selectedIndex ? 'selected' : ''}`}
+                  style={{
+                    background: index === selectedIndex ? '#3a3a3a' : 'transparent',
+                  }}
                   onClick={item.action}
                   onMouseEnter={() => setSelectedIndex(index)}
                 >

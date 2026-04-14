@@ -41,12 +41,20 @@
   color: #666;
   font-size: 14px;
   z-index: 100;
-  background: #000000;
+  background: #ffffff;
   pointer-events: auto;
 }
 
 .dark .terminal-empty-state {
   background: #000000;
+}
+
+.light .terminal-empty-state {
+  background: #ffffff;
+}
+
+.light .terminal-empty-shortcut {
+  color: #666;
 }
 
 .terminal-empty-icon {

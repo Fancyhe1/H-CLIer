@@ -30,6 +30,7 @@ import SettingsPanel from './components/SettingsPanel'
 import TokenStatsPanel from './components/TokenStatsPanel'
 import CommandPalette from './components/CommandPalette'
 import CheckpointModal from './components/CheckpointModal'
+import FileBrowserModal from './components/FileBrowserModal'
 import { useSettingsStore } from './stores/settingsStore'
 import { useSessionStore } from './stores/sessionStore'
 import './styles/App.css'
@@ -58,6 +59,7 @@ function App() {
   const [claudeMdContent, setClaudeMdContent] = useState('')
   const [claudeMdPath, setClaudeMdPath] = useState('')
   const [claudeVersion, setClaudeVersion] = useState<string>('')
+  const [fileBrowserVisible, setFileBrowserVisible] = useState(false)
 
   // 响应式获取当前会话的工作空间
   const { sessions, activeSessionId } = useSessionStore()
@@ -111,12 +113,14 @@ function App() {
     const activeSession = sessions.find(s => s.id === activeSessionId)
     const projectPath = activeSession?.projectPath || ''
 
+    console.log('[openInExplorer] 准备打开路径:', projectPath)
+
     if (projectPath) {
       try {
         await tauriInvoke('open_in_explorer', { projectPath })
       } catch (err) {
         console.error('打开文件管理器失败:', err)
-        message.error('打开文件管理器失败')
+        message.error('打开文件管理器失败: ' + String(err))
       }
     } else {
       message.warning('请先选择一个会话')
@@ -420,7 +424,7 @@ function App() {
             <div className="status-left">
               <div
                 className="status-item file-browser"
-                onClick={() => message.info('文件浏览器功能开发中')}
+                onClick={() => setFileBrowserVisible(true)}
                 onContextMenu={(e) => {
                   e.preventDefault()
                   openInExplorer()
@@ -521,6 +525,13 @@ function App() {
       <CheckpointModal
         visible={checkpointVisible}
         onClose={() => setCheckpointVisible(false)}
+        theme={currentTheme}
+      />
+
+      <FileBrowserModal
+        visible={fileBrowserVisible}
+        onClose={() => setFileBrowserVisible(false)}
+        projectPath={activeSession?.projectPath || ''}
         theme={currentTheme}
       />
     </ConfigProvider>

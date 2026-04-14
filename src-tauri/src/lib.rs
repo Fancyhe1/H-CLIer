@@ -11,6 +11,10 @@ use checkpoint::{Checkpoint, CheckpointDiff, CheckpointManager};
 use std::sync::Mutex;
 use tauri::Manager;
 
+// Windows 平台隐藏终端窗口
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
 pub struct AppState {
     session_manager: Mutex<SessionManager>,
     pty_manager: Mutex<PtyManager>,
@@ -257,6 +261,7 @@ async fn open_in_vscode(project_path: String) -> Result<(), String> {
 
     Command::new("code")
         .arg(&project_path)
+        .creation_flags(0x08000000)
         .spawn()
         .map_err(|e| format!("无法启动 VS Code: {}。请确保已安装 VS Code 并添加到 PATH。", e))?;
 
@@ -268,8 +273,25 @@ async fn open_in_vscode(project_path: String) -> Result<(), String> {
 async fn open_in_explorer(project_path: String) -> Result<(), String> {
     use std::process::Command;
 
-    Command::new("explorer")
-        .arg(&project_path)
+    if project_path.is_empty() {
+        return Err("路径不能为空".to_string());
+    }
+
+    let path = std::path::Path::new(&project_path);
+
+    // 如果是文件，打开其父目录
+    let target = if path.is_file() {
+        path.parent()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or(project_path.clone())
+    } else {
+        project_path.clone()
+    };
+
+    // 使用 CREATE_NO_WINDOW 标志隐藏终端窗口
+    Command::new("cmd")
+        .args(["/C", "start", "", &target])
+        .creation_flags(0x08000000) // CREATE_NO_WINDOW
         .spawn()
         .map_err(|e| format!("无法打开资源管理器: {}", e))?;
 
@@ -282,10 +304,10 @@ async fn open_in_idea(project_path: String) -> Result<(), String> {
     use std::process::Command;
 
     // 尝试常见的 IDEA 启动命令
-    let idea_commands = ["idea64", "idea", " IntelliJ"];
+    let idea_commands = ["idea64", "idea"];
 
     for cmd in &idea_commands {
-        if Command::new(cmd).arg(&project_path).spawn().is_ok() {
+        if Command::new(cmd).arg(&project_path).creation_flags(0x08000000).spawn().is_ok() {
             return Ok(());
         }
     }
@@ -321,6 +343,67 @@ async fn read_text_file(path: String) -> Result<String, String> {
     use std::fs;
 
     fs::read_to_string(&path).map_err(|e| format!("读取文件失败: {}", e))
+}
+
+// 文件浏览器：读取目录内容
+#[derive(serde::Serialize)]
+pub struct FileEntry {
+    pub name: String,
+    pub path: String,
+    pub is_dir: bool,
+    pub size: u64,
+    pub modified: Option<u64>,
+}
+
+#[tauri::command]
+async fn read_directory(path: String) -> Result<Vec<FileEntry>, String> {
+    use std::fs;
+    use std::time::UNIX_EPOCH;
+
+    let entries = fs::read_dir(&path).map_err(|e| format!("读取目录失败: {}", e))?;
+
+    let mut result: Vec<FileEntry> = Vec::new();
+
+    for entry in entries {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let metadata = entry.metadata().map_err(|e| e.to_string())?;
+        let modified = metadata.modified().ok()
+            .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+            .map(|d| d.as_secs());
+
+        result.push(FileEntry {
+            name: entry.file_name().to_string_lossy().to_string(),
+            path: entry.path().to_string_lossy().to_string(),
+            is_dir: metadata.is_dir(),
+            size: metadata.len(),
+            modified,
+        });
+    }
+
+    // 按文件夹优先，再按名称排序
+    result.sort_by(|a, b| {
+        match (a.is_dir, b.is_dir) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+        }
+    });
+
+    Ok(result)
+}
+
+// 在系统默认应用中打开文件
+#[tauri::command]
+async fn open_file_in_system(path: String) -> Result<(), String> {
+    use std::process::Command;
+
+    Command::new("cmd")
+        .args(["/C", "start", "", &path])
+        .creation_flags(0x08000000)
+        .spawn()
+        .map_err(|e| format!("无法打开文件: {}", e))?;
+
+    Ok(())
 }
 
 // 删除指定项目路径下的所有会话
@@ -507,6 +590,8 @@ pub fn run() {
             open_in_vscode,
             open_in_explorer,
             open_in_idea,
+            open_file_in_system,
+            read_directory,
             // PTY终端
             create_pty,
             read_terminal_history,
