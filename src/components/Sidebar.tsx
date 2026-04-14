@@ -42,12 +42,14 @@ import ReactMarkdown from 'react-markdown'
 import { useSessionStore } from '../stores/sessionStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import CreateSessionModal from './CreateSessionModal'
+import TrashModal from './TrashModal'
 import { handleExportSession } from '../utils/export'
 import type { SessionType } from '../types/session'
 import '../styles/Sidebar.css'
 
 interface SidebarProps {
   collapsed?: boolean
+  theme?: 'light' | 'dark'
 }
 
 const COLORS = [
@@ -77,7 +79,8 @@ const formatTimeAgo = (timestamp: string): string => {
   return `${days}天前`
 }
 
-function Sidebar(_props: SidebarProps) {
+function Sidebar(props: SidebarProps) {
+  const { theme = 'dark' } = props
   const [searchValue, setSearchValue] = useState('')
   const [activeTab, setActiveTab] = useState<SessionType>('claude')
   const [createModalVisible, setCreateModalVisible] = useState(false)
@@ -87,6 +90,7 @@ function Sidebar(_props: SidebarProps) {
   const [historyModalVisible, setHistoryModalVisible] = useState(false)
   const [historyMessages, setHistoryMessages] = useState<Array<{role: 'user' | 'assistant', content: string}>>([])
   const [summaryModalVisible, setSummaryModalVisible] = useState(false)
+  const [trashModalVisible, setTrashModalVisible] = useState(false)
   const [summaryData, setSummaryData] = useState<any>(null)
   const [expandedKeys, setExpandedKeys] = useState<string[]>([])
 
@@ -928,7 +932,10 @@ function Sidebar(_props: SidebarProps) {
   return (
     <div className="sidebar">
       <div className="sidebar-header">
-        <h3 className="logo">智码 AICoder</h3>
+        <span className="logo">
+          <span className="logo-icon">🚀</span>
+          <span>智码 AICoder</span>
+        </span>
       </div>
 
       {/* Tab 切换 */}
@@ -952,6 +959,14 @@ function Sidebar(_props: SidebarProps) {
       </div>
 
       <div className="sidebar-actions">
+        <Input
+          prefix={<SearchOutlined />}
+          placeholder="搜索会话..."
+          value={searchValue}
+          onChange={(e) => setSearchValue(e.target.value)}
+          className="search-input"
+          allowClear
+        />
         <Button
           type="primary"
           icon={<PlusOutlined />}
@@ -961,14 +976,6 @@ function Sidebar(_props: SidebarProps) {
         >
           新建{activeTab === 'claude' ? ' Claude' : '终端'}会话
         </Button>
-        <Input
-          prefix={<SearchOutlined />}
-          placeholder="搜索会话..."
-          value={searchValue}
-          onChange={(e) => setSearchValue(e.target.value)}
-          className="search-input"
-          allowClear
-        />
       </div>
 
       <div className="sidebar-content">
@@ -986,6 +993,17 @@ function Sidebar(_props: SidebarProps) {
             selectable={false}
           />
         )}
+      </div>
+      <div className="sidebar-footer">
+        <Button
+          type="text"
+          icon={<DeleteOutlined />}
+          onClick={() => setTrashModalVisible(true)}
+          className="trash-btn"
+          title="回收站"
+        >
+          回收站
+        </Button>
       </div>
 
       <CreateSessionModal
@@ -1066,6 +1084,13 @@ function Sidebar(_props: SidebarProps) {
           </div>
         )}
       </Modal>
+
+      {/* 回收站Modal */}
+      <TrashModal
+        visible={trashModalVisible}
+        onClose={() => setTrashModalVisible(false)}
+        theme={theme}
+      />
     </div>
   )
 }

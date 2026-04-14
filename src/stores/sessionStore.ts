@@ -84,7 +84,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   deleteSession: async (sessionId) => {
     try {
-      await invoke('delete_session', { sessionId })
+      await invoke('move_to_trash', { sessionId })
       set((state) => ({
         sessions: state.sessions.filter((s) => s.id !== sessionId),
         activeSessionId:
@@ -100,7 +100,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set({ isLoading: true })
     try {
       for (const session of sessions) {
-        await invoke('delete_session', { sessionId: session.id })
+        await invoke('move_to_trash', { sessionId: session.id })
       }
       set({ sessions: [], activeSessionId: null, isLoading: false })
     } catch (err) {

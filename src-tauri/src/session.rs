@@ -48,6 +48,7 @@ pub struct Session {
     pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub last_activity_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,  // 删除时间，用于回收站
     pub message_count: i64,
     pub cli_session_id: Option<String>,
     pub description: Option<String>,
@@ -74,6 +75,7 @@ impl SessionManager {
                 is_active INTEGER DEFAULT 1,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_activity_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                deleted_at TIMESTAMP,
                 message_count INTEGER DEFAULT 0,
                 cli_session_id TEXT,
                 description TEXT
@@ -85,6 +87,12 @@ impl SessionManager {
         // 迁移：添加 session_type 列（如果不存在）
         let _ = conn.execute(
             "ALTER TABLE sessions ADD COLUMN session_type TEXT DEFAULT 'claude'",
+            [],
+        );
+
+        // 迁移：添加 deleted_at 列（如果不存在）
+        let _ = conn.execute(
+            "ALTER TABLE sessions ADD COLUMN deleted_at TIMESTAMP",
             [],
         );
 
@@ -126,8 +134,8 @@ impl SessionManager {
         self.conn.execute(
             r#"
             INSERT INTO sessions (id, project_path, title, session_type, color, is_favorite, is_active,
-                created_at, last_activity_at, message_count, cli_session_id, description)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+                created_at, last_activity_at, deleted_at, message_count, cli_session_id, description)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
             "#,
             params![
                 &id,
@@ -139,6 +147,7 @@ impl SessionManager {
                 1i32,
                 now,
                 now,
+                None::<DateTime<Utc>>,
                 0i64,
                 None::<&str>,
                 None::<&str>,
@@ -155,6 +164,7 @@ impl SessionManager {
             is_active: true,
             created_at: now,
             last_activity_at: now,
+            deleted_at: None,
             message_count: 0,
             cli_session_id: None,
             description: None,
@@ -165,7 +175,7 @@ impl SessionManager {
         let mut stmt = self.conn.prepare(
             r#"
             SELECT id, project_path, title, session_type, color, is_favorite, is_active,
-                created_at, last_activity_at, message_count, cli_session_id, description
+                created_at, last_activity_at, deleted_at, message_count, cli_session_id, description
             FROM sessions
             WHERE is_active = 1
             ORDER BY last_activity_at DESC
@@ -183,9 +193,42 @@ impl SessionManager {
                 is_active: row.get::<_, i32>(6)? != 0,
                 created_at: row.get(7)?,
                 last_activity_at: row.get(8)?,
-                message_count: row.get(9)?,
-                cli_session_id: row.get(10)?,
-                description: row.get(11)?,
+                deleted_at: row.get(9)?,
+                message_count: row.get(10)?,
+                cli_session_id: row.get(11)?,
+                description: row.get(12)?,
+            })
+        })?.collect::<Result<Vec<_>, _>>()?;
+
+        Ok(sessions)
+    }
+
+    pub fn get_trash_sessions(&self) -> Result<Vec<Session>, rusqlite::Error> {
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT id, project_path, title, session_type, color, is_favorite, is_active,
+                created_at, last_activity_at, deleted_at, message_count, cli_session_id, description
+            FROM sessions
+            WHERE is_active = 0
+            ORDER BY deleted_at DESC
+            "#
+        )?;
+
+        let sessions = stmt.query_map([], |row| {
+            Ok(Session {
+                id: row.get(0)?,
+                project_path: row.get(1)?,
+                title: row.get(2)?,
+                session_type: row.get(3)?,
+                color: row.get(4)?,
+                is_favorite: row.get::<_, i32>(5)? != 0,
+                is_active: row.get::<_, i32>(6)? != 0,
+                created_at: row.get(7)?,
+                last_activity_at: row.get(8)?,
+                deleted_at: row.get(9)?,
+                message_count: row.get(10)?,
+                cli_session_id: row.get(11)?,
+                description: row.get(12)?,
             })
         })?.collect::<Result<Vec<_>, _>>()?;
 
@@ -203,10 +246,11 @@ impl SessionManager {
                 is_favorite = ?5,
                 is_active = ?6,
                 last_activity_at = ?7,
-                message_count = ?8,
-                cli_session_id = ?9,
-                description = ?10
-            WHERE id = ?11
+                deleted_at = ?8,
+                message_count = ?9,
+                cli_session_id = ?10,
+                description = ?11
+            WHERE id = ?12
             "#,
             params![
                 &session.project_path,
@@ -216,6 +260,7 @@ impl SessionManager {
                 session.is_favorite as i32,
                 session.is_active as i32,
                 session.last_activity_at,
+                &session.deleted_at,
                 session.message_count,
                 &session.cli_session_id,
                 &session.description,
@@ -226,19 +271,57 @@ impl SessionManager {
         Ok(())
     }
 
-    pub fn delete_session(&self, session_id: &str) -> Result<(), rusqlite::Error> {
+    pub fn move_to_trash(&self, session_id: &str) -> Result<(), rusqlite::Error> {
+        let now = Utc::now();
         self.conn.execute(
-            "UPDATE sessions SET is_active = 0 WHERE id = ?1",
+            "UPDATE sessions SET is_active = 0, deleted_at = ?1 WHERE id = ?2",
+            params![now, session_id],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn restore_from_trash(&self, session_id: &str) -> Result<(), rusqlite::Error> {
+        self.conn.execute(
+            "UPDATE sessions SET is_active = 1, deleted_at = NULL WHERE id = ?1",
             params![session_id],
         )?;
 
         Ok(())
     }
 
-    pub fn delete_sessions_by_path(&self, project_path: &str) -> Result<usize, rusqlite::Error> {
+    pub fn permanently_delete(&self, session_id: &str) -> Result<(), rusqlite::Error> {
+        self.conn.execute(
+            "DELETE FROM sessions WHERE id = ?1",
+            params![session_id],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn empty_trash(&self) -> Result<usize, rusqlite::Error> {
         let rows_affected = self.conn.execute(
-            "UPDATE sessions SET is_active = 0 WHERE project_path = ?1",
-            params![project_path],
+            "DELETE FROM sessions WHERE is_active = 0",
+            [],
+        )?;
+
+        Ok(rows_affected)
+    }
+
+    pub fn delete_session(&self, session_id: &str) -> Result<(), rusqlite::Error> {
+        self.conn.execute(
+            "UPDATE sessions SET is_active = 0, deleted_at = ?1 WHERE id = ?2",
+            params![Utc::now(), session_id],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn delete_sessions_by_path(&self, project_path: &str) -> Result<usize, rusqlite::Error> {
+        let now = Utc::now();
+        let rows_affected = self.conn.execute(
+            "UPDATE sessions SET is_active = 0, deleted_at = ?1 WHERE project_path = ?2",
+            params![now, project_path],
         )?;
 
         Ok(rows_affected)

@@ -7,25 +7,42 @@
 }
 
 .sidebar-header {
-  padding: 16px;
+  padding: 12px 16px;
   border-bottom: 1px solid #f0f0f0;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dark .sidebar-header {
+  border-bottom-color: #2a2a2a;
 }
 
 .logo {
   margin: 0;
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 600;
-  color: #1677ff;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.logo-icon {
+  font-size: 18px;
+}
+
+.dark .logo {
+  color: #e6e6e6;
 }
 
 /* Tab 切换 */
 .sidebar-tabs {
   display: flex;
-  border-bottom: 1px solid #f0f0f0;
   flex-shrink: 0;
-  min-height: 44px;
-  background: #fafafa;
+  min-height: 36px;
+  background: transparent;
 }
 
 .sidebar-tab {
@@ -33,38 +50,50 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 12px 8px;
+  gap: 4px;
+  padding: 8px;
   cursor: pointer;
-  color: #666;
-  font-size: 13px;
-  border-bottom: 2px solid transparent;
-  transition: all 0.2s;
+  color: #888;
+  font-size: 12px;
+  transition: all 0.15s;
   user-select: none;
+  margin: 4px;
+  border-radius: 6px;
 }
 
 .sidebar-tab:hover {
-  color: #1677ff;
-  background: #f5f5f5;
+  color: #666;
+  background: rgba(0, 0, 0, 0.04);
 }
 
 .sidebar-tab.active {
   color: #1677ff;
-  border-bottom-color: #1677ff;
-  background: #f0f7ff;
+  background: rgba(22, 119, 255, 0.1);
+  font-weight: 500;
 }
 
 .sidebar-tab .tab-count {
-  background: #e8e8e8;
-  padding: 0 6px;
-  border-radius: 10px;
-  font-size: 11px;
-  color: #999;
+  background: rgba(0, 0, 0, 0.08);
+  padding: 0 5px;
+  border-radius: 8px;
+  font-size: 10px;
+  color: inherit;
+  opacity: 0.7;
 }
 
 .sidebar-tab.active .tab-count {
-  background: #1677ff;
-  color: #fff;
+  background: rgba(22, 119, 255, 0.2);
+  color: #1677ff;
+  opacity: 1;
+}
+
+.dark .sidebar-tab .tab-count {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.dark .sidebar-tab.active .tab-count {
+  background: rgba(64, 150, 255, 0.2);
+  color: #69b1ff;
 }
 
 .sidebar-actions {
@@ -86,8 +115,53 @@
   padding: 8px;
 }
 
+.sidebar-footer {
+  padding: 8px;
+  border-top: 1px solid #f0f0f0;
+  flex-shrink: 0;
+}
+
+.dark .sidebar-footer {
+  border-top-color: #2a2a2a;
+}
+
+.trash-btn {
+  width: 100%;
+  justify-content: flex-start;
+  color: #888;
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+
+.trash-btn:hover {
+  color: #ff4d4f;
+  background: rgba(255, 77, 79, 0.08);
+}
+
+.dark .trash-btn {
+  color: #888;
+}
+
+.dark .trash-btn:hover {
+  color: #ff7875;
+  background: rgba(255, 77, 79, 0.1);
+}
+
 .session-tree {
   font-size: 13px;
+}
+
+.session-tree .ant-tree {
+  background: transparent;
+}
+
+.session-tree .ant-tree-indent-unit {
+  width: 8px;
+}
+
+.session-tree .ant-tree-indent {
+  width: 8px;
 }
 
 .session-tree .ant-tree-treenode {
@@ -101,7 +175,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
+  width: 16px;
   flex-shrink: 0;
 }
 
@@ -111,6 +185,7 @@
   display: flex;
   align-items: center;
   min-width: 0;
+  margin-left: 0 !important;
 }
 
 .session-tree .ant-tree-node-content-wrapper:hover {
@@ -160,24 +235,26 @@
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  padding: 8px 12px;
+  padding: 5px 4px;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background 0.15s;
   box-sizing: border-box;
+  border-radius: 6px;
+  margin: 1px 0;
 }
 
 .session-item:hover {
-  background: #f0f0f0;
+  background: rgba(0, 0, 0, 0.06);
 }
 
 .session-item.active {
-  background: #e6f7ff;
+  background: rgba(22, 119, 255, 0.15);
 }
 
 .session-info {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   flex: 1;
   overflow: hidden;
   min-width: 0;
@@ -186,7 +263,7 @@
 .session-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   flex-shrink: 0;
 }
 
@@ -291,37 +368,8 @@
 }
 
 .dark .sidebar-header,
-.dark .sidebar-tabs,
 .dark .sidebar-actions {
-  border-color: #363636;
-}
-
-.dark .sidebar-tabs {
-  background: #262626;
-}
-
-.dark .sidebar-tab {
-  color: #b3b3b3;
-}
-
-.dark .sidebar-tab:hover {
-  color: #4096ff;
-  background: #2a2a2a;
-}
-
-.dark .sidebar-tab.active {
-  color: #4096ff;
-  background: #1a3a5c;
-}
-
-.dark .sidebar-tab .tab-count {
-  background: #404040;
-  color: #ccc;
-}
-
-.dark .sidebar-tab.active .tab-count {
-  background: #4096ff;
-  color: #fff;
+  border-color: #2a2a2a;
 }
 
 .dark .group-title {
@@ -334,11 +382,11 @@
 }
 
 .dark .session-item:hover {
-  background: #2a2a2a;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .dark .session-item.active {
-  background: #1a3a5c;
+  background: rgba(64, 150, 255, 0.2);
 }
 
 .dark .session-title {

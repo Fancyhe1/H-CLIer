@@ -127,7 +127,7 @@ function MultiTerminal() {
     const themeState = useSettingsStore.getState()
     const isDark = themeState.currentTheme === 'dark'
     const termTheme = isDark
-      ? { background: '#1e1e1e', foreground: '#d4d4d4' }
+      ? { background: '#000000', foreground: '#d4d4d4' }
       : { background: '#ffffff', foreground: '#333333' }
 
     const term = new Terminal({
@@ -238,7 +238,7 @@ function MultiTerminal() {
   useEffect(() => {
     const isDark = currentTheme === 'dark'
     const termTheme = isDark
-      ? { background: '#1e1e1e', foreground: '#d4d4d4' }
+      ? { background: '#000000', foreground: '#d4d4d4' }
       : { background: '#ffffff', foreground: '#333333' }
     terminalsRef.current.forEach((instance) => {
       instance.term.options.theme = termTheme

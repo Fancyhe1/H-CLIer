@@ -58,6 +58,51 @@ fn delete_session(
         .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn move_to_trash(
+    state: tauri::State<AppState>,
+    session_id: String,
+) -> Result<(), String> {
+    let manager = state.session_manager.lock().map_err(|e| e.to_string())?;
+    manager.move_to_trash(&session_id)
+        .map_err(|e| e.to_string())
+}
+
+// 回收站相关命令
+#[tauri::command]
+fn get_trash_sessions(state: tauri::State<AppState>) -> Result<Vec<Session>, String> {
+    let manager = state.session_manager.lock().map_err(|e| e.to_string())?;
+    manager.get_trash_sessions()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn restore_from_trash(
+    state: tauri::State<AppState>,
+    session_id: String,
+) -> Result<(), String> {
+    let manager = state.session_manager.lock().map_err(|e| e.to_string())?;
+    manager.restore_from_trash(&session_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn permanently_delete(
+    state: tauri::State<AppState>,
+    session_id: String,
+) -> Result<(), String> {
+    let manager = state.session_manager.lock().map_err(|e| e.to_string())?;
+    manager.permanently_delete(&session_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn empty_trash(state: tauri::State<AppState>) -> Result<usize, String> {
+    let manager = state.session_manager.lock().map_err(|e| e.to_string())?;
+    manager.empty_trash()
+        .map_err(|e| e.to_string())
+}
+
 // PTY终端命令
 #[tauri::command]
 fn create_pty(
@@ -446,7 +491,13 @@ pub fn run() {
             get_sessions,
             update_session,
             delete_session,
+            move_to_trash,
             delete_sessions_by_path,
+            // 回收站
+            get_trash_sessions,
+            restore_from_trash,
+            permanently_delete,
+            empty_trash,
             // 文件对话框
             select_folder,
             select_file,

@@ -1,84 +1,113 @@
 .tab-bar {
   display: flex;
   align-items: center;
-  background: #1f1f1f;
-  border-bottom: 1px solid #434343;
-  padding: 4px 4px 0;
-  min-height: 44px;
+  background: transparent;
+  padding: 4px 8px;
+  min-height: 36px;
+  border-bottom: 1px solid #e8e8e8;
 }
 
-/* 深色主题样式 */
 .dark .tab-bar {
-  background: #1f1f1f;
-  border-bottom-color: #434343;
+  background: transparent;
+  border-bottom-color: #2a2a2a;
 }
 
-/* 浅色主题样式 */
-.light .tab-bar {
-  background: #fafafa;
-  border-bottom-color: #e8e8e8;
+.tab-bar-tabs {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
 }
 
 .empty-tabs {
   flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
-}
-
-.empty-tabs .ant-empty {
-  margin: 0;
-}
-
-.empty-tabs .ant-empty-description {
-  color: #999;
-  font-size: 12px;
+  height: 4px;
 }
 
 .terminal-tabs {
   flex: 1;
+  min-width: 0;
 }
 
 .terminal-tabs .ant-tabs-nav {
   margin-bottom: 0;
 }
 
+.terminal-tabs .ant-tabs-nav-operations {
+  display: none;
+}
+
+.new-tab-btn {
+  color: #888;
+  padding: 0 8px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-right: 8px;
+}
+
+.new-tab-btn:hover {
+  color: #1677ff;
+  background: rgba(22, 119, 255, 0.06);
+  border-radius: 6px;
+}
+
+.dark .new-tab-btn:hover {
+  color: #69b1ff;
+  background: rgba(64, 150, 255, 0.1);
+}
+
+.terminal-tabs .ant-tabs-nav-wrap {
+  align-items: center;
+}
+
 /* 深色主题标签 */
 .dark .terminal-tabs .ant-tabs-tab {
-  background: #2a2a2a !important;
-  border: 1px solid #434343 !important;
-  border-bottom: none !important;
-  border-radius: 4px 4px 0 0 !important;
-  margin-right: 2px !important;
-  padding: 6px 12px !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 6px !important;
+  margin-right: 4px !important;
+  padding: 4px 10px !important;
+  color: #888 !important;
+  font-size: 12px;
+}
+
+.dark .terminal-tabs .ant-tabs-tab:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
   color: #b0b0b0 !important;
 }
 
 .dark .terminal-tabs .ant-tabs-tab-active {
-  background: #1e1e1e !important;
-  border-bottom: 1px solid #1e1e1e !important;
-  color: #fff !important;
+  background: rgba(64, 150, 255, 0.15) !important;
+  color: #69b1ff !important;
+}
+
+.dark .terminal-tabs .ant-tabs-tab .ant-tabs-tab-remove {
+  color: #666 !important;
+}
+
+.dark .terminal-tabs .ant-tabs-tab .ant-tabs-tab-remove:hover {
+  color: #ff4d4f !important;
 }
 
 /* 浅色主题标签 */
 .light .terminal-tabs .ant-tabs-tab {
-  background: #f0f0f0 !important;
-  border: 1px solid #e8e8e8 !important;
-  border-bottom: none !important;
-  border-radius: 4px 4px 0 0 !important;
-  margin-right: 2px !important;
-  padding: 6px 12px !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 6px !important;
+  margin-right: 4px !important;
+  padding: 4px 10px !important;
+  color: #888 !important;
+  font-size: 12px;
+}
+
+.light .terminal-tabs .ant-tabs-tab:hover {
+  background: rgba(0, 0, 0, 0.04) !important;
   color: #666 !important;
 }
 
 .light .terminal-tabs .ant-tabs-tab-active {
-  background: #fff !important;
-  border-bottom: 1px solid #fff !important;
-  color: #000 !important;
-}
-
-.new-tab-btn {
-  margin-left: 4px;
-  padding: 4px 8px;
+  background: rgba(22, 119, 255, 0.1) !important;
+  color: #1677ff !important;
 }

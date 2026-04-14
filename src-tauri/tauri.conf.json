@@ -19,7 +19,7 @@
         "minWidth": 800,
         "minHeight": 600,
         "center": true,
-        "decorations": true,
+        "decorations": false,
         "transparent": false,
         "theme": "Dark",
         "devtools": true
@@ -35,6 +35,11 @@
           "permissions": [
             "core:default",
             "core:window:default",
+            "core:window:allow-close",
+            "core:window:allow-minimize",
+            "core:window:allow-maximize",
+            "core:window:allow-unmaximize",
+            "core:window:allow-is-maximized",
             "core:window:allow-set-always-on-top",
             "core:window:allow-is-always-on-top",
             "dialog:default",

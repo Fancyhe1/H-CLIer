@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { PlusOutlined } from '@ant-design/icons'
-import { Button, Tabs, Empty } from 'antd'
+import { Button, Tabs } from 'antd'
 import type { TabsProps } from 'antd'
 import { useSessionStore } from '../stores/sessionStore'
 import '../styles/TabBar.css'
@@ -135,15 +135,16 @@ function TabBar() {
 
   return (
     <div className="tab-bar">
-      {tabs.length === 0 ? (
-        <div className="empty-tabs">
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description="点击左侧「新建会话」开始"
-          />
-        </div>
-      ) : (
-        <>
+      <Button
+        type="text"
+        icon={<PlusOutlined />}
+        onClick={() => onEdit({} as React.MouseEvent, 'add')}
+        className="new-tab-btn"
+      />
+      <div className="tab-bar-tabs">
+        {tabs.length === 0 ? (
+          <div className="empty-tabs" />
+        ) : (
           <Tabs
             type="editable-card"
             activeKey={activeKey}
@@ -153,14 +154,8 @@ function TabBar() {
             hideAdd
             className="terminal-tabs"
           />
-          <Button
-            type="text"
-            icon={<PlusOutlined />}
-            onClick={() => onEdit({} as React.MouseEvent, 'add')}
-            className="new-tab-btn"
-          />
-        </>
-      )}
+        )}
+      </div>
     </div>
   )
 }
