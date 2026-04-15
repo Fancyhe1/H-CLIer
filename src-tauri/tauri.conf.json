@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "智码AICoder-Dev",
+  "productName": "H CLIer Dev",
   "version": "0.1.0",
-  "identifier": "com.aicoder.dev",
+  "identifier": "com.hcl-ier.dev",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1421",
@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "智码AICoder-Dev",
+        "title": "H CLIer Dev",
         "width": 1400,
         "height": 900,
         "minWidth": 800,

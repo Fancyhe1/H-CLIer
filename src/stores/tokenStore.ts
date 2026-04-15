@@ -11,7 +11,7 @@ interface TokenState {
   getHeatmapData: () => HeatmapData[]
 }
 
-const STORAGE_KEY = 'aicoder_token_stats'
+const STORAGE_KEY = 'hcl-ier_token_stats'
 
 // 生成模拟数据
 function generateMockData(): TokenUsage[] {

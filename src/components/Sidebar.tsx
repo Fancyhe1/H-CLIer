@@ -934,7 +934,7 @@ function Sidebar(props: SidebarProps) {
       <div className="sidebar-header">
         <span className="logo">
           <span className="logo-icon">🚀</span>
-          <span>智码 AICoder</span>
+          <span>H CLIer</span>
         </span>
       </div>
 

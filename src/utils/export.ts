@@ -44,7 +44,7 @@ export function exportToMarkdown(session: Session, messages: string[]): string {
 
   content += `\n---\n\n`
   content += `*导出时间: ${timestamp}*\n`
-  content += `*由 智码 AICoder 导出*\n`
+  content += `*由 H CLIer 导出*\n`
 
   return content
 }
@@ -115,7 +115,7 @@ export function exportToHTML(session: Session, messages: string[]): string {
 
   <div class="footer">
     <p>导出时间: ${timestamp}</p>
-    <p>由 智码 AICoder 导出</p>
+    <p>由 H CLIer 导出</p>
   </div>
 </body>
 </html>`

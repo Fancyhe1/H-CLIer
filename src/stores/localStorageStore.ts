@@ -1,7 +1,7 @@
 // LocalStorage实现 - 用于纯前端开发模式
 import type { Session, CreateSessionParams } from '../types/session'
 
-const STORAGE_KEY = 'aicoder_sessions'
+const STORAGE_KEY = 'hcl-ier_sessions'
 
 class LocalStorageSessionManager {
   private loadFromStorage(): Session[] {

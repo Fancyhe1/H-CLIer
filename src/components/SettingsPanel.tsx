@@ -163,7 +163,7 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
   // 清除所有数据
   const handleClearData = () => {
     clearAllSessions()
-    localStorage.removeItem('aicoder_token_stats')
+    localStorage.removeItem('hcl-ier_token_stats')
     message.success('已清除所有数据')
     window.location.reload()
   }

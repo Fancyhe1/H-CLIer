@@ -85,7 +85,7 @@ function TerminalPanel({ sessionId, projectPath }: TerminalPanelProps) {
           })
         }
       } else {
-        term.writeln('\x1b[1;32m欢迎使用 智码 AICoder\x1b[0m')
+        term.writeln('\x1b[1;32m欢迎使用 H CLIer\x1b[0m')
         term.writeln('\x1b[90m请选择一个会话或创建新会话开始\x1b[0m')
         term.writeln('')
       }

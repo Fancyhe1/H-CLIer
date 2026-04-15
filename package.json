@@ -1,7 +1,7 @@
 {
-  "name": "aicoder",
+  "name": "hcl-ier",
   "version": "0.1.0",
-  "description": "智码AICoder - AI编程助手管理平台",
+  "description": "H CLIer - AI编程助手管理平台",
   "type": "module",
   "scripts": {
     "dev": "vite",
