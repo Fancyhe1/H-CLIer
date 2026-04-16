@@ -16,7 +16,7 @@ function TabBar() {
   const [activeKey, setActiveKey] = useState<string>()
   const prevSessionsRef = useRef<typeof sessions>([])
 
-  const { sessions, activeSessionId, setActiveSession, updateSession } = useSessionStore()
+  const { sessions, activeSessionId, setActiveSession } = useSessionStore()
 
   // 监听会话删除或关闭，同步更新标签栏
   useEffect(() => {
@@ -101,15 +101,7 @@ function TabBar() {
       ) as HTMLButtonElement
       btn?.click()
     } else {
-      // 关闭标签页 - 同时关闭会话（清除 cliSessionId）
-      const sessionId = targetKey as string
-      const session = sessions.find(s => s.id === sessionId)
-
-      if (session && session.cliSessionId) {
-        // 清除 cliSessionId，关闭会话
-        updateSession({ ...session, cliSessionId: undefined })
-      }
-
+      // 关闭标签页 - 只从标签栏移除，保留 cliSessionId 用于下次恢复
       // 从标签栏移除
       const newTabs = tabs.filter((tab) => tab.key !== targetKey)
       setTabs(newTabs)

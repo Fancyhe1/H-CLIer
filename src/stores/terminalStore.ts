@@ -155,9 +155,12 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
 
         // 如果是 Claude 会话，自动执行启动命令
         if (sessionType === 'claude') {
+          // 判断是否曾经启动过：有 cliSessionId 说明曾经启动过，用 --resume；无则用 --session-id
+          const hasEverStarted = !!cliSessionId
+
           // 如果没有 cliSessionId，生成一个并保存
           if (!cliSessionId) {
-            cliSessionId = sessionId  // 使用应用的 sessionId 作为 Claude 的 resume id
+            cliSessionId = sessionId  // 使用应用的 sessionId 作为 Claude 的 session id
             // 保存到数据库
             if (session) {
               await useSessionStore.getState().updateSession({
@@ -176,10 +179,20 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
           const claudeArgs = config.claude.default_args || []
 
           let cmd: string
-          if (claudeArgs.length > 0) {
-            cmd = `${claudeCmd} --resume ${cliSessionId} ${claudeArgs.join(' ')}`
+          if (hasEverStarted) {
+            // 曾经启动过，使用 --resume 恢复会话
+            if (claudeArgs.length > 0) {
+              cmd = `${claudeCmd} --resume ${cliSessionId} ${claudeArgs.join(' ')}`
+            } else {
+              cmd = `${claudeCmd} --resume ${cliSessionId}`
+            }
           } else {
-            cmd = `${claudeCmd} --resume ${cliSessionId}`
+            // 新会话，使用 --session-id 创建
+            if (claudeArgs.length > 0) {
+              cmd = `${claudeCmd} --session-id ${cliSessionId} ${claudeArgs.join(' ')}`
+            } else {
+              cmd = `${claudeCmd} --session-id ${cliSessionId}`
+            }
           }
 
           // 自动执行命令

@@ -106,11 +106,8 @@ impl SessionManager {
             [],
         )?;
 
-        // 程序启动时清除所有会话的 cli_session_id（重置为关闭状态）
-        conn.execute(
-            "UPDATE sessions SET cli_session_id = NULL WHERE is_active = 1",
-            [],
-        )?;
+        // 保留 cli_session_id，用于判断会话是否曾经启动过
+        // 不再在启动时清除，以便重新打开会话时使用 --resume
 
         Ok(Self { conn })
     }
