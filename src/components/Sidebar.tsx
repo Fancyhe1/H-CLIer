@@ -744,7 +744,9 @@ function Sidebar(props: SidebarProps) {
   // 关闭会话（只清除激活状态，保留 cliSessionId 用于下次恢复）
   const handleCloseSession = (sessionId: string, e: React.MouseEvent) => {
     e.stopPropagation()
-    // 只清除激活状态，保留 cliSessionId 用于判断会话是否曾经启动过
+    // 设置关闭的会话ID，通知 MultiTerminal 销毁终端
+    useSessionStore.getState().setClosedSession(sessionId)
+    // 清除激活状态
     if (activeSessionId === sessionId) {
       setActiveSession(null)
     }

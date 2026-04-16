@@ -101,7 +101,12 @@ function TabBar() {
       ) as HTMLButtonElement
       btn?.click()
     } else {
-      // 关闭标签页 - 只从标签栏移除，保留 cliSessionId 用于下次恢复
+      // 关闭标签页 - 保留 cliSessionId 用于下次恢复
+      const sessionId = targetKey as string
+
+      // 设置关闭的会话ID，通知 MultiTerminal 销毁终端
+      useSessionStore.getState().setClosedSession(sessionId)
+
       // 从标签栏移除
       const newTabs = tabs.filter((tab) => tab.key !== targetKey)
       setTabs(newTabs)

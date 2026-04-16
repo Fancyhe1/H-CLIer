@@ -22,8 +22,37 @@ function MultiTerminal() {
   // 用于记录创建终端时的配置，避免配置变化时重新创建
   const createdSessionIdsRef = useRef<Set<string>>(new Set())
 
-  const { sessions, activeSessionId } = useSessionStore()
+  const { sessions, activeSessionId, closedSessionId, setClosedSession } = useSessionStore()
   const { config, currentTheme } = useSettingsStore()
+
+  // 销毁指定会话的终端
+  const disposeTerminal = async (sessionId: string) => {
+    const instance = terminalsRef.current.get(sessionId)
+    if (instance) {
+      instance.unlisten()
+      if (instance.ptyId) {
+        await invoke('close_pty', { ptyId: instance.ptyId }).catch(console.error)
+      }
+      instance.term.dispose()
+
+      // 移除 DOM 元素
+      const terminalDiv = document.getElementById(`terminal-${sessionId}`)
+      if (terminalDiv && terminalDiv.parentNode) {
+        terminalDiv.parentNode.removeChild(terminalDiv)
+      }
+
+      terminalsRef.current.delete(sessionId)
+      createdSessionIdsRef.current.delete(sessionId)
+    }
+  }
+
+  // 监听关闭会话事件
+  useEffect(() => {
+    if (closedSessionId) {
+      disposeTerminal(closedSessionId)
+      setClosedSession(null)  // 清除关闭标记
+    }
+  }, [closedSessionId])
 
   // 当 activeSessionId 变为 null 时，确保没有终端显示
   useEffect(() => {

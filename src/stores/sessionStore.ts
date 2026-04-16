@@ -5,6 +5,7 @@ import type { Session, CreateSessionParams } from '../types/session'
 interface SessionState {
   sessions: Session[]
   activeSessionId: string | null
+  closedSessionId: string | null  // 用于通知终端销毁
   isLoading: boolean
   error: string | null
 
@@ -19,6 +20,7 @@ interface SessionState {
   deleteSession: (sessionId: string) => Promise<void>
   clearAllSessions: () => Promise<void>
   setActiveSession: (sessionId: string | null) => void
+  setClosedSession: (sessionId: string | null) => void  // 设置关闭的会话
   toggleFavorite: (sessionId: string) => Promise<void>
   setSessionColor: (sessionId: string, color: string) => Promise<void>
 }
@@ -26,6 +28,7 @@ interface SessionState {
 export const useSessionStore = create<SessionState>((set, get) => ({
   sessions: [],
   activeSessionId: null,
+  closedSessionId: null,
   isLoading: false,
   error: null,
 
@@ -110,6 +113,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   setActiveSession: (sessionId) => {
     set({ activeSessionId: sessionId })
+  },
+
+  setClosedSession: (sessionId) => {
+    set({ closedSessionId: sessionId })
   },
 
   toggleFavorite: async (sessionId) => {
