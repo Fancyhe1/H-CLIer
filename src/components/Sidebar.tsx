@@ -26,6 +26,7 @@ import {
   ImportOutlined,
   SettingOutlined,
   CodeFilled,
+  IdcardOutlined,
 } from '@ant-design/icons'
 import {
   Button,
@@ -35,6 +36,7 @@ import {
   Modal,
   message,
   Empty,
+  Tooltip,
 } from 'antd'
 import type { MenuProps } from 'antd'
 import { invoke } from '@tauri-apps/api/core'
@@ -91,6 +93,7 @@ function Sidebar(props: SidebarProps) {
   const [historyMessages, setHistoryMessages] = useState<Array<{role: 'user' | 'assistant', content: string}>>([])
   const [summaryModalVisible, setSummaryModalVisible] = useState(false)
   const [trashModalVisible, setTrashModalVisible] = useState(false)
+  const [sessionIdModalVisible, setSessionIdModalVisible] = useState(false)
   const [summaryData, setSummaryData] = useState<any>(null)
   const [expandedKeys, setExpandedKeys] = useState<string[]>([])
 
@@ -958,14 +961,24 @@ function Sidebar(props: SidebarProps) {
       </div>
 
       <div className="sidebar-actions">
-        <Input
-          prefix={<SearchOutlined />}
-          placeholder="搜索会话..."
-          value={searchValue}
-          onChange={(e) => setSearchValue(e.target.value)}
-          className="search-input"
-          allowClear
-        />
+        <div className="search-row">
+          <Tooltip title="查看所有会话ID">
+            <Button
+              type="text"
+              icon={<IdcardOutlined />}
+              onClick={() => setSessionIdModalVisible(true)}
+              className="session-id-btn"
+            />
+          </Tooltip>
+          <Input
+            prefix={<SearchOutlined />}
+            placeholder="搜索会话..."
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.target.value)}
+            className="search-input"
+            allowClear
+          />
+        </div>
         <Button
           type="primary"
           icon={<PlusOutlined />}
@@ -1090,6 +1103,64 @@ function Sidebar(props: SidebarProps) {
         onClose={() => setTrashModalVisible(false)}
         theme={theme}
       />
+
+      {/* 查看所有会话ID Modal */}
+      <Modal
+        title="所有会话 ID"
+        open={sessionIdModalVisible}
+        onCancel={() => setSessionIdModalVisible(false)}
+        footer={null}
+        width={600}
+        className="session-id-modal"
+      >
+        {sessions.length === 0 ? (
+          <Empty description="暂无会话" />
+        ) : (
+          <div className="session-id-list">
+            {Object.entries(
+              sessions.reduce((acc, session) => {
+                const path = session.projectPath
+                if (!acc[path]) acc[path] = []
+                acc[path].push(session)
+                return acc
+              }, {} as Record<string, typeof sessions>)
+            ).map(([projectPath, projectSessions]) => (
+              <div key={projectPath} className="session-id-group">
+                <div className="session-id-group-header">
+                  <FolderOutlined style={{ marginRight: 8 }} />
+                  <span className="project-name">{projectPath.split(/[/\\]/).pop()}</span>
+                  <span className="session-count">{projectSessions.length} 个会话</span>
+                </div>
+                <div className="session-id-items">
+                  {projectSessions.map((session) => (
+                    <div key={session.id} className="session-id-item">
+                      <div className="session-id-info">
+                        <span className="session-title">{session.title}</span>
+                        <span className="session-id-text">
+                          {session.cliSessionId || '(未启动)'}
+                        </span>
+                      </div>
+                      {session.cliSessionId && (
+                        <Tooltip title="复制会话ID">
+                          <Button
+                            type="text"
+                            size="small"
+                            icon={<CopyOutlined />}
+                            onClick={() => {
+                              navigator.clipboard.writeText(session.cliSessionId || '')
+                              message.success('已复制会话ID')
+                            }}
+                          />
+                        </Tooltip>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }
