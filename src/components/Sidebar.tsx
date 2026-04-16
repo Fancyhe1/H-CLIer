@@ -97,6 +97,7 @@ function Sidebar(props: SidebarProps) {
   const {
     sessions,
     activeSessionId,
+    runningSessionIds,
     fetchSessions,
     setActiveSession,
     toggleFavorite,
@@ -767,10 +768,10 @@ function Sidebar(props: SidebarProps) {
 
   // 渲染会话项
   const renderSessionItem = (session: (typeof sessions)[0]) => {
-    // 会话是否已开启（有 cliSessionId 表示已启动过 Claude）
-    const isStarted = !!session.cliSessionId
-    // 颜色：未开启显示灰色，开启后显示设置的颜色或默认白色
-    const displayColor = isStarted
+    // 会话是否正在运行（终端已打开）
+    const isRunning = runningSessionIds.has(session.id)
+    // 颜色：未运行显示灰色，运行中显示设置的颜色或默认白色
+    const displayColor = isRunning
       ? (session.color || '#ffffff')
       : '#888888'
 
@@ -789,7 +790,7 @@ function Sidebar(props: SidebarProps) {
               className="color-tag"
               style={{
                 backgroundColor: displayColor,
-                opacity: isStarted ? 1 : 0.5
+                opacity: isRunning ? 1 : 0.5
               }}
             />
             {session.isFavorite && <StarFilled className="favorite-icon" />}

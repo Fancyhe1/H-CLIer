@@ -126,6 +126,9 @@ function MultiTerminal() {
     // 创建终端实例（先保存，后续填充ptyId和unlisten）
     terminalsRef.current.set(activeSessionId, { term, fitAddon, ptyId: '', unlisten: () => {}, sessionId: activeSessionId })
 
+    // 标记会话为运行状态
+    useSessionStore.getState().setSessionRunning(activeSessionId, true)
+
     // 异步初始化PTY
     ;(async () => {
       try {

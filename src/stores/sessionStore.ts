@@ -6,6 +6,7 @@ interface SessionState {
   sessions: Session[]
   activeSessionId: string | null
   closedSessionId: string | null  // 用于通知终端销毁
+  runningSessionIds: Set<string>  // 正在运行的会话ID（终端已打开）
   isLoading: boolean
   error: string | null
 
@@ -21,6 +22,7 @@ interface SessionState {
   clearAllSessions: () => Promise<void>
   setActiveSession: (sessionId: string | null) => void
   setClosedSession: (sessionId: string | null) => void  // 设置关闭的会话
+  setSessionRunning: (sessionId: string, running: boolean) => void  // 设置会话运行状态
   toggleFavorite: (sessionId: string) => Promise<void>
   setSessionColor: (sessionId: string, color: string) => Promise<void>
 }
@@ -29,6 +31,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   sessions: [],
   activeSessionId: null,
   closedSessionId: null,
+  runningSessionIds: new Set<string>(),
   isLoading: false,
   error: null,
 
@@ -116,7 +119,24 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   setClosedSession: (sessionId) => {
-    set({ closedSessionId: sessionId })
+    // 从运行列表中移除
+    if (sessionId) {
+      const newRunning = new Set(get().runningSessionIds)
+      newRunning.delete(sessionId)
+      set({ closedSessionId: sessionId, runningSessionIds: newRunning })
+    } else {
+      set({ closedSessionId: null })
+    }
+  },
+
+  setSessionRunning: (sessionId, running) => {
+    const newRunning = new Set(get().runningSessionIds)
+    if (running) {
+      newRunning.add(sessionId)
+    } else {
+      newRunning.delete(sessionId)
+    }
+    set({ runningSessionIds: newRunning })
   },
 
   toggleFavorite: async (sessionId) => {

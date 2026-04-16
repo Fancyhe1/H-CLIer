@@ -16,9 +16,30 @@ function TabBar() {
   const [activeKey, setActiveKey] = useState<string>()
   const prevSessionsRef = useRef<typeof sessions>([])
 
-  const { sessions, activeSessionId, setActiveSession } = useSessionStore()
+  const { sessions, activeSessionId, setActiveSession, closedSessionId } = useSessionStore()
 
-  // 监听会话删除或关闭，同步更新标签栏
+  // 监听关闭会话事件，从标签栏移除
+  useEffect(() => {
+    if (closedSessionId) {
+      // 从标签栏移除
+      setTabs((prev) => prev.filter(tab => tab.key !== closedSessionId))
+
+      // 如果关闭的是当前激活的标签页，切换到其他标签页
+      if (activeKey === closedSessionId) {
+        const remainingTabs = tabs.filter(tab => tab.key !== closedSessionId)
+        if (remainingTabs.length > 0) {
+          const newActiveKey = remainingTabs[remainingTabs.length - 1].key
+          setActiveKey(newActiveKey)
+          setActiveSession(newActiveKey)
+        } else {
+          setActiveKey(undefined)
+          setActiveSession(null)
+        }
+      }
+    }
+  }, [closedSessionId, activeKey, setActiveSession, tabs])
+
+  // 监听会话删除，同步更新标签栏
   useEffect(() => {
     const prevSessions = prevSessionsRef.current
 
@@ -28,20 +49,13 @@ function TabBar() {
       .filter(s => !currentSessionIds.has(s.id))
       .map(s => s.id)
 
-    // 检测被关闭的会话（cliSessionId 从有到无）
-    const closedSessionIds = prevSessions
-      .filter(s => s.cliSessionId && !sessions.find(curr => curr.id === s.id && curr.cliSessionId))
-      .map(s => s.id)
+    if (deletedSessionIds.length > 0) {
+      // 从标签栏移除
+      setTabs((prev) => prev.filter(tab => !deletedSessionIds.includes(tab.key)))
 
-    const affectedIds = [...deletedSessionIds, ...closedSessionIds]
-
-    if (affectedIds.length > 0) {
-      // 从标签栏移除（终端实例由 MultiTerminal 管理）
-      setTabs((prev) => prev.filter(tab => !affectedIds.includes(tab.key)))
-
-      // 如果当前激活的标签页被关闭，切换到其他标签页
-      if (affectedIds.includes(activeKey || '')) {
-        const remainingTabs = tabs.filter(tab => !affectedIds.includes(tab.key))
+      // 如果当前激活的标签页被删除，切换到其他标签页
+      if (deletedSessionIds.includes(activeKey || '')) {
+        const remainingTabs = tabs.filter(tab => !deletedSessionIds.includes(tab.key))
         if (remainingTabs.length > 0) {
           const newActiveKey = remainingTabs[remainingTabs.length - 1].key
           setActiveKey(newActiveKey)
