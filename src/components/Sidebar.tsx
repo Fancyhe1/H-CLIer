@@ -1111,7 +1111,7 @@ function Sidebar(props: SidebarProps) {
         onCancel={() => setSessionIdModalVisible(false)}
         footer={null}
         width={600}
-        className="session-id-modal"
+        className={`session-id-modal ${theme}`}
       >
         {sessions.length === 0 ? (
           <Empty description="暂无会话" />

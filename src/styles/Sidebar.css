@@ -714,9 +714,18 @@
 }
 
 /* 会话ID Modal 样式 */
+.session-id-modal .ant-modal-content {
+  background: #fff;
+}
+
+.session-id-modal.dark .ant-modal-content {
+  background: #1e1e1e;
+}
+
 .session-id-list {
   max-height: 500px;
   overflow-y: auto;
+  padding: 4px 0;
 }
 
 .session-id-group {
@@ -736,7 +745,7 @@
 }
 
 .dark .session-id-group-header {
-  border-bottom-color: #2a2a2a;
+  border-bottom-color: #404040;
 }
 
 .session-id-group-header .project-name {
@@ -746,7 +755,7 @@
 }
 
 .dark .session-id-group-header .project-name {
-  color: #e6e6e6;
+  color: #e8e8e8;
 }
 
 .session-id-group-header .session-count {
@@ -765,21 +774,21 @@
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background: #fafafa;
+  background: rgba(0, 0, 0, 0.03);
   border-radius: 6px;
   transition: background 0.15s;
 }
 
-.dark .session-id-item {
-  background: #2a2a2a;
+.session-id-item:hover {
+  background: rgba(0, 0, 0, 0.06);
 }
 
-.session-id-item:hover {
-  background: #f0f0f0;
+.dark .session-id-item {
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .dark .session-id-item:hover {
-  background: #363636;
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .session-id-info {
@@ -812,5 +821,5 @@
 
 .dark .session-id-info .session-id-text {
   background: rgba(255, 255, 255, 0.08);
-  color: #888;
+  color: #aaa;
 }
