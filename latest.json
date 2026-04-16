@@ -1,0 +1,7 @@
+{
+  "version": "0.3.0",
+  "date": "2026-04-16T00:00:00Z",
+  "body": "## 更新内容\n\n- 添加自动更新功能\n- 设置面板新增"关于"标签页\n- 显示当前版本和检查更新按钮\n- 支持自动下载并安装新版本\n\n## 修复\n\n- 修复会话ID Modal 深色主题颜色显示\n- 更新品牌名称为 H CLIer",
+  "path": "https://github.com/Fancyhe1/smart-coder/releases/download/v0.3.0/hcl-ier-dev.exe",
+  "checksum": ""
+}
