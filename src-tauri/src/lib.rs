@@ -112,11 +112,21 @@ fn empty_trash(state: tauri::State<AppState>) -> Result<usize, String> {
 fn check_claude_session_exists(session_id: String, project_path: String) -> Result<bool, String> {
     use std::path::PathBuf;
 
-    // 编码项目路径：将 :\ 和 \ 替换为 -
-    let encoded_path = project_path
-        .replace(":", "-")
-        .replace("\\", "-")
-        .replace("/", "-");
+    // Claude 路径编码规则：
+    // : → -, \ 或 / → -, 英文字母保持原样, 中文字符每个变成一个 -
+    let encoded_path: String = project_path
+        .chars()
+        .map(|c| {
+            if c == ':' || c == '\\' || c == '/' {
+                "-".to_string()
+            } else if c.is_ascii() {
+                c.to_string()
+            } else {
+                // 中文字符或其他非ASCII字符，每个变成一个 -
+                "-".to_string()
+            }
+        })
+        .collect();
 
     // Claude 会话文件路径
     let home = std::env::var("USERPROFILE")
