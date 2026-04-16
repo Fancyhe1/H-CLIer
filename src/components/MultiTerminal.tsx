@@ -287,8 +287,8 @@ function MultiTerminal() {
       {showEmptyState && (
         <div className="terminal-empty-state">
           <div className="terminal-empty-icon">🚀</div>
-          <div className="terminal-empty-title">智码 AICoder</div>
-          <div className="terminal-empty-desc">AI 驱动的智能编程助手</div>
+          <div className="terminal-empty-title">H CLIer</div>
+          <div className="terminal-empty-desc">AI-Powered CLI Coding Assistant</div>
           <div className="terminal-empty-hint" onClick={handleNewSession}>
             <span className="terminal-empty-hint-icon">+</span>
             <span className="terminal-empty-hint-text">新建会话</span>
