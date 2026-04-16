@@ -167,31 +167,38 @@ function MultiTerminal() {
 
         // Claude 会话：自动启动
         if (session.sessionType === 'claude') {
-          const isNewSession = !session.cliSessionId
           const cliSessionId = session.cliSessionId || activeSessionId
 
           // 保存 cliSessionId（标记会话已开启）
-          if (isNewSession) {
+          if (!session.cliSessionId) {
             useSessionStore.getState().updateSession({ ...session, cliSessionId })
           }
 
           // 等待 PowerShell 启动
           await new Promise(r => setTimeout(r, 500))
 
+          // 检查 Claude 会话是否存在
+          const sessionExists = await invoke<boolean>('check_claude_session_exists', {
+            sessionId: cliSessionId,
+            projectPath: session.projectPath,
+          })
+
           // 从当前配置获取 Claude 路径和参数
           const claudeCmd = currentConfig?.claude?.cli_path || 'claude'
           const claudeArgs = currentConfig?.claude?.default_args || []
 
-          // 新会话用 --session-id，重开用 --resume
+          // 根据会话是否存在决定使用 --resume 还是 --session-id
           let cmd: string
-          if (isNewSession) {
-            cmd = claudeArgs.length > 0
-              ? `${claudeCmd} --session-id "${cliSessionId}" ${claudeArgs.join(' ')}\r`
-              : `${claudeCmd} --session-id "${cliSessionId}"\r`
-          } else {
+          if (sessionExists) {
+            // 会话已存在，使用 --resume 恢复
             cmd = claudeArgs.length > 0
               ? `${claudeCmd} --resume "${cliSessionId}" ${claudeArgs.join(' ')}\r`
               : `${claudeCmd} --resume "${cliSessionId}"\r`
+          } else {
+            // 会话不存在，使用 --session-id 创建
+            cmd = claudeArgs.length > 0
+              ? `${claudeCmd} --session-id "${cliSessionId}" ${claudeArgs.join(' ')}\r`
+              : `${claudeCmd} --session-id "${cliSessionId}"\r`
           }
 
           await invoke('write_to_pty', { ptyId, data: cmd })

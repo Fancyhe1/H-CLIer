@@ -107,6 +107,31 @@ fn empty_trash(state: tauri::State<AppState>) -> Result<usize, String> {
         .map_err(|e| e.to_string())
 }
 
+// 检查 Claude 会话是否存在
+#[tauri::command]
+fn check_claude_session_exists(session_id: String, project_path: String) -> Result<bool, String> {
+    use std::path::PathBuf;
+
+    // 编码项目路径：将 :\ 和 \ 替换为 -
+    let encoded_path = project_path
+        .replace(":", "-")
+        .replace("\\", "-")
+        .replace("/", "-");
+
+    // Claude 会话文件路径
+    let home = std::env::var("USERPROFILE")
+        .or_else(|_| std::env::var("HOME"))
+        .map_err(|e| e.to_string())?;
+
+    let session_file = PathBuf::from(home)
+        .join(".claude")
+        .join("projects")
+        .join(&encoded_path)
+        .join(format!("{}.jsonl", session_id));
+
+    Ok(session_file.exists())
+}
+
 // PTY终端命令
 #[tauri::command]
 fn create_pty(
@@ -581,6 +606,8 @@ pub fn run() {
             restore_from_trash,
             permanently_delete,
             empty_trash,
+            // Claude 会话检查
+            check_claude_session_exists,
             // 文件对话框
             select_folder,
             select_file,
