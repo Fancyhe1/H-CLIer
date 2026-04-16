@@ -25,6 +25,9 @@ import {
   GlobalOutlined,
   FontSizeOutlined,
   FolderOutlined,
+  SyncOutlined,
+  DownloadOutlined,
+  InfoCircleOutlined,
 } from '@ant-design/icons'
 import { invoke } from '@tauri-apps/api/core'
 import { useSessionStore } from '../stores/sessionStore'
@@ -58,9 +61,22 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
     updateClaudeConfig,
     updateGeneralConfig,
     setDefaultExportPath,
+    appVersion,
+    updateStatus,
+    updateInfo,
+    updateError,
+    getAppVersion,
+    checkForUpdates,
+    downloadAndInstallUpdate,
+    clearUpdateError,
   } = useSettingsStore()
 
   // 配置已在 App 启动时加载和检测，这里不需要再做
+
+  // 加载应用版本
+  useEffect(() => {
+    getAppVersion()
+  }, [])
 
   // 同步表单数据
   useEffect(() => {
@@ -426,6 +442,96 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
               </Button>
             </Form.Item>
           </Form>
+        </TabPane>
+
+        {/* 关于 */}
+        <TabPane
+          tab={
+            <span>
+              <InfoCircleOutlined />
+              关于
+            </span>
+          }
+          key="about"
+        >
+          <div style={{ marginBottom: 24 }}>
+            <Title level={5}>H CLIer</Title>
+            <Text type="secondary">版本: {appVersion || '加载中...'}</Text>
+            <br />
+            <Text type="secondary">AI 驱动的命令行编程助手</Text>
+          </div>
+
+          <Divider />
+
+          <Title level={5}>检查更新</Title>
+          <div style={{ marginBottom: 16 }}>
+            {updateStatus === 'idle' && (
+              <Text type="secondary">点击下方按钮检查更新</Text>
+            )}
+
+            {updateStatus === 'checking' && (
+              <Text><SyncOutlined spin /> 正在检查更新...</Text>
+            )}
+
+            {updateStatus === 'up_to_date' && (
+              <Text type="success">
+                <CheckCircleOutlined /> 当前已是最新版本
+              </Text>
+            )}
+
+            {updateStatus === 'available' && updateInfo && (
+              <Alert
+                message={`发现新版本: ${updateInfo.version}`}
+                description={updateInfo.body?.substring(0, 100) + (updateInfo.body?.length > 100 ? '...' : '')}
+                type="info"
+                showIcon
+                style={{ marginBottom: 12 }}
+              />
+            )}
+
+            {updateStatus === 'downloading' && (
+              <Text><DownloadOutlined spin /> 正在下载更新...</Text>
+            )}
+
+            {updateStatus === 'installing' && (
+              <Text><SyncOutlined spin /> 正在安装更新，即将重启...</Text>
+            )}
+
+            {updateStatus === 'error' && (
+              <Alert
+                message="更新检查失败"
+                description={updateError}
+                type="error"
+                showIcon
+                closable
+                onClose={clearUpdateError}
+              />
+            )}
+          </div>
+
+          <Space direction="vertical" size="small">
+            {updateStatus === 'idle' || updateStatus === 'error' || updateStatus === 'up_to_date' ? (
+              <Button
+                type="primary"
+                icon={<SyncOutlined />}
+                onClick={() => checkForUpdates()}
+                loading={updateStatus === 'checking' as any}
+              >
+                检查更新
+              </Button>
+            ) : null}
+
+            {updateStatus === 'available' && (
+              <Button
+                type="primary"
+                icon={<DownloadOutlined />}
+                onClick={() => downloadAndInstallUpdate()}
+                loading={false}
+              >
+                下载并安装更新
+              </Button>
+            )}
+          </Space>
         </TabPane>
       </Tabs>
     </Drawer>

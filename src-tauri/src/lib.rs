@@ -497,6 +497,11 @@ fn get_claude_version() -> Result<String, String> {
     cli::get_claude_version().map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn get_app_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
 // 检查点管理命令
 #[tauri::command]
 fn create_checkpoint(
@@ -558,6 +563,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             // 初始化数据库
             let app_handle = app.handle();
@@ -632,6 +638,7 @@ pub fn run() {
             check_claude_installation,
             spawn_claude,
             get_claude_version,
+            get_app_version,
             // 配置管理
             get_config,
             save_config,

@@ -44,7 +44,8 @@
             "core:window:allow-is-always-on-top",
             "dialog:default",
             "clipboard-manager:allow-write-text",
-            "clipboard-manager:allow-read-text"
+            "clipboard-manager:allow-read-text",
+            "updater:default"
           ]
         }
       ]
@@ -62,6 +63,16 @@
     "windows": {
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/Fancyhe1/smart-coder/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
       }
     }
   }

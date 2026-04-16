@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { invoke } from '@tauri-apps/api/core'
+import { check } from '@tauri-apps/plugin-updater'
 
 // 类型定义（与Rust后端对应）
 export interface ApiConfig {
@@ -26,6 +27,15 @@ export interface AppConfig {
   claude: ClaudeConfig
   general: GeneralConfig
 }
+
+// 更新相关类型
+export interface UpdateInfo {
+  version: string
+  date: string
+  body: string
+}
+
+export type UpdateStatus = 'idle' | 'checking' | 'available' | 'downloading' | 'installing' | 'error' | 'up_to_date'
 
 // 默认配置
 const defaultConfig: AppConfig = {
@@ -55,6 +65,12 @@ interface SettingsState {
   currentTheme: 'light' | 'dark'  // 当前生效的主题
   checkpointVisible: boolean  // 检查点弹窗是否显示
 
+  // 更新相关
+  appVersion: string
+  updateStatus: UpdateStatus
+  updateInfo: UpdateInfo | null
+  updateError: string | null
+
   // Actions
   loadConfig: () => Promise<void>
   saveConfig: (config: AppConfig) => Promise<void>
@@ -68,6 +84,11 @@ interface SettingsState {
   setDefaultExportPath: (path: string | null) => void
   setCurrentTheme: (theme: 'light' | 'dark') => void
   setCheckpointVisible: (visible: boolean) => void
+  getAppVersion: () => Promise<string>
+  checkForUpdates: () => Promise<UpdateInfo | null>
+  downloadAndInstallUpdate: () => Promise<void>
+  setUpdateStatus: (status: UpdateStatus) => void
+  clearUpdateError: () => void
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -77,6 +98,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   claudeVersion: null,
   currentTheme: 'dark',
   checkpointVisible: false,
+
+  // 更新相关状态
+  appVersion: '',
+  updateStatus: 'idle',
+  updateInfo: null,
+  updateError: null,
 
   // 加载配置
   loadConfig: async () => {
@@ -190,5 +217,77 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   // 设置检查点弹窗可见性
   setCheckpointVisible: (visible: boolean) => {
     set({ checkpointVisible: visible })
+  },
+
+  // 获取应用版本
+  getAppVersion: async () => {
+    try {
+      const version = await invoke<string>('get_app_version')
+      set({ appVersion: version })
+      return version
+    } catch (err) {
+      console.error('获取应用版本失败:', err)
+      return '0.0.0'
+    }
+  },
+
+  // 检查更新
+  checkForUpdates: async () => {
+    set({ updateStatus: 'checking', updateError: null })
+    try {
+      const update = await check()
+      if (update) {
+        set({
+          updateStatus: 'available',
+          updateInfo: {
+            version: update.version,
+            date: update.date || '',
+            body: update.body || '',
+          },
+        })
+        return update as unknown as UpdateInfo
+      } else {
+        set({ updateStatus: 'up_to_date' })
+        return null
+      }
+    } catch (err) {
+      console.error('检查更新失败:', err)
+      set({ updateStatus: 'error', updateError: String(err) })
+      return null
+    }
+  },
+
+  // 下载并安装更新
+  downloadAndInstallUpdate: async () => {
+    const { updateInfo } = get()
+    if (!updateInfo) {
+      set({ updateStatus: 'error', updateError: '没有可用更新' })
+      return
+    }
+
+    set({ updateStatus: 'downloading' })
+    try {
+      const update = await check()
+      if (update) {
+        await update.downloadAndInstall((event) => {
+          if (event.event === 'Started' || event.event === 'Progress') {
+            set({ updateStatus: 'installing' })
+          }
+        })
+      }
+    } catch (err) {
+      console.error('安装更新失败:', err)
+      set({ updateStatus: 'error', updateError: String(err) })
+    }
+  },
+
+  // 设置更新状态
+  setUpdateStatus: (status: UpdateStatus) => {
+    set({ updateStatus: status })
+  },
+
+  // 清除更新错误
+  clearUpdateError: () => {
+    set({ updateError: null, updateStatus: 'idle' })
   },
 }))
