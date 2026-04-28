@@ -74,5 +74,5 @@ jobs:
             --method PUT \
             --field message="Update latest.json for v${{ steps.version.outputs.VERSION }}" \
             --field content="$(Get-Content latest.json -Raw | base64)" \
-            --field branch=master \
+            --field branch=main \
             || echo "latest.json upload may require manual setup"
