@@ -1,0 +1,113 @@
+.tab-bar {
+  display: flex;
+  align-items: center;
+  background: transparent;
+  padding: 4px 8px;
+  min-height: 36px;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.dark .tab-bar {
+  background: transparent;
+  border-bottom-color: #2a2a2a;
+}
+
+.tab-bar-tabs {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.empty-tabs {
+  flex: 1;
+  height: 4px;
+}
+
+.terminal-tabs {
+  flex: 1;
+  min-width: 0;
+}
+
+.terminal-tabs .ant-tabs-nav {
+  margin-bottom: 0;
+}
+
+.terminal-tabs .ant-tabs-nav-operations {
+  display: none;
+}
+
+.new-tab-btn {
+  color: #888;
+  padding: 0 8px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-right: 8px;
+}
+
+.new-tab-btn:hover {
+  color: #1677ff;
+  background: rgba(22, 119, 255, 0.06);
+  border-radius: 6px;
+}
+
+.dark .new-tab-btn:hover {
+  color: #69b1ff;
+  background: rgba(64, 150, 255, 0.1);
+}
+
+.terminal-tabs .ant-tabs-nav-wrap {
+  align-items: center;
+}
+
+/* 深色主题标签 */
+.dark .terminal-tabs .ant-tabs-tab {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 6px !important;
+  margin-right: 4px !important;
+  padding: 4px 10px !important;
+  color: #888 !important;
+  font-size: 12px;
+}
+
+.dark .terminal-tabs .ant-tabs-tab:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #b0b0b0 !important;
+}
+
+.dark .terminal-tabs .ant-tabs-tab-active {
+  background: rgba(64, 150, 255, 0.15) !important;
+  color: #69b1ff !important;
+}
+
+.dark .terminal-tabs .ant-tabs-tab .ant-tabs-tab-remove {
+  color: #666 !important;
+}
+
+.dark .terminal-tabs .ant-tabs-tab .ant-tabs-tab-remove:hover {
+  color: #ff4d4f !important;
+}
+
+/* 浅色主题标签 */
+.light .terminal-tabs .ant-tabs-tab {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 6px !important;
+  margin-right: 4px !important;
+  padding: 4px 10px !important;
+  color: #888 !important;
+  font-size: 12px;
+}
+
+.light .terminal-tabs .ant-tabs-tab:hover {
+  background: rgba(0, 0, 0, 0.04) !important;
+  color: #666 !important;
+}
+
+.light .terminal-tabs .ant-tabs-tab-active {
+  background: rgba(22, 119, 255, 0.1) !important;
+  color: #1677ff !important;
+}

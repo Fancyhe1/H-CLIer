@@ -1,0 +1,16 @@
+.create-session-form {
+  padding: 16px 0;
+}
+
+.create-session-form .ant-form-item {
+  margin-bottom: 20px;
+}
+
+.create-session-form .ant-input-group-addon {
+  padding: 0;
+}
+
+.create-session-form .ant-input-group-addon button {
+  border: none;
+  background: transparent;
+}
