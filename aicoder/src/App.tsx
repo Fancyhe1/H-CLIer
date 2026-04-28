@@ -196,6 +196,15 @@ function App() {
     fetchClaudeVersion()
   }, [])
 
+  // 启动时自动检查更新（延迟 3 秒避免阻塞启动）
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const { checkForUpdates } = useSettingsStore.getState()
+      checkForUpdates()
+    }, 3000)
+    return () => clearTimeout(timer)
+  }, [])
+
   // 根据主题模式获取实际主题
   const resolveTheme = (mode: ThemeMode): 'light' | 'dark' => {
     if (mode === 'system') {

@@ -657,7 +657,6 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
                 type="primary"
                 icon={<SyncOutlined />}
                 onClick={() => checkForUpdates()}
-                loading={updateStatus === 'checking' as any}
               >
                 检查更新
               </Button>
