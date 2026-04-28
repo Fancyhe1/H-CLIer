@@ -1,0 +1,78 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: aicoder/package-lock.json
+
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
+        with:
+          toolchain: stable
+
+      - name: Install dependencies (npm)
+        working-directory: ./aicoder
+        run: npm ci
+
+      - name: Build Tauri app
+        working-directory: ./aicoder
+        run: npm run tauri:build
+
+      - name: Get version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: aicoder/src-tauri/target/release/bundle/nsis/*.exe
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create latest.json
+        run: |
+          $exePath = "aicoder/src-tauri/target/release/bundle/nsis/*.exe"
+          $exe = Get-ChildItem $exePath | Select-Object -First 1
+          $sha256 = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash.ToLower()
+
+          $latestJson = @{
+            version = "${{ steps.version.outputs.VERSION }}"
+            date = (Get-Date -Format "yyyy-MM-dd")
+            body = "Release v${{ steps.version.outputs.VERSION }}"
+            path = $exe.FullName
+            sha256 = $sha256
+          } | ConvertTo-Json -Compress
+
+          Set-Content -Path latest.json -Value $latestJson -Encoding UTF8
+          Get-Content latest.json
+
+      - name: Upload latest.json to H-CLIer repo
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $RELEASE_ID = $(gh release view --json id --jq .id ${{ github.ref_name }})
+          $REPO = "Fancyhe1/H-CLIer"
+
+          # Upload latest.json to H-CLIer repo
+          gh api repos/Fancyhe1/H-CLIer/contents/latest.json \
+            --method PUT \
+            --field message="Update latest.json for v${{ steps.version.outputs.VERSION }}" \
+            --field content="$(Get-Content latest.json -Raw | base64)" \
+            --field branch=master \
+            || echo "latest.json upload may require manual setup"

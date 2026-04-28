@@ -73,7 +73,7 @@
     "updater": {
       "pubkey": "",
       "endpoints": [
-        "https://raw.githubusercontent.com/Fancyhe1/smart-coder/master/latest.json"
+        "https://raw.githubusercontent.com/Fancyhe1/H-CLIer/master/latest.json"
       ],
       "windows": {
         "installMode": "passive"
