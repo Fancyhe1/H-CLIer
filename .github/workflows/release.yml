@@ -27,52 +27,33 @@ jobs:
         working-directory: ./aicoder
         run: npm ci
 
-      - name: Build Tauri app (unsigned)
+      - name: Build Tauri app
         working-directory: ./aicoder
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: npm run tauri:build
 
-      - name: Get version
-        id: version
-        run: |
-          $version = "${{ github.ref_name }}".Replace("refs/tags/v", "")
-          echo "VERSION=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-
-      - name: Get exe path
+      - name: Get exe info
         id: exe
-        shell: pwsh
+        shell: bash
         run: |
-          $exeFiles = Get-ChildItem "aicoder/src-tauri/target/release/bundle/nsis/*.exe"
-          if ($exeFiles) {
-            $exe = $exeFiles[0]
-            echo "EXE_NAME=$($exe.Name)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-            echo "EXE_FULLNAME=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          } else {
-            echo "No exe found"
-            Get-ChildItem "aicoder/src-tauri/target/release/bundle/nsis/" -Recurse
-          }
-
-      - name: Debug signing
-        shell: pwsh
-        run: |
-          echo "TAURI_SIGNING_PRIVATE_KEY length: $($env:TAURI_SIGNING_PRIVATE_KEY.Length)"
+          EXE_FILES=$(find aicoder/src-tauri/target/release/bundle/nsis -name "*.exe" -not -name "*.0.exe" | head -1)
+          echo "EXE_PATH=$EXE_FILES"
+          echo "EXE_NAME=$(basename $EXE_FILES)"
+          echo "EXE_DIR=$(dirname $EXE_FILES)"
 
       - name: Sign the app
-        if: vars.EXE_FULLNAME != ''
-        shell: pwsh
+        shell: bash
         working-directory: ./aicoder
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
-          $exePath = "${{ steps.exe.outputs.EXE_FULLNAME }}"
-          $key = $env:TAURI_SIGNING_PRIVATE_KEY
-          Write-Host "Signing file: $exePath"
-          Write-Host "Key length: $($key.Length)"
-          & npm run tauri signer sign -- --private-key $key $exePath
+          EXE_PATH="${{ steps.exe.outputs.EXE_PATH }}"
+          echo "Signing: $EXE_PATH"
+          echo "Key length: ${#TAURI_SIGNING_PRIVATE_KEY}"
+          npm run tauri signer sign -- --private-key "$TAURI_SIGNING_PRIVATE_KEY" "$EXE_PATH"
 
       - name: Create GitHub Release
-        if: vars.EXE_FULLNAME != ''
         uses: softprops/action-gh-release@v1
         with:
           files: |
@@ -82,55 +63,59 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create latest.json with signature
+      - name: Create latest.json
         id: latest
-        shell: pwsh
+        shell: bash
         run: |
-          $exePath = "${{ steps.exe.outputs.EXE_FULLNAME }}"
-          if (-not $exePath -or $exePath -eq '') {
-            echo "No exe path, skipping latest.json"
-            exit 0
+          VERSION="${{ github.ref_name }}" | sed 's/refs\/tags\/v//'
+          EXE_PATH="${{ steps.exe.outputs.EXE_PATH }}"
+          SIG_PATH="${EXE_PATH}.sig"
+          EXE_NAME="$(basename $EXE_PATH)"
+
+          SHA256=$(powershell -Command "(Get-FileHash '$EXE_PATH' -Algorithm SHA256).Hash.ToLower()")
+
+          if [ -f "$SIG_PATH" ]; then
+            SIGNATURE=$(cat "$SIG_PATH" | tr -d '\n')
+          else
+            SIGNATURE=""
+          fi
+
+          echo "SIGNATURE_LENGTH=${#SIGNATURE}"
+
+          cat > latest.json << EOF
+          {
+            "version": "$VERSION",
+            "date": "$(date +%Y-%m-%d)",
+            "body": "Release $VERSION",
+            "url": "https://github.com/Fancyhe1/H-CLIer/releases/download/$VERSION/$EXE_NAME",
+            "sha256": "$SHA256",
+            "signature": "$SIGNATURE"
           }
-          $sigPath = "$exePath.sig"
-          $exe = Get-ChildItem $exePath
-          $sha256 = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash.ToLower()
-          $signature = if (Test-Path $sigPath) { (Get-Content $sigPath -Raw).Trim() } else { "" }
-          $version = "${{ steps.version.outputs.VERSION }}"
+          EOF
 
-          $latestJson = @{
-            version = $version
-            date = (Get-Date -Format "yyyy-MM-dd")
-            body = "Release v$version"
-            url = "https://github.com/Fancyhe1/H-CLIer/releases/download/v$version/$($exe.Name)"
-            sha256 = $sha256
-            signature = $signature
-          } | ConvertTo-Json -Compress
-
-          Set-Content -Path latest.json -Value $latestJson -Encoding UTF8
-          echo "SIGNATURE_LENGTH=$($signature.Length)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          cat latest.json
 
       - name: Upload latest.json to H-CLIer repo
-        shell: pwsh
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $version = "${{ steps.version.outputs.VERSION }}"
-          $SHA = $(gh api repos/Fancyhe1/H-CLIer/contents/latest.json --jq '.sha' 2>/dev/null)
-          $BODY = "Update latest.json for v$version"
+          VERSION="${{ github.ref_name }}" | sed 's/refs\/tags\/v//'
+          SHA=$(gh api repos/Fancyhe1/H-CLIer/contents/latest.json --jq '.sha' 2>/dev/null || echo "")
 
-          $content = [Convert]::ToBase64String([IO.File]::ReadAllBytes("latest.json"))
+          CONTENT=$(cat latest.json | base64 -w 0)
 
-          if ($SHA) {
-            gh api repos/Fancyhe1/H-CLIer/contents/latest.json `
-              --method PUT `
-              --field message="$BODY" `
-              --field content="$content" `
-              --field branch=main `
+          if [ -n "$SHA" ]; then
+            gh api repos/Fancyhe1/H-CLIer/contents/latest.json \
+              --method PUT \
+              --field message="Update latest.json for $VERSION" \
+              --field content="$CONTENT" \
+              --field branch=main \
               --field sha="$SHA"
-          } else {
-            gh api repos/Fancyhe1/H-CLIer/contents/latest.json `
-              --method PUT `
-              --field message="$BODY" `
-              --field content="$content" `
+          else
+            gh api repos/Fancyhe1/H-CLIer/contents/latest.json \
+              --method PUT \
+              --field message="Update latest.json for $VERSION" \
+              --field content="$CONTENT" \
               --field branch=main
-          }
+          fi
