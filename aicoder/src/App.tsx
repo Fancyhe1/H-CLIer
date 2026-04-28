@@ -1,0 +1,541 @@
+import { useState, useEffect } from 'react'
+import { Layout, Button, Space, ConfigProvider, Spin, Tooltip, Modal, Input, message } from 'antd'
+import { theme } from 'antd'
+import {
+  SettingOutlined,
+  MoonOutlined,
+  SunOutlined,
+  BarChartOutlined,
+  ThunderboltOutlined,
+  PushpinOutlined,
+  DesktopOutlined,
+  LoadingOutlined,
+  SaveOutlined,
+  MinusOutlined,
+  ExpandOutlined,
+  CompressOutlined,
+  CloseOutlined,
+  FolderOpenOutlined,
+  QuestionCircleOutlined,
+  DashboardOutlined,
+  OrderedListOutlined,
+  MacCommandOutlined,
+} from '@ant-design/icons'
+import { getCurrentWindow } from '@tauri-apps/api/window'
+import { invoke as tauriInvoke } from '@tauri-apps/api/core'
+import Sidebar from './components/Sidebar'
+import TabBar from './components/TabBar'
+import MultiTerminal from './components/MultiTerminal'
+import SettingsPanel from './components/SettingsPanel'
+import TokenStatsPanel from './components/TokenStatsPanel'
+import CommandPalette from './components/CommandPalette'
+import CheckpointModal from './components/CheckpointModal'
+import FileBrowserModal from './components/FileBrowserModal'
+import { useSettingsStore } from './stores/settingsStore'
+import { useSessionStore } from './stores/sessionStore'
+import './styles/App.css'
+
+const { Content, Sider } = Layout
+
+// 定义内容面板类型
+type PanelType = 'terminal' | 'stats'
+
+// 主题模式类型
+type ThemeMode = 'light' | 'dark' | 'system'
+
+function App() {
+  const [collapsed] = useState(false)
+  const [themeMode, setThemeMode] = useState<ThemeMode>('dark')
+  const [currentTheme, setCurrentThemeLocal] = useState<'light' | 'dark'>('dark')
+  const [settingsVisible, setSettingsVisible] = useState(false)
+  const [commandPaletteVisible, setCommandPaletteVisible] = useState(false)
+  const [activePanel, setActivePanel] = useState<PanelType>('terminal')
+  const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isMaximized, setIsMaximized] = useState(false)
+
+  // 底部工具栏状态
+  const [claudeMdVisible, setClaudeMdVisible] = useState(false)
+  const [claudeMdContent, setClaudeMdContent] = useState('')
+  const [claudeMdPath, setClaudeMdPath] = useState('')
+  const [claudeVersion, setClaudeVersion] = useState<string>('')
+  const [fileBrowserVisible, setFileBrowserVisible] = useState(false)
+
+  // 响应式获取当前会话的工作空间
+  const { sessions, activeSessionId } = useSessionStore()
+  const activeSession = sessions.find(s => s.id === activeSessionId)
+  const currentProjectName = activeSession?.projectPath.split('\\').pop() || null
+
+  // 窗口控制
+  const appWindow = getCurrentWindow()
+
+  const handleMinimize = () => appWindow.minimize()
+  const handleMaximize = async () => {
+    if (isMaximized) {
+      await appWindow.unmaximize()
+    } else {
+      await appWindow.maximize()
+    }
+    setIsMaximized(!isMaximized)
+  }
+  const handleClose = () => appWindow.close()
+
+  // 检测窗口最大化状态
+  useEffect(() => {
+    const checkMaximized = async () => {
+      const maximized = await appWindow.isMaximized()
+      setIsMaximized(maximized)
+    }
+    checkMaximized()
+
+    // 监听窗口大小变化
+    const unlisten = appWindow.onResized(() => {
+      checkMaximized()
+    })
+    return () => { unlisten.then(fn => fn()) }
+  }, [])
+
+  const { loadConfig, setCurrentTheme, checkpointVisible, setCheckpointVisible } = useSettingsStore()
+
+  // 获取 Claude 版本
+  const fetchClaudeVersion = async () => {
+    try {
+      const version = await tauriInvoke<string>('get_claude_version')
+      setClaudeVersion(version)
+    } catch (err) {
+      setClaudeVersion('未检测到')
+    }
+  }
+
+  // 打开文件管理器
+  const openInExplorer = async () => {
+    const { sessions, activeSessionId } = useSessionStore.getState()
+    const activeSession = sessions.find(s => s.id === activeSessionId)
+    const projectPath = activeSession?.projectPath || ''
+
+    console.log('[openInExplorer] 准备打开路径:', projectPath)
+
+    if (projectPath) {
+      try {
+        await tauriInvoke('open_in_explorer', { projectPath })
+      } catch (err) {
+        console.error('打开文件管理器失败:', err)
+        message.error('打开文件管理器失败: ' + String(err))
+      }
+    } else {
+      message.warning('请先选择一个会话')
+    }
+  }
+
+  // 打开/保存 claude.md
+  const openClaudeMd = async () => {
+    try {
+      // 获取当前工作目录（如果有活跃会话的话）
+      const { sessions, activeSessionId } = useSessionStore.getState()
+      const activeSession = sessions.find(s => s.id === activeSessionId)
+      const projectPath = activeSession?.projectPath || ''
+
+      if (projectPath) {
+        const claudeMdFile = `${projectPath}\\claude.md`
+        setClaudeMdPath(claudeMdFile)
+        try {
+          const content = await tauriInvoke<string>('read_text_file', { path: claudeMdFile })
+          setClaudeMdContent(content)
+        } catch {
+          // 文件不存在，使用默认内容
+          setClaudeMdContent('# CLAUDE.md\n\nWrite your project instructions here.\n')
+        }
+      } else {
+        setClaudeMdContent('# CLAUDE.md\n\nWrite your project instructions here.\n')
+        setClaudeMdPath('')
+        message.warning('请先选择一个项目目录')
+      }
+      setClaudeMdVisible(true)
+    } catch (err) {
+      console.error('读取 claude.md 失败:', err)
+      message.error('读取 claude.md 失败')
+    }
+  }
+
+  const saveClaudeMd = async () => {
+    if (claudeMdPath) {
+      try {
+        await tauriInvoke('write_text_file', { path: claudeMdPath, content: claudeMdContent })
+        message.success('claude.md 已保存')
+        setClaudeMdVisible(false)
+      } catch (err) {
+        message.error('保存失败: ' + String(err))
+      }
+    } else {
+      message.warning('请先选择一个项目目录')
+    }
+  }
+
+  const antTheme = currentTheme === 'dark' ? theme.darkAlgorithm : theme.defaultAlgorithm
+
+  // 应用启动时加载配置
+  useEffect(() => {
+    loadConfig().then(() => {
+      // 从配置读取主题设置
+      const savedConfig = useSettingsStore.getState().config
+      if (savedConfig?.general?.theme) {
+        setThemeMode(savedConfig.general.theme as ThemeMode)
+      }
+      // 加载完成后延迟一点显示主界面，避免闪烁
+      setTimeout(() => setIsLoading(false), 100)
+    }).catch(() => {
+      setIsLoading(false)
+    })
+  }, [loadConfig])
+
+  // 启动时检测 Claude 安装状态（异步，不阻塞 UI）
+  useEffect(() => {
+    const { checkClaudeInstallation, getClaudeVersion } = useSettingsStore.getState()
+    checkClaudeInstallation()
+    getClaudeVersion()
+    fetchClaudeVersion()
+  }, [])
+
+  // 根据主题模式获取实际主题
+  const resolveTheme = (mode: ThemeMode): 'light' | 'dark' => {
+    if (mode === 'system') {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    }
+    return mode
+  }
+
+  // 监听系统主题变化
+  useEffect(() => {
+    if (themeMode === 'system') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+      const handler = (e: MediaQueryListEvent) => {
+        setCurrentThemeLocal(e.matches ? 'dark' : 'light')
+        setCurrentTheme(e.matches ? 'dark' : 'light')
+      }
+      mediaQuery.addEventListener('change', handler)
+      return () => mediaQuery.removeEventListener('change', handler)
+    }
+  }, [themeMode])
+
+  // 初始化主题
+  useEffect(() => {
+    const resolved = resolveTheme(themeMode)
+    setCurrentThemeLocal(resolved)
+    setCurrentTheme(resolved)
+  }, [themeMode])
+
+  // 键盘快捷键监听
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+K 打开命令面板
+      if (e.ctrlKey && e.key === 'k') {
+        e.preventDefault()
+        setCommandPaletteVisible(true)
+      }
+      // Ctrl+Shift+T 打开Token统计
+      if (e.ctrlKey && e.shiftKey && e.key === 'T') {
+        e.preventDefault()
+        setActivePanel('stats')
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
+  // 切换置顶
+  const toggleAlwaysOnTop = async () => {
+    try {
+      await appWindow.setAlwaysOnTop(!isAlwaysOnTop)
+      setIsAlwaysOnTop(!isAlwaysOnTop)
+    } catch (err) {
+      console.error('置顶切换失败:', err)
+    }
+  }
+
+  // 循环切换主题：light -> dark -> system -> light
+  const cycleTheme = () => {
+    const nextMode: ThemeMode = themeMode === 'light' ? 'dark' : themeMode === 'dark' ? 'system' : 'light'
+    setThemeMode(nextMode)
+    // 保存到配置
+    const { config, updateGeneralConfig } = useSettingsStore.getState()
+    updateGeneralConfig({ ...config.general, theme: nextMode })
+  }
+
+  // 获取主题图标
+  const getThemeIcon = () => {
+    if (themeMode === 'system') {
+      return <DesktopOutlined />
+    }
+    return currentTheme === 'dark' ? <MoonOutlined /> : <SunOutlined />
+  }
+
+  // 获取主题提示文字
+  const getThemeTitle = () => {
+    if (themeMode === 'light') return '浅色模式 (点击切换: 深色)'
+    if (themeMode === 'dark') return '深色模式 (点击切换: 跟随系统)'
+    return '跟随系统 (点击切换: 浅色)'
+  }
+
+  const renderContent = () => {
+    switch (activePanel) {
+      case 'stats':
+        return <TokenStatsPanel />
+      case 'terminal':
+      default:
+        return <MultiTerminal />
+    }
+  }
+
+  // 启动画面
+  if (isLoading) {
+    return (
+      <div className={`app-splash ${currentTheme}`}>
+        <div className="splash-content">
+          <div className="splash-logo">🚀</div>
+          <div className="splash-title">H CLIer</div>
+          <div className="splash-subtitle">AI 驱动的智能编程助手</div>
+          <Spin indicator={<LoadingOutlined style={{ fontSize: 24, color: currentTheme === 'dark' ? '#69b1ff' : '#1677ff' }} spin />} />
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <ConfigProvider
+      theme={{
+        algorithm: antTheme,
+        token: {
+          colorPrimary: '#1677ff',
+        },
+      }}
+    >
+      <Layout className={`app-layout ${currentTheme}`}>
+        <Sider
+          trigger={null}
+          collapsible
+          collapsed={collapsed}
+          width={280}
+          theme={currentTheme}
+          className="app-sidebar"
+          style={{ display: 'flex', flexDirection: 'column' }}
+        >
+          <Sidebar collapsed={collapsed} theme={currentTheme} />
+        </Sider>
+        <Layout className="app-main">
+          {/* 顶部工具栏 */}
+          <div
+            className={`app-toolbar ${currentTheme}`}
+          >
+            <div className="toolbar-left" />
+            <div className="toolbar-right">
+              <Space size={1}>
+                <Tooltip title="终端">
+                  <Button
+                    type={activePanel === 'terminal' ? 'primary' : 'text'}
+                    icon={<ThunderboltOutlined />}
+                    onClick={() => setActivePanel('terminal')}
+                    className="toolbar-btn"
+                    size="small"
+                  />
+                </Tooltip>
+                <Tooltip title="Token统计">
+                  <Button
+                    type={activePanel === 'stats' ? 'primary' : 'text'}
+                    icon={<BarChartOutlined />}
+                    onClick={() => setActivePanel('stats')}
+                    className="toolbar-btn"
+                    size="small"
+                  />
+                </Tooltip>
+                <Tooltip title="检查点">
+                  <Button
+                    type="text"
+                    icon={<SaveOutlined />}
+                    onClick={() => setCheckpointVisible(true)}
+                    className="toolbar-btn"
+                    size="small"
+                  />
+                </Tooltip>
+                <Tooltip title={getThemeTitle()}>
+                  <Button
+                    type="text"
+                    icon={getThemeIcon()}
+                    onClick={cycleTheme}
+                    className="toolbar-btn"
+                    size="small"
+                  />
+                </Tooltip>
+                <Tooltip title="设置">
+                  <Button
+                    type="text"
+                    icon={<SettingOutlined />}
+                    onClick={() => setSettingsVisible(true)}
+                    className="toolbar-btn"
+                    size="small"
+                  />
+                </Tooltip>
+              </Space>
+              <Tooltip title={isAlwaysOnTop ? '取消置顶' : '置顶显示'}>
+                <Button
+                  type={isAlwaysOnTop ? 'primary' : 'text'}
+                  icon={<PushpinOutlined />}
+                  onClick={toggleAlwaysOnTop}
+                  className="toolbar-btn"
+                  size="small"
+                />
+              </Tooltip>
+              <Tooltip title="最小化">
+                <Button
+                  type="text"
+                  icon={<MinusOutlined />}
+                  onClick={handleMinimize}
+                  className="window-btn"
+                  size="small"
+                />
+              </Tooltip>
+              <Tooltip title={isMaximized ? "还原" : "最大化"}>
+                <Button
+                  type="text"
+                  icon={isMaximized ? <CompressOutlined /> : <ExpandOutlined />}
+                  onClick={handleMaximize}
+                  className="window-btn"
+                  size="small"
+                />
+              </Tooltip>
+              <Tooltip title="关闭">
+                <Button
+                  type="text"
+                  icon={<CloseOutlined />}
+                  onClick={handleClose}
+                  className="window-btn window-close"
+                  size="small"
+                />
+              </Tooltip>
+            </div>
+          </div>
+          {/* 标签栏 */}
+          <TabBar />
+          <Content className="app-content">
+            {renderContent()}
+          </Content>
+          {/* 底部状态栏 */}
+          <div className={`status-bar ${currentTheme}`}>
+            <div className="status-left">
+              <div
+                className="status-item file-browser"
+                onClick={() => setFileBrowserVisible(true)}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  openInExplorer()
+                }}
+              >
+                <FolderOpenOutlined />
+                <span className="status-text">{currentProjectName || '未选择文件'}</span>
+              </div>
+              <div className="status-divider" />
+              <Tooltip title="编辑 CLAUDE.md 配置">
+                <Button
+                  type="text"
+                  icon={<QuestionCircleOutlined />}
+                  onClick={openClaudeMd}
+                  className="status-btn"
+                  size="small"
+                >
+                  CLAUDE.md
+                </Button>
+              </Tooltip>
+            </div>
+            <div className="status-right">
+              <Tooltip title="快捷指令 (Ctrl+K)">
+                <Button
+                  type="text"
+                  icon={<MacCommandOutlined />}
+                  onClick={() => setCommandPaletteVisible(true)}
+                  className="status-btn"
+                  size="small"
+                >
+                  指令
+                </Button>
+              </Tooltip>
+              <Tooltip title="任务队列">
+                <Button
+                  type="text"
+                  icon={<OrderedListOutlined />}
+                  className="status-btn"
+                  size="small"
+                >
+                  任务
+                </Button>
+              </Tooltip>
+              <Tooltip title="仪表盘">
+                <Button
+                  type="text"
+                  icon={<DashboardOutlined />}
+                  className="status-btn"
+                  size="small"
+                >
+                  仪表盘
+                </Button>
+              </Tooltip>
+              <div className="status-divider" />
+              <span className="status-info">Claude Code {claudeVersion}</span>
+            </div>
+          </div>
+        </Layout>
+      </Layout>
+
+      {/* CLAUDE.md 编辑器 */}
+      <Modal
+        title="编辑 CLAUDE.md"
+        open={claudeMdVisible}
+        onOk={saveClaudeMd}
+        onCancel={() => setClaudeMdVisible(false)}
+        width={700}
+        okText="保存"
+        cancelText="取消"
+      >
+        <Input.TextArea
+          value={claudeMdContent}
+          onChange={(e) => setClaudeMdContent(e.target.value)}
+          rows={15}
+          className="claude-md-editor"
+          placeholder="输入 CLAUDE.md 内容..."
+        />
+      </Modal>
+
+      <SettingsPanel
+        visible={settingsVisible}
+        onClose={() => setSettingsVisible(false)}
+        theme={currentTheme}
+        onThemeChange={(t) => {
+          setThemeMode(t as ThemeMode)
+          // 保存到配置
+          const { config, updateGeneralConfig } = useSettingsStore.getState()
+          updateGeneralConfig({ ...config.general, theme: t as string })
+        }}
+      />
+
+      <CommandPalette
+        visible={commandPaletteVisible}
+        onClose={() => setCommandPaletteVisible(false)}
+        onOpenStats={() => setActivePanel('stats')}
+      />
+
+      <CheckpointModal
+        visible={checkpointVisible}
+        onClose={() => setCheckpointVisible(false)}
+        theme={currentTheme}
+      />
+
+      <FileBrowserModal
+        visible={fileBrowserVisible}
+        onClose={() => setFileBrowserVisible(false)}
+        projectPath={activeSession?.projectPath || ''}
+        theme={currentTheme}
+      />
+    </ConfigProvider>
+  )
+}
+
+export default App

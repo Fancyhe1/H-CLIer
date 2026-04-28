@@ -1,0 +1,159 @@
+.token-stats-panel {
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.token-stats-panel .ant-typography {
+  margin-bottom: 24px;
+}
+
+.stats-row {
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  height: 100%;
+}
+
+.stat-card .ant-statistic-title {
+  font-size: 14px;
+  color: #666;
+}
+
+.stat-card .ant-statistic-content {
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.stat-detail {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.stat-cost {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+  font-size: 16px;
+  font-weight: 500;
+  color: #cf1322;
+}
+
+.trend-card,
+.heatmap-card,
+.detail-card {
+  margin-bottom: 24px;
+}
+
+/* 趋势图 */
+.trend-chart {
+  height: 200px;
+  padding: 16px 0;
+}
+
+.chart-bars {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+  height: 100%;
+  gap: 8px;
+}
+
+.chart-bar-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+}
+
+.chart-bar {
+  width: 100%;
+  max-width: 40px;
+  background: linear-gradient(to top, #1677ff, #69c0ff);
+  border-radius: 4px 4px 0 0;
+  transition: all 0.3s;
+}
+
+.chart-bar:hover {
+  opacity: 0.8;
+}
+
+.chart-label {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+/* 热力图 */
+.activity-heatmap {
+  padding: 16px 0;
+}
+
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.legend-item {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+.heatmap-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.heatmap-week {
+  display: flex;
+  gap: 4px;
+}
+
+.heatmap-day {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  transition: all 0.2s;
+}
+
+.heatmap-day:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.2);
+}
+
+/* 暗色主题 */
+.dark .stat-card {
+  background: #1f1f1f;
+  border-color: #303030;
+}
+
+.dark .stat-card .ant-statistic-title {
+  color: #999;
+}
+
+.dark .stat-cost {
+  border-color: #303030;
+}
+
+.dark .trend-card,
+.dark .heatmap-card,
+.dark .detail-card {
+  background: #1f1f1f;
+  border-color: #303030;
+}
+
+.dark .trend-card .ant-card-head,
+.dark .heatmap-card .ant-card-head,
+.dark .detail-card .ant-card-head {
+  border-color: #303030;
+}
+
+.dark .chart-bar {
+  background: linear-gradient(to top, #177ddc, #3c9ae8);
+}

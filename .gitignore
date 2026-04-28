@@ -5,6 +5,10 @@ node_modules/
 dist/
 build/
 
+# Tauri build
+src-tauri/target/
+aicoder/src-tauri/target/
+
 # Executables
 *.exe
 
@@ -20,8 +24,11 @@ Thumbs.db
 *.log
 npm-debug.log*
 
-# Rust build
-src-tauri/target/
-
 # Claude
+.claude/
 .claude/scheduled_tasks.json
+
+# NPM
+aicoder/node_modules/
+aicoder/dist/
+aicoder/latest.json
