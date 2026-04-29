@@ -45,14 +45,29 @@ jobs:
         working-directory: ./aicoder
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
         run: |
-          echo "Starting signing with inline key..."
-          node ./node_modules/@tauri-apps/cli/tauri.js signer sign -k "$TAURI_SIGNING_PRIVATE_KEY" "${{ steps.exe.outputs.EXE_PATH }}" </dev/null
+          # Write key with printf to avoid any newline issues
+          printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" | base64 -d > signing_key.pem
+          KEY_SIZE=$(wc -c < signing_key.pem)
+          echo "Key file size: $KEY_SIZE bytes"
+
+          if [ "$KEY_SIZE" -lt 100 ]; then
+            echo "ERROR: Key file too small"
+            exit 1
+          fi
+
+          # Verify first few chars are valid base64
+          head -c 20 signing_key.pem | od -c | head -1
+
+          unset TAURI_SIGNING_PRIVATE_KEY
+
+          echo "Starting signing..."
+          TAURI_SIGNING_PRIVATE_KEY_PATH=signing_key.pem node ./node_modules/@tauri-apps/cli/tauri.js signer sign "${{ steps.exe.outputs.EXE_PATH }}" </dev/null
           SIGN_EXIT=$?
           echo "Signing exit code: $SIGN_EXIT"
+
           if [ -f "${{ steps.exe.outputs.EXE_PATH }}.sig" ]; then
-            echo "Signature file created successfully"
+            echo "Signature file created"
           fi
 
       - name: Create latest.json
