@@ -48,13 +48,33 @@ jobs:
         run: |
           # Write key to file
           echo "$TAURI_SIGNING_PRIVATE_KEY" | base64 -d > signing_key.pem
-          echo "Key length: $(wc -c < signing_key.pem)"
+          KEY_SIZE=$(wc -c < signing_key.pem)
+          echo "Key size: $KEY_SIZE bytes"
+
+          if [ "$KEY_SIZE" -lt 100 ]; then
+            echo "ERROR: Key file is too small, secret may be empty or invalid"
+            exit 1
+          fi
+
+          # Show first few chars of key (for debugging, not the full key)
+          echo "Key preview: $(head -c 20 signing_key.pem)..."
 
           # CRITICAL: unset TAURI_SIGNING_PRIVATE_KEY before running node to avoid conflict
           unset TAURI_SIGNING_PRIVATE_KEY
 
           # Sign with key file path via env var, suppress interactive input
-          TAURI_SIGNING_PRIVATE_KEY_PATH=signing_key.pem node ./node_modules/@tauri-apps/cli/tauri.js signer sign "${{ steps.exe.outputs.EXE_PATH }}" </dev/null
+          # Note: On Windows runner with bash, use NUL instead of /dev/null
+          echo "Starting signing..."
+          TAURI_SIGNING_PRIVATE_KEY_PATH=signing_key.pem node ./node_modules/@tauri-apps/cli/tauri.js signer sign "${{ steps.exe.outputs.EXE_PATH }}" < NUL
+          SIGN_EXIT=$?
+          echo "Signing exit code: $SIGN_EXIT"
+
+          if [ -f "${{ steps.exe.outputs.EXE_PATH }}.sig" ]; then
+            echo "Signature file created successfully"
+            ls -la "${{ steps.exe.outputs.EXE_PATH }}.sig"
+          else
+            echo "WARNING: Signature file was not created"
+          fi
 
       - name: Create latest.json
         if: steps.exe.outputs.EXE_PATH != ''
