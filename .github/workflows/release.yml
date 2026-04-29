@@ -50,13 +50,12 @@ jobs:
           echo "$TAURI_SIGNING_PRIVATE_KEY" | base64 -d > signing_key.pem
           echo "Key length: $(wc -c < signing_key.pem)"
 
-          # Unset env var so it doesn't conflict with --private-key-path
+# Unset env var so it doesn't conflict with --private-key-path
           unset TAURI_SIGNING_PRIVATE_KEY
 
-          # Use npm run to invoke local tauri CLI (no npx needed)
-          # Use -- to pass args to tauri, not npm
-          # Redirect /dev/null to stdin to prevent hanging in CI
-          npm run tauri -- signer sign --private-key-path signing_key.pem "${{ steps.exe.outputs.EXE_PATH }}" </dev/null
+          # Sign using node directly (bypasses npm stdin issues)
+          # Redirect stdin from /dev/null to prevent any interactive prompts from blocking
+          node ./node_modules/@tauri-apps/cli/tauri.js signer sign --private-key-path signing_key.pem "${{ steps.exe.outputs.EXE_PATH }}" </dev/null
 
       - name: Create GitHub Release
         if: steps.exe.outputs.EXE_PATH != ''
