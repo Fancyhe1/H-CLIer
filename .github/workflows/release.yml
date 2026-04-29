@@ -46,8 +46,8 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
-          # Write key with printf to avoid any newline issues
-          printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" | base64 -d > signing_key.pem
+          # Decode key and convert literal \n to real newlines
+          printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" | sed 's/\\n/\n/g' | base64 -d > signing_key.pem
           KEY_SIZE=$(wc -c < signing_key.pem)
           echo "Key file size: $KEY_SIZE bytes"
 
@@ -55,9 +55,6 @@ jobs:
             echo "ERROR: Key file too small"
             exit 1
           fi
-
-          # Verify first few chars are valid base64
-          head -c 20 signing_key.pem | od -c | head -1
 
           unset TAURI_SIGNING_PRIVATE_KEY
 
