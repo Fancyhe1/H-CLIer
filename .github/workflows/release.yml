@@ -39,24 +39,23 @@ jobs:
           echo "EXE_PATH=$EXE" >> $GITHUB_OUTPUT
           echo "EXE_NAME=$(basename $EXE)" >> $GITHUB_OUTPUT
 
-      - name: Sign the app
-        if: steps.exe.outputs.EXE_PATH != ''
-        shell: bash
-        working-directory: ./aicoder
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-        run: |
-          # Write key to file
-          echo "$TAURI_SIGNING_PRIVATE_KEY" | base64 -d > signing_key.pem
-          echo "Key length: $(wc -c < signing_key.pem)"
-
-          # CRITICAL: unset TAURI_SIGNING_PRIVATE_KEY before running node
-          # because tauri reads this env var and activates --private-key option,
-          # which conflicts with --private-key-path (whether passed via CLI or env var)
-          unset TAURI_SIGNING_PRIVATE_KEY
-
-          # Now run signing with only the key file path via env var
-          TAURI_SIGNING_PRIVATE_KEY_PATH=signing_key.pem node ./node_modules/@tauri-apps/cli/tauri.js signer sign "${{ steps.exe.outputs.EXE_PATH }}" < NUL
+      # TEMPORARILY DISABLED - signing step keeps hanging
+      # - name: Sign the app
+      #   if: steps.exe.outputs.EXE_PATH != ''
+      #   shell: bash
+      #   working-directory: ./aicoder
+      #   env:
+      #     TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      #   run: |
+      #     # Write key to file
+      #     echo "$TAURI_SIGNING_PRIVATE_KEY" | base64 -d > signing_key.pem
+      #     echo "Key length: $(wc -c < signing_key.pem)"
+      #
+      #     # CRITICAL: unset TAURI_SIGNING_PRIVATE_KEY before running node
+      #     unset TAURI_SIGNING_PRIVATE_KEY
+      #
+      #     # Sign with key file path via env var
+      #     TAURI_SIGNING_PRIVATE_KEY_PATH=signing_key.pem node ./node_modules/@tauri-apps/cli/tauri.js signer sign "${{ steps.exe.outputs.EXE_PATH }}" < NUL
 
       - name: Create GitHub Release
         if: steps.exe.outputs.EXE_PATH != ''
