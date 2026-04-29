@@ -65,7 +65,7 @@ jobs:
           # Sign with key file path via env var, suppress interactive input
           # Note: On Windows runner with bash, use NUL instead of /dev/null
           echo "Starting signing..."
-          TAURI_SIGNING_PRIVATE_KEY_PATH=signing_key.pem node ./node_modules/@tauri-apps/cli/tauri.js signer sign "${{ steps.exe.outputs.EXE_PATH }}" < NUL
+          TAURI_SIGNING_PRIVATE_KEY_PATH=signing_key.pem node ./node_modules/@tauri-apps/cli/tauri.js signer sign "${{ steps.exe.outputs.EXE_PATH }}" </dev/null
           SIGN_EXIT=$?
           echo "Signing exit code: $SIGN_EXIT"
 
