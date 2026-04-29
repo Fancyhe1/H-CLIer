@@ -53,8 +53,8 @@ jobs:
           # Unset env var so it doesn't conflict with --private-key-path
           unset TAURI_SIGNING_PRIVATE_KEY
 
-          # Sign using npx tauri (npm package)
-          npx tauri signer sign --private-key-path signing_key.pem "${{ steps.exe.outputs.EXE_PATH }}"
+          # Use npm run to invoke local tauri CLI (no npx needed)
+          npm run tauri signer sign --private-key-path signing_key.pem "${{ steps.exe.outputs.EXE_PATH }}"
 
       - name: Create GitHub Release
         if: steps.exe.outputs.EXE_PATH != ''
