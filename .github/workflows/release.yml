@@ -50,6 +50,9 @@ jobs:
           echo "$TAURI_SIGNING_PRIVATE_KEY" | base64 -d > signing_key.pem
           echo "Key length: $(wc -c < signing_key.pem)"
 
+          # Unset env var so it doesn't conflict with --private-key-path
+          unset TAURI_SIGNING_PRIVATE_KEY
+
           # Sign using npx tauri (npm package)
           npx tauri signer sign --private-key-path signing_key.pem "${{ steps.exe.outputs.EXE_PATH }}"
 
