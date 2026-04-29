@@ -71,7 +71,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY1NEFBMzJFQkRGMTIwMjgKUldRb0lQRzlMcU5LWlZ5d3BXa0hYdFNsblVZbVpxS2xvOUpIaktqTjMzVDBPalNXUTYwRmxDVWgK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IERCODgzQkQzQzAyMTlEREEKUldUYW5TSEEwenVJMjFIU1F6V0c0am1DbUdlMGZ4RFdqVlZ2ZXhHclczcE1kQjlIbmxMRi85eVYK",
       "endpoints": [
         "https://raw.githubusercontent.com/Fancyhe1/H-CLIer/main/latest.json"
       ],
