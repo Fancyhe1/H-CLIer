@@ -50,12 +50,9 @@ jobs:
           echo "$TAURI_SIGNING_PRIVATE_KEY" | base64 -d > signing_key.pem
           echo "Key length: $(wc -c < signing_key.pem)"
 
-# Unset env var so it doesn't conflict with --private-key-path
-          unset TAURI_SIGNING_PRIVATE_KEY
-
-          # Sign using node directly (bypasses npm stdin issues)
+          # Use env var to pass key path (avoids CLI arg conflict with TAURI_SIGNING_PRIVATE_KEY)
           # Redirect stdin from /dev/null to prevent any interactive prompts from blocking
-          node ./node_modules/@tauri-apps/cli/tauri.js signer sign --private-key-path signing_key.pem "${{ steps.exe.outputs.EXE_PATH }}" </dev/null
+          TAURI_SIGNING_PRIVATE_KEY_PATH=signing_key.pem node ./node_modules/@tauri-apps/cli/tauri.js signer sign "${{ steps.exe.outputs.EXE_PATH }}" </dev/null
 
       - name: Create GitHub Release
         if: steps.exe.outputs.EXE_PATH != ''
