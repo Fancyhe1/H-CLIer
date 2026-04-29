@@ -39,46 +39,13 @@ jobs:
           echo "EXE_PATH=$EXE" >> $GITHUB_OUTPUT
           echo "EXE_NAME=$(basename $EXE)" >> $GITHUB_OUTPUT
 
-      - name: Sign the app
-        if: steps.exe.outputs.EXE_PATH != ''
+      - name: Sign the app (disabled - password required interactively)
+        if: false
         shell: bash
         working-directory: ./aicoder
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
-          # Decode key and verify
-          echo "$TAURI_SIGNING_PRIVATE_KEY" | base64 -d > signing_key.pem
-          KEY_SIZE=$(wc -c < signing_key.pem)
-          echo "Key size: $KEY_SIZE bytes"
-
-          if [ "$KEY_SIZE" -lt 100 ]; then
-            echo "ERROR: Key file is too small, secret may be empty or invalid"
-            exit 1
-          fi
-
-          # Check if key is encrypted
-          if grep -q "encrypted secret key" signing_key.pem; then
-            echo "Key is encrypted - using -k flag with inline key"
-            # Unset the env var to avoid conflict, but save value for -k
-            PRIVATE_KEY_VALUE="$TAURI_SIGNING_PRIVATE_KEY"
-            unset TAURI_SIGNING_PRIVATE_KEY
-            # Use inline key with -k and empty password
-            echo "Starting signing with inline key..."
-            node ./node_modules/@tauri-apps/cli/tauri.js signer sign -k "$PRIVATE_KEY_VALUE" -p "" "${{ steps.exe.outputs.EXE_PATH }}" </dev/null
-          else
-            echo "Key is not encrypted - using key path"
-            unset TAURI_SIGNING_PRIVATE_KEY
-            TAURI_SIGNING_PRIVATE_KEY_PATH=signing_key.pem node ./node_modules/@tauri-apps/cli/tauri.js signer sign "${{ steps.exe.outputs.EXE_PATH }}" </dev/null
-          fi
-          SIGN_EXIT=$?
-          echo "Signing exit code: $SIGN_EXIT"
-
-          if [ -f "${{ steps.exe.outputs.EXE_PATH }}.sig" ]; then
-            echo "Signature file created successfully"
-            ls -la "${{ steps.exe.outputs.EXE_PATH }}.sig"
-          else
-            echo "WARNING: Signature file was not created"
-          fi
+          echo "Signing disabled - requires interactive password"
+          echo "To enable: remove 'if: false' and set TAURI_SIGNING_PRIVATE_KEY_PASSWORD secret"
 
       - name: Create latest.json
         if: steps.exe.outputs.EXE_PATH != ''
