@@ -56,7 +56,7 @@ jobs:
           unset TAURI_SIGNING_PRIVATE_KEY
 
           # Now run signing with only the key file path via env var
-          TAURI_SIGNING_PRIVATE_KEY_PATH=signing_key.pem node ./node_modules/@tauri-apps/cli/tauri.js signer sign "${{ steps.exe.outputs.EXE_PATH }}" </dev/null
+          TAURI_SIGNING_PRIVATE_KEY_PATH=signing_key.pem node ./node_modules/@tauri-apps/cli/tauri.js signer sign "${{ steps.exe.outputs.EXE_PATH }}" < NUL
 
       - name: Create GitHub Release
         if: steps.exe.outputs.EXE_PATH != ''
