@@ -50,8 +50,8 @@ jobs:
           echo "$TAURI_SIGNING_PRIVATE_KEY" | base64 -d > signing_key.pem
           echo "Key length: $(wc -c < signing_key.pem)"
 
-          # Sign using cargo tauri directly
-          cargo tauri signer sign --private-key-path signing_key.pem "${{ steps.exe.outputs.EXE_PATH }}"
+          # Sign using npx tauri (npm package)
+          npx tauri signer sign --private-key-path signing_key.pem "${{ steps.exe.outputs.EXE_PATH }}"
 
       - name: Create GitHub Release
         if: steps.exe.outputs.EXE_PATH != ''
