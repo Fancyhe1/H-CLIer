@@ -46,14 +46,12 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
-          # Write key to file to avoid command line issues
-          echo "$TAURI_SIGNING_PRIVATE_KEY" > signing_key.b64
-          echo "Key file created, length: $(wc -c < signing_key.b64)"
-          echo "Decoding key..."
-          base64 -d signing_key.b64 > signing_key.pem
-          echo "Decoded key length: $(wc -c < signing_key.pem)"
-          echo "Signing exe..."
-          npm run tauri signer sign -- --private-key-path signing_key.pem "${{ steps.exe.outputs.EXE_PATH }}"
+          # Write key to file
+          echo "$TAURI_SIGNING_PRIVATE_KEY" | base64 -d > signing_key.pem
+          echo "Key length: $(wc -c < signing_key.pem)"
+
+          # Sign using cargo tauri directly
+          cargo tauri signer sign --private-key-path signing_key.pem "${{ steps.exe.outputs.EXE_PATH }}"
 
       - name: Create GitHub Release
         if: steps.exe.outputs.EXE_PATH != ''
