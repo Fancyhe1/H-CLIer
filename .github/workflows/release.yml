@@ -39,34 +39,22 @@ jobs:
           echo "EXE_PATH=$EXE" >> $GITHUB_OUTPUT
           echo "EXE_NAME=$(basename $EXE)" >> $GITHUB_OUTPUT
 
-      # TEMPORARILY DISABLED - signing step keeps hanging
-      # - name: Sign the app
-      #   if: steps.exe.outputs.EXE_PATH != ''
-      #   shell: bash
-      #   working-directory: ./aicoder
-      #   env:
-      #     TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-      #   run: |
-      #     # Write key to file
-      #     echo "$TAURI_SIGNING_PRIVATE_KEY" | base64 -d > signing_key.pem
-      #     echo "Key length: $(wc -c < signing_key.pem)"
-      #
-      #     # CRITICAL: unset TAURI_SIGNING_PRIVATE_KEY before running node
-      #     unset TAURI_SIGNING_PRIVATE_KEY
-      #
-      #     # Sign with key file path via env var
-      #     TAURI_SIGNING_PRIVATE_KEY_PATH=signing_key.pem node ./node_modules/@tauri-apps/cli/tauri.js signer sign "${{ steps.exe.outputs.EXE_PATH }}" < NUL
-
-      - name: Create GitHub Release
+      - name: Sign the app
         if: steps.exe.outputs.EXE_PATH != ''
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            aicoder/src-tauri/target/release/bundle/nsis/*.exe
-            aicoder/src-tauri/target/release/bundle/nsis/*.sig
-          generate_release_notes: true
+        shell: bash
+        working-directory: ./aicoder
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          # Write key to file
+          echo "$TAURI_SIGNING_PRIVATE_KEY" | base64 -d > signing_key.pem
+          echo "Key length: $(wc -c < signing_key.pem)"
+
+          # CRITICAL: unset TAURI_SIGNING_PRIVATE_KEY before running node to avoid conflict
+          unset TAURI_SIGNING_PRIVATE_KEY
+
+          # Sign with key file path via env var, suppress interactive input
+          TAURI_SIGNING_PRIVATE_KEY_PATH=signing_key.pem node ./node_modules/@tauri-apps/cli/tauri.js signer sign "${{ steps.exe.outputs.EXE_PATH }}" </dev/null
 
       - name: Create latest.json
         if: steps.exe.outputs.EXE_PATH != ''
@@ -79,29 +67,46 @@ jobs:
           EXE_NAME="$(basename $EXE_PATH)"
           SIG_PATH="${EXE_PATH}.sig"
 
-          SHA256=$(powershell -Command "Get-FileHash -Path '$EXE_PATH' -Algorithm SHA256 | Select-Object -ExpandProperty Hash")
-
           if [ -f "$SIG_PATH" ]; then
             SIGNATURE=$(cat "$SIG_PATH" | tr -d '\n')
+            echo "SIGNATURE_LENGTH=${#SIGNATURE}" >> $GITHUB_OUTPUT
           else
             SIGNATURE=""
+            echo "SIGNATURE_LENGTH=0" >> $GITHUB_OUTPUT
           fi
 
-          echo "SIGNATURE_LENGTH=${#SIGNATURE}" >> $GITHUB_OUTPUT
+          # Format date as ISO 8601 for Tauri 2.x
+          PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
+          # Tauri 2.x requires platforms-specific JSON structure
           cat > latest.json << JSONEOF
           {
             "version": "$VERSION",
-            "date": "$(date +%Y-%m-%d)",
-            "body": "Release $VERSION",
-            "url": "https://github.com/Fancyhe1/H-CLIer/releases/download/$VERSION/$EXE_NAME",
-            "sha256": "$SHA256",
-            "signature": "$SIGNATURE"
+            "notes": "Release $VERSION",
+            "pub_date": "$PUB_DATE",
+            "platforms": {
+              "windows-x86_64": {
+                "signature": "$SIGNATURE",
+                "url": "https://github.com/Fancyhe1/H-CLIer/releases/download/$VERSION/$EXE_NAME"
+              }
+            }
           }
           JSONEOF
 
           echo "=== latest.json ==="
           cat latest.json
+
+      - name: Create GitHub Release
+        if: steps.exe.outputs.EXE_PATH != ''
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            aicoder/src-tauri/target/release/bundle/nsis/*.exe
+            aicoder/src-tauri/target/release/bundle/nsis/*.sig
+            latest.json
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload latest.json to H-CLIer repo
         if: steps.latest.outputs.SIGNATURE_LENGTH != ''
