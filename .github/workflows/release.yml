@@ -39,13 +39,21 @@ jobs:
           echo "EXE_PATH=$EXE" >> $GITHUB_OUTPUT
           echo "EXE_NAME=$(basename $EXE)" >> $GITHUB_OUTPUT
 
-      - name: Sign the app (disabled - password required interactively)
-        if: false
+      - name: Sign the app
+        if: steps.exe.outputs.EXE_PATH != ''
         shell: bash
         working-directory: ./aicoder
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
         run: |
-          echo "Signing disabled - requires interactive password"
-          echo "To enable: remove 'if: false' and set TAURI_SIGNING_PRIVATE_KEY_PASSWORD secret"
+          echo "Starting signing with inline key..."
+          node ./node_modules/@tauri-apps/cli/tauri.js signer sign -k "$TAURI_SIGNING_PRIVATE_KEY" "${{ steps.exe.outputs.EXE_PATH }}" </dev/null
+          SIGN_EXIT=$?
+          echo "Signing exit code: $SIGN_EXIT"
+          if [ -f "${{ steps.exe.outputs.EXE_PATH }}.sig" ]; then
+            echo "Signature file created successfully"
+          fi
 
       - name: Create latest.json
         if: steps.exe.outputs.EXE_PATH != ''
