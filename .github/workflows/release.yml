@@ -59,11 +59,15 @@ jobs:
           # Check if key is encrypted
           if grep -q "encrypted secret key" signing_key.pem; then
             echo "Key is encrypted - using -k flag with inline key"
+            # Unset the env var to avoid conflict, but save value for -k
+            PRIVATE_KEY_VALUE="$TAURI_SIGNING_PRIVATE_KEY"
+            unset TAURI_SIGNING_PRIVATE_KEY
             # Use inline key with -k and empty password
             echo "Starting signing with inline key..."
-            node ./node_modules/@tauri-apps/cli/tauri.js signer sign -k "$TAURI_SIGNING_PRIVATE_KEY" -p "" "${{ steps.exe.outputs.EXE_PATH }}" </dev/null
+            node ./node_modules/@tauri-apps/cli/tauri.js signer sign -k "$PRIVATE_KEY_VALUE" -p "" "${{ steps.exe.outputs.EXE_PATH }}" </dev/null
           else
             echo "Key is not encrypted - using key path"
+            unset TAURI_SIGNING_PRIVATE_KEY
             TAURI_SIGNING_PRIVATE_KEY_PATH=signing_key.pem node ./node_modules/@tauri-apps/cli/tauri.js signer sign "${{ steps.exe.outputs.EXE_PATH }}" </dev/null
           fi
           SIGN_EXIT=$?
