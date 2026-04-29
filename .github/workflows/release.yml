@@ -55,7 +55,8 @@ jobs:
 
           # Use npm run to invoke local tauri CLI (no npx needed)
           # Use -- to pass args to tauri, not npm
-          npm run tauri -- signer sign --private-key-path signing_key.pem "${{ steps.exe.outputs.EXE_PATH }}"
+          # Redirect /dev/null to stdin to prevent hanging in CI
+          npm run tauri -- signer sign --private-key-path signing_key.pem "${{ steps.exe.outputs.EXE_PATH }}" </dev/null
 
       - name: Create GitHub Release
         if: steps.exe.outputs.EXE_PATH != ''
