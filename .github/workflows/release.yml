@@ -46,7 +46,7 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
-          # Write key to file
+          # Decode key and verify
           echo "$TAURI_SIGNING_PRIVATE_KEY" | base64 -d > signing_key.pem
           KEY_SIZE=$(wc -c < signing_key.pem)
           echo "Key size: $KEY_SIZE bytes"
@@ -56,16 +56,16 @@ jobs:
             exit 1
           fi
 
-          # Show first few chars of key (for debugging, not the full key)
-          echo "Key preview: $(head -c 20 signing_key.pem)..."
-
-          # CRITICAL: unset TAURI_SIGNING_PRIVATE_KEY before running node to avoid conflict
-          unset TAURI_SIGNING_PRIVATE_KEY
-
-          # Sign with key file path via env var, suppress interactive input
-          # Note: On Windows runner with bash, use NUL instead of /dev/null
-          echo "Starting signing..."
-          TAURI_SIGNING_PRIVATE_KEY_PATH=signing_key.pem node ./node_modules/@tauri-apps/cli/tauri.js signer sign "${{ steps.exe.outputs.EXE_PATH }}" </dev/null
+          # Check if key is encrypted
+          if grep -q "encrypted secret key" signing_key.pem; then
+            echo "Key is encrypted - using -k flag with inline key"
+            # Use inline key with -k and empty password
+            echo "Starting signing with inline key..."
+            node ./node_modules/@tauri-apps/cli/tauri.js signer sign -k "$TAURI_SIGNING_PRIVATE_KEY" -p "" "${{ steps.exe.outputs.EXE_PATH }}" </dev/null
+          else
+            echo "Key is not encrypted - using key path"
+            TAURI_SIGNING_PRIVATE_KEY_PATH=signing_key.pem node ./node_modules/@tauri-apps/cli/tauri.js signer sign "${{ steps.exe.outputs.EXE_PATH }}" </dev/null
+          fi
           SIGN_EXIT=$?
           echo "Signing exit code: $SIGN_EXIT"
 
