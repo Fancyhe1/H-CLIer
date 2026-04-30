@@ -66,14 +66,16 @@ jobs:
           fi
           echo "Found exe: $EXE"
 
-          # Write private key to file - remove any whitespace/newlines first, then base64 decode
-          echo "$TAURI_SIGNING_PRIVATE_KEY" | tr -d '\r\n' | base64 -d > signing_key.pem 2>/dev/null
-          if [ ! -s signing_key.pem ]; then
-            echo "base64 decode failed, trying plain text (removing whitespace)..."
-            printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" | tr -d '\r\n' > signing_key.pem
-            echo "Key written as cleaned plain text"
+          # Write private key to file - clean and decode with proper error handling
+          CLEAN_KEY=$(printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" | tr -d '\r\n')
+          echo "Clean key length: ${#CLEAN_KEY}"
+
+          if echo "$CLEAN_KEY" | base64 -d > signing_key.pem 2>/dev/null && [ -s signing_key.pem ]; then
+            echo "Key decoded from base64 successfully"
           else
-            echo "Key decoded from base64"
+            echo "ERROR: Failed to decode private key from base64."
+            echo "Please ensure the secret contains a valid base64-encoded PEM key."
+            exit 1
           fi
           echo "Key file size: $(wc -c < signing_key.pem) bytes"
           head -c 50 signing_key.pem
