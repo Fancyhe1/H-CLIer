@@ -53,7 +53,7 @@ jobs:
           VERSION="${{ github.ref_name }}"
           VERSION="${VERSION#refs/tags/}"
           EXE_PATH="${{ steps.exe.outputs.EXE_PATH }}"
-          EXE_NAME="$(basename $EXE_PATH)"
+          EXE_NAME="$(basename "$EXE_PATH")"
           SIG_PATH="${EXE_PATH}.sig"
 
           if [ -f "$SIG_PATH" ]; then
