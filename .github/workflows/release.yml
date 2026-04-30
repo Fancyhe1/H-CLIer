@@ -66,12 +66,14 @@ jobs:
           fi
           echo "Found exe: $EXE"
 
-          # Write private key to file - try base64 decode first, fallback to plain text
-          if echo "$TAURI_SIGNING_PRIVATE_KEY" | base64 -d > signing_key.pem 2>/dev/null; then
-            echo "Key decoded from base64"
+          # Write private key to file - remove any whitespace/newlines first, then base64 decode
+          echo "$TAURI_SIGNING_PRIVATE_KEY" | tr -d '\r\n' | base64 -d > signing_key.pem 2>/dev/null
+          if [ ! -s signing_key.pem ]; then
+            echo "base64 decode failed, trying plain text (removing whitespace)..."
+            printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" | tr -d '\r\n' > signing_key.pem
+            echo "Key written as cleaned plain text"
           else
-            printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" > signing_key.pem
-            echo "Key written as plain text"
+            echo "Key decoded from base64"
           fi
           echo "Key file size: $(wc -c < signing_key.pem) bytes"
           head -c 50 signing_key.pem
