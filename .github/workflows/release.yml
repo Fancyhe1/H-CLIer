@@ -80,7 +80,7 @@ jobs:
           echo "Running npx tauri signer sign..."
           # IMPORTANT: unset TAURI_SIGNING_PRIVATE_KEY to avoid conflict with -f flag
           unset TAURI_SIGNING_PRIVATE_KEY
-          npx tauri signer sign -f signing_key.pem -p "" "$EXE"
+          npx tauri signer sign --private-key-path signing_key.pem --password "" "$EXE"
 
           echo "=== Signing done ==="
           ls -la "${EXE}.sig" 2>/dev/null || echo "No sig file created"
