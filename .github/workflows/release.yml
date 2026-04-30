@@ -29,31 +29,47 @@ jobs:
         working-directory: ./aicoder
         run: npm ci
 
-      - name: Build Tauri app (with auto-signing)
+      - name: Build Tauri app
         working-directory: ./aicoder
-        shell: bash
-        run: |
-          echo "=== Build starting ==="
-          echo "TAURI_SIGNING_PRIVATE_KEY is set: ${#TAURI_SIGNING_PRIVATE_KEY} chars"
-          echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD is set: ${#TAURI_SIGNING_PRIVATE_KEY_PASSWORD} chars"
-
-          npm run tauri build
-
-          echo "=== Build completed ==="
-          echo "Checking for exe files..."
-          find src-tauri/target/release/bundle -name "*.exe" -type f 2>/dev/null
-          echo "Checking for sig files..."
-          find src-tauri/target/release/bundle -name "*.sig" -type f 2>/dev/null
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
+        run: npm run tauri build
 
       - name: Debug - list bundle contents
         working-directory: ./aicoder
         shell: bash
         run: |
           echo "=== Bundle directory contents ==="
-          ls -la src-tauri/target/release/bundle/nsis/ 2>/dev/null || echo "Directory not found"
+          ls -la src-tauri/target/release/bundle/nsis/
+
+      - name: Sign the installer
+        working-directory: ./aicoder
+        shell: bash
+        run: |
+          echo "=== Signing installer ==="
+          echo "TAURI_SIGNING_PRIVATE_KEY is set: ${#TAURI_SIGNING_PRIVATE_KEY} chars"
+
+          # Get the exe path
+          EXE=$(ls src-tauri/target/release/bundle/nsis/*.exe 2>/dev/null | grep -v "_0.exe" | head -1)
+          if [ -z "$EXE" ]; then
+            echo "ERROR: No exe found"
+            exit 1
+          fi
+          echo "Found exe: $EXE"
+
+          # Write private key to file
+          printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" > signing_key.pem
+          echo "Key file size: $(wc -c < signing_key.pem) bytes"
+
+          # Sign using tauri signer
+          echo "Running tauri signer sign..."
+          node ./node_modules/@tauri-apps/cli/tauri.js signer sign \
+            -f signing_key.pem \
+            -p "" \
+            "$EXE"
+
+          echo "=== Signing done ==="
+          ls -la "${EXE}.sig" 2>/dev/null || echo "No sig file created"
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
 
       - name: Generate latest.json
         working-directory: ./aicoder
