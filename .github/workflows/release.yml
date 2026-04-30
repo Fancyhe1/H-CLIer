@@ -10,6 +10,9 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: write
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
 
     steps:
       - name: Checkout code
@@ -29,25 +32,68 @@ jobs:
         working-directory: ./aicoder
         run: npm ci
 
-      - name: Build Tauri app
+      - name: Build Tauri app (with auto-signing)
         working-directory: ./aicoder
-        run: npm run tauri:build
+        run: npm run tauri build
 
-      - name: Find exe
-        id: exe
+      - name: Find exe and sig
+        id: files
         shell: bash
         run: |
           EXE=$(ls aicoder/src-tauri/target/release/bundle/nsis/*.exe 2>/dev/null | grep -v "_0.exe" | head -1)
+          SIG="${EXE}.sig"
           echo "EXE_PATH=$EXE" >> $GITHUB_OUTPUT
           echo "EXE_NAME=$(basename "$EXE")" >> $GITHUB_OUTPUT
+          if [ -f "$SIG" ]; then
+            echo "SIG_PATH=$SIG" >> $GITHUB_OUTPUT
+          fi
 
-      - name: Create GitHub Release on H-CLIer
-        if: steps.exe.outputs.EXE_PATH != ''
+      - name: Generate latest.json
+        if: steps.files.outputs.EXE_PATH != ''
+        shell: bash
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          EXE_PATH="${{ steps.files.outputs.EXE_PATH }}"
+          EXE_NAME="${{ steps.files.outputs.EXE_NAME }}"
+          SIG_PATH="${EXE_PATH}.sig"
+
+          if [ -f "$SIG_PATH" ]; then
+            SIGNATURE=$(cat "$SIG_PATH" | tr -d '\r\n')
+          else
+            echo "ERROR: Signature file not found"
+            exit 1
+          fi
+
+          PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          cat > latest.json << JSONEOF
+          {
+            "version": "$VERSION",
+            "notes": "Release $VERSION",
+            "pub_date": "$PUB_DATE",
+            "platforms": {
+              "windows-x86_64": {
+                "signature": "$SIGNATURE",
+                "url": "https://github.com/Fancyhe1/H-CLIer/releases/download/${{ github.ref_name }}/$EXE_NAME"
+              }
+            }
+          }
+          JSONEOF
+
+          echo "=== latest.json ==="
+          cat latest.json
+
+      - name: Upload to H-CLIer Release
+        if: steps.files.outputs.EXE_PATH != ''
         uses: softprops/action-gh-release@v2
         with:
           repository: Fancyhe1/H-CLIer
           token: ${{ secrets.GH_PAT }}
-          files: aicoder/src-tauri/target/release/bundle/nsis/*.exe
+          files: |
+            ${{ steps.files.outputs.EXE_PATH }}
+            ${{ steps.files.outputs.EXE_PATH }}.sig
+            latest.json
           generate_release_notes: true
           tag_name: ${{ github.ref_name }}
           make_latest: true
