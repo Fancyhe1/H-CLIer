@@ -159,7 +159,7 @@ jobs:
             --repo Fancyhe1/H-CLIer \
             --title "${{ github.ref_name }}" \
             --notes "Release ${{ github.ref_name }}" \
-            --make-latest true \
+            --latest \
             --generate-notes
 
           echo "Uploading exe..."
