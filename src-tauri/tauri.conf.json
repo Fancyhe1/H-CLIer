@@ -71,9 +71,9 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "",
+      "pubkey": "请在此处填入您的公钥内容",
       "endpoints": [
-        "https://raw.githubusercontent.com/Fancyhe1/smart-coder/master/latest.json"
+        "https://raw.githubusercontent.com/Fancyhe1/H-CLIer/main/latest.json"
       ],
       "windows": {
         "installMode": "passive"
