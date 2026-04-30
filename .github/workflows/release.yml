@@ -37,6 +37,7 @@ jobs:
         run: npm run tauri:build
 
       - name: List bundle contents
+        shell: bash   # 添加这一行！
         run: ls -la aicoder/src-tauri/target/release/bundle/nsis/
 
       - name: Find exe and sig
