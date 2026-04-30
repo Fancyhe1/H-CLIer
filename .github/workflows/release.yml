@@ -78,6 +78,8 @@ jobs:
 
           # Sign using npx tauri signer sign
           echo "Running npx tauri signer sign..."
+          # IMPORTANT: unset TAURI_SIGNING_PRIVATE_KEY to avoid conflict with -f flag
+          unset TAURI_SIGNING_PRIVATE_KEY
           npx tauri signer sign -f signing_key.pem -p "" "$EXE"
 
           echo "=== Signing done ==="
