@@ -86,14 +86,33 @@ jobs:
 
       - name: Upload to H-CLIer Release
         if: steps.files.outputs.EXE_PATH != ''
-        uses: softprops/action-gh-release@v2
-        with:
-          repository: Fancyhe1/H-CLIer
-          token: ${{ secrets.GH_PAT }}
-          files: |
-            ${{ steps.files.outputs.EXE_PATH }}
-            ${{ steps.files.outputs.EXE_PATH }}.sig
-            latest.json
-          generate_release_notes: true
-          tag_name: ${{ github.ref_name }}
-          make_latest: true
+        shell: bash
+        run: |
+          EXE_PATH="${{ steps.files.outputs.EXE_PATH }}"
+          SIG_PATH="${EXE_PATH}.sig"
+
+          # Build file list
+          FILES="$EXE_PATH"
+          if [ -f "$SIG_PATH" ]; then
+            FILES="$FILES $SIG_PATH"
+          fi
+          FILES="$FILES latest.json"
+
+          # Use GitHub CLI to create release and upload assets
+          RELEASE_RESPONSE=$(gh release create "${{ github.ref_name }}" \
+            --repo Fancyhe1/H-CLIer \
+            --title "${{ github.ref_name }}" \
+            --notes "Release ${{ github.ref_name }}" \
+            --make-latest true \
+            --generate-notes \
+            2>&1)
+
+          echo "Release created: $RELEASE_RESPONSE"
+
+          # Upload assets
+          for FILE in $FILES; do
+            if [ -f "$FILE" ]; then
+              echo "Uploading $FILE..."
+              gh release upload "${{ github.ref_name }}" "$FILE" --repo Fancyhe1/H-CLIer
+            fi
+          done
