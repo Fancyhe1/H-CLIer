@@ -10,9 +10,6 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: write
-    env:
-      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
 
     steps:
       - name: Checkout code
@@ -35,34 +32,53 @@ jobs:
       - name: Build Tauri app (with auto-signing)
         working-directory: ./aicoder
         run: npm run tauri build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
 
-      - name: Find exe and sig
-        id: files
+      - name: Debug - list bundle contents
+        working-directory: ./aicoder
         shell: bash
         run: |
-          EXE=$(ls aicoder/src-tauri/target/release/bundle/nsis/*.exe 2>/dev/null | grep -v "_0.exe" | head -1)
-          SIG="${EXE}.sig"
-          echo "EXE_PATH=$EXE" >> $GITHUB_OUTPUT
-          echo "EXE_NAME=$(basename "$EXE")" >> $GITHUB_OUTPUT
-          if [ -f "$SIG" ]; then
-            echo "SIG_PATH=$SIG" >> $GITHUB_OUTPUT
-          fi
+          echo "=== Bundle directory contents ==="
+          ls -la src-tauri/target/release/bundle/nsis/ 2>/dev/null || echo "Directory not found"
+          echo ""
+          echo "=== Looking for .exe files ==="
+          find src-tauri/target/release/bundle -name "*.exe" 2>/dev/null
+          echo ""
+          echo "=== Looking for .sig files ==="
+          find src-tauri/target/release/bundle -name "*.sig" 2>/dev/null
 
       - name: Generate latest.json
-        if: steps.files.outputs.EXE_PATH != ''
+        working-directory: ./aicoder
         shell: bash
         run: |
+          echo "=== Debug environment ==="
+          echo "CWD: $(pwd)"
+          echo "TAG: ${{ github.ref_name }}"
+
           VERSION="${{ github.ref_name }}"
           VERSION="${VERSION#v}"
-          EXE_PATH="${{ steps.files.outputs.EXE_PATH }}"
-          EXE_NAME="${{ steps.files.outputs.EXE_NAME }}"
-          SIG_PATH="${EXE_PATH}.sig"
+
+          echo "=== Looking for exe ==="
+          EXE=$(ls src-tauri/target/release/bundle/nsis/*.exe 2>/dev/null | grep -v "_0.exe" | head -1)
+          echo "Found EXE: $EXE"
+
+          if [ -z "$EXE" ]; then
+            echo "ERROR: No exe found"
+            exit 1
+          fi
+
+          EXE_NAME="$(basename "$EXE")"
+          SIG_PATH="${EXE}.sig"
+          echo "SIG_PATH: $SIG_PATH"
 
           if [ -f "$SIG_PATH" ]; then
             SIGNATURE=$(cat "$SIG_PATH" | tr -d '\r\n')
+            echo "Signature length: ${#SIGNATURE}"
           else
-            echo "ERROR: Signature file not found"
-            exit 1
+            echo "WARNING: Signature file not found"
+            SIGNATURE=""
           fi
 
           PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -85,34 +101,41 @@ jobs:
           cat latest.json
 
       - name: Upload to H-CLIer Release
-        if: steps.files.outputs.EXE_PATH != ''
+        working-directory: ./aicoder
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
-          EXE_PATH="${{ steps.files.outputs.EXE_PATH }}"
-          SIG_PATH="${EXE_PATH}.sig"
+          EXE=$(ls src-tauri/target/release/bundle/nsis/*.exe 2>/dev/null | grep -v "_0.exe" | head -1)
 
-          # Build file list
-          FILES="$EXE_PATH"
-          if [ -f "$SIG_PATH" ]; then
-            FILES="$FILES $SIG_PATH"
+          if [ -z "$EXE" ]; then
+            echo "ERROR: No exe found"
+            exit 1
           fi
-          FILES="$FILES latest.json"
 
-          # Use GitHub CLI to create release and upload assets
-          RELEASE_RESPONSE=$(gh release create "${{ github.ref_name }}" \
+          SIG_PATH="${EXE}.sig"
+          EXE_NAME="$(basename "$EXE")"
+
+          echo "Uploading $EXE_NAME to H-CLIer..."
+
+          # Create release using GitHub CLI
+          gh release create "${{ github.ref_name }}" \
             --repo Fancyhe1/H-CLIer \
             --title "${{ github.ref_name }}" \
             --notes "Release ${{ github.ref_name }}" \
             --make-latest true \
-            --generate-notes \
-            2>&1)
-
-          echo "Release created: $RELEASE_RESPONSE"
+            --generate-notes
 
           # Upload assets
-          for FILE in $FILES; do
-            if [ -f "$FILE" ]; then
-              echo "Uploading $FILE..."
-              gh release upload "${{ github.ref_name }}" "$FILE" --repo Fancyhe1/H-CLIer
-            fi
-          done
+          echo "Uploading exe..."
+          gh release upload "${{ github.ref_name }}" "$EXE" --repo Fancyhe1/H-CLIer
+
+          if [ -f "$SIG_PATH" ]; then
+            echo "Uploading sig..."
+            gh release upload "${{ github.ref_name }}" "$SIG_PATH" --repo Fancyhe1/H-CLIer
+          fi
+
+          echo "Uploading latest.json..."
+          gh release upload "${{ github.ref_name }}" "latest.json" --repo Fancyhe1/H-CLIer
+
+          echo "=== Done ==="
