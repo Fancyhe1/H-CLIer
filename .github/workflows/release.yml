@@ -52,6 +52,8 @@ jobs:
       - name: Sign the installer
         working-directory: ./aicoder
         shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
           echo "=== Signing installer ==="
           echo "TAURI_SIGNING_PRIVATE_KEY length: ${#TAURI_SIGNING_PRIVATE_KEY}"
@@ -72,6 +74,7 @@ jobs:
             echo "Key written as plain text"
           fi
           echo "Key file size: $(wc -c < signing_key.pem) bytes"
+          head -c 50 signing_key.pem
 
           # Sign using npx tauri signer sign
           echo "Running npx tauri signer sign..."
