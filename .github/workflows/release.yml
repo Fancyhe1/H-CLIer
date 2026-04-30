@@ -31,7 +31,19 @@ jobs:
 
       - name: Build Tauri app (with auto-signing)
         working-directory: ./aicoder
-        run: npm run tauri build
+        shell: bash
+        run: |
+          echo "=== Build starting ==="
+          echo "TAURI_SIGNING_PRIVATE_KEY is set: ${#TAURI_SIGNING_PRIVATE_KEY} chars"
+          echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD is set: ${#TAURI_SIGNING_PRIVATE_KEY_PASSWORD} chars"
+
+          npm run tauri build
+
+          echo "=== Build completed ==="
+          echo "Checking for exe files..."
+          find src-tauri/target/release/bundle -name "*.exe" -type f 2>/dev/null
+          echo "Checking for sig files..."
+          find src-tauri/target/release/bundle -name "*.sig" -type f 2>/dev/null
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
