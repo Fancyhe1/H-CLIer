@@ -39,33 +39,11 @@ jobs:
           echo "EXE_PATH=$EXE" >> $GITHUB_OUTPUT
           echo "EXE_NAME=$(basename $EXE)" >> $GITHUB_OUTPUT
 
-      - name: Sign the app
-        if: steps.exe.outputs.EXE_PATH != ''
-        shell: bash
-        working-directory: ./aicoder
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      - name: Sign the app (manual - run locally after release)
+        if: false
         run: |
-          # Decode key and convert literal \n to real newlines
-          printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" | sed 's/\\n/\n/g' | base64 -d > signing_key.pem
-          KEY_SIZE=$(wc -c < signing_key.pem)
-          echo "Key file size: $KEY_SIZE bytes"
-
-          if [ "$KEY_SIZE" -lt 100 ]; then
-            echo "ERROR: Key file too small"
-            exit 1
-          fi
-
-          unset TAURI_SIGNING_PRIVATE_KEY
-
-          echo "Starting signing..."
-          TAURI_SIGNING_PRIVATE_KEY_PATH=signing_key.pem node ./node_modules/@tauri-apps/cli/tauri.js signer sign "${{ steps.exe.outputs.EXE_PATH }}" </dev/null
-          SIGN_EXIT=$?
-          echo "Signing exit code: $SIGN_EXIT"
-
-          if [ -f "${{ steps.exe.outputs.EXE_PATH }}.sig" ]; then
-            echo "Signature file created"
-          fi
+          echo "Signing disabled - sign manually after release"
+          echo "Command: npm run tauri signer sign -k 'YOUR_PRIVATE_KEY' 'PATH_TO_EXE'"
 
       - name: Create latest.json
         if: steps.exe.outputs.EXE_PATH != ''
