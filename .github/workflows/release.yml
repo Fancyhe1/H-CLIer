@@ -42,44 +42,34 @@ jobs:
         run: |
           echo "=== Bundle directory contents ==="
           ls -la src-tauri/target/release/bundle/nsis/ 2>/dev/null || echo "Directory not found"
-          echo ""
-          echo "=== Looking for .exe files ==="
-          find src-tauri/target/release/bundle -name "*.exe" 2>/dev/null
-          echo ""
-          echo "=== Looking for .sig files ==="
-          find src-tauri/target/release/bundle -name "*.sig" 2>/dev/null
 
       - name: Generate latest.json
         working-directory: ./aicoder
         shell: bash
         run: |
-          echo "=== Debug environment ==="
-          echo "CWD: $(pwd)"
-          echo "TAG: ${{ github.ref_name }}"
-
           VERSION="${{ github.ref_name }}"
           VERSION="${VERSION#v}"
+          BUNDLE_DIR="src-tauri/target/release/bundle/nsis"
 
-          echo "=== Looking for exe ==="
-          EXE=$(ls src-tauri/target/release/bundle/nsis/*.exe 2>/dev/null | grep -v "_0.exe" | head -1)
-          echo "Found EXE: $EXE"
+          echo "=== Looking for installer ==="
+          EXE_PATH=$(ls "$BUNDLE_DIR"/*_x64-setup.exe 2>/dev/null | head -1)
+          if [ -z "$EXE_PATH" ]; then
+            echo "ERROR: Installer exe not found in $BUNDLE_DIR"
+            ls -la "$BUNDLE_DIR" 2>/dev/null || echo "Directory not accessible"
+            exit 1
+          fi
+          EXE_NAME=$(basename "$EXE_PATH")
+          echo "Found EXE: $EXE_NAME"
 
-          if [ -z "$EXE" ]; then
-            echo "ERROR: No exe found"
+          SIG_PATH="${EXE_PATH}.sig"
+          echo "Looking for SIG: $SIG_PATH"
+          if [ ! -f "$SIG_PATH" ]; then
+            echo "ERROR: Signature file not found: $SIG_PATH"
             exit 1
           fi
 
-          EXE_NAME="$(basename "$EXE")"
-          SIG_PATH="${EXE}.sig"
-          echo "SIG_PATH: $SIG_PATH"
-
-          if [ -f "$SIG_PATH" ]; then
-            SIGNATURE=$(cat "$SIG_PATH" | tr -d '\r\n')
-            echo "Signature length: ${#SIGNATURE}"
-          else
-            echo "WARNING: Signature file not found"
-            SIGNATURE=""
-          fi
+          SIGNATURE=$(cat "$SIG_PATH" | tr -d '\r\n')
+          echo "Signature length: ${#SIGNATURE}"
 
           PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
@@ -106,19 +96,19 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
-          EXE=$(ls src-tauri/target/release/bundle/nsis/*.exe 2>/dev/null | grep -v "_0.exe" | head -1)
+          BUNDLE_DIR="src-tauri/target/release/bundle/nsis"
 
-          if [ -z "$EXE" ]; then
+          EXE_PATH=$(ls "$BUNDLE_DIR"/*_x64-setup.exe 2>/dev/null | head -1)
+          if [ -z "$EXE_PATH" ]; then
             echo "ERROR: No exe found"
             exit 1
           fi
 
-          SIG_PATH="${EXE}.sig"
-          EXE_NAME="$(basename "$EXE")"
+          SIG_PATH="${EXE_PATH}.sig"
+          EXE_NAME=$(basename "$EXE_PATH")
 
-          echo "Uploading $EXE_NAME to H-CLIer..."
+          echo "Creating release and uploading $EXE_NAME..."
 
-          # Create release using GitHub CLI
           gh release create "${{ github.ref_name }}" \
             --repo Fancyhe1/H-CLIer \
             --title "${{ github.ref_name }}" \
@@ -126,9 +116,8 @@ jobs:
             --make-latest true \
             --generate-notes
 
-          # Upload assets
           echo "Uploading exe..."
-          gh release upload "${{ github.ref_name }}" "$EXE" --repo Fancyhe1/H-CLIer
+          gh release upload "${{ github.ref_name }}" "$EXE_PATH" --repo Fancyhe1/H-CLIer
 
           if [ -f "$SIG_PATH" ]; then
             echo "Uploading sig..."
