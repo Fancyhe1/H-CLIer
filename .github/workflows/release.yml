@@ -4,13 +4,14 @@ on:
   push:
     tags:
       - 'v*'
-env:
-  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-  TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+
 jobs:
   release:
     runs-on: windows-latest
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
 
     steps:
       - name: Checkout code
@@ -34,7 +35,15 @@ jobs:
         working-directory: ./aicoder
         run: npm run tauri:build
 
-      - name: Find exe
+      # 👇 这一步是我帮你加上的 —— 自动签名（核心！）
+      - name: Sign the executable
+        working-directory: ./aicoder
+        shell: bash
+        run: |
+          EXE=$(ls src-tauri/target/release/bundle/nsis/*.exe | grep -v ".0.exe" | head -1)
+          npm run tauri signer sign -- "$EXE"
+
+      - name: Find exe & sig
         id: exe
         shell: bash
         run: |
@@ -42,19 +51,13 @@ jobs:
           echo "EXE_PATH=$EXE" >> $GITHUB_OUTPUT
           echo "EXE_NAME=$(basename $EXE)" >> $GITHUB_OUTPUT
 
-      - name: Sign the app (manual - run locally after release)
-        if: false
-        run: |
-          echo "Signing disabled - sign manually after release"
-          echo "Command: npm run tauri signer sign -k 'YOUR_PRIVATE_KEY' 'PATH_TO_EXE'"
-
       - name: Create latest.json
         if: steps.exe.outputs.EXE_PATH != ''
         id: latest
         shell: bash
         run: |
           VERSION="${{ github.ref_name }}"
-          VERSION="${VERSION#refs/tags/}"
+          VERSION="${VERSION#v}"
           EXE_PATH="${{ steps.exe.outputs.EXE_PATH }}"
           EXE_NAME="$(basename "$EXE_PATH")"
           SIG_PATH="${EXE_PATH}.sig"
@@ -67,10 +70,8 @@ jobs:
             echo "SIGNATURE_LENGTH=0" >> $GITHUB_OUTPUT
           fi
 
-          # Format date as ISO 8601 for Tauri 2.x
           PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-          # Tauri 2.x requires platforms-specific JSON structure
           cat > latest.json << JSONEOF
           {
             "version": "$VERSION",
@@ -79,18 +80,16 @@ jobs:
             "platforms": {
               "windows-x86_64": {
                 "signature": "$SIGNATURE",
-                "url": "https://github.com/Fancyhe1/H-CLIer/releases/download/$VERSION/$EXE_NAME"
+                "url": "https://github.com/Fancyhe1/H-CLIer/releases/download/${{ github.ref_name }}/$EXE_NAME"
               }
             }
           }
           JSONEOF
 
-          echo "=== latest.json ==="
           cat latest.json
 
       - name: Create GitHub Release
-        if: steps.exe.outputs.EXE_PATH != ''
-        uses: softprops/action-gh-release@v1
+        uses: softprops/gh-release@v1
         with:
           files: |
             aicoder/src-tauri/target/release/bundle/nsis/*.exe
@@ -99,29 +98,3 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload latest.json to H-CLIer repo
-        if: steps.latest.outputs.SIGNATURE_LENGTH != ''
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION="${{ github.ref_name }}"
-          VERSION="${VERSION#refs/tags/}"
-          SHA=$(gh api repos/Fancyhe1/H-CLIer/contents/latest.json --jq '.sha' 2>/dev/null || echo "")
-          CONTENT=$(cat latest.json | base64 -w 0)
-
-          if [ -n "$SHA" ]; then
-            gh api repos/Fancyhe1/H-CLIer/contents/latest.json \
-              --method PUT \
-              --field message="Update latest.json for $VERSION" \
-              --field content="$CONTENT" \
-              --field branch=main \
-              --field sha="$SHA"
-          else
-            gh api repos/Fancyhe1/H-CLIer/contents/latest.json \
-              --method PUT \
-              --field message="Update latest.json for $VERSION" \
-              --field content="$CONTENT" \
-              --field branch=main
-          fi
