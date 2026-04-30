@@ -69,15 +69,5 @@
       }
     }
   },
-  "plugins": {
-    "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM4QTkzOTlENzgyQjU5OEEKUldTS1dTdDRuVG1weU5Cd3hYblRjT254MTBPVW5ycmFSWXdGR1g1UitMcTBOK2NmNE4wYllrcUEK",
-      "endpoints": [
-        "https://raw.githubusercontent.com/Fancyhe1/H-CLIer/main/latest.json"
-      ],
-      "windows": {
-        "installMode": "passive"
-      }
-    }
-  }
+  "plugins": {}
 }

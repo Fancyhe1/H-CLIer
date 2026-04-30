@@ -10,9 +10,6 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: write
-    env:
-      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
     steps:
       - name: Checkout code
@@ -32,70 +29,17 @@ jobs:
         working-directory: ./aicoder
         run: npm ci
 
-      - name: Build Tauri app (auto-sign)
+      - name: Build Tauri app
         working-directory: ./aicoder
         run: npm run tauri:build
 
-      - name: List bundle contents
-        shell: bash   # 添加这一行！
-        run: ls -la aicoder/src-tauri/target/release/bundle/nsis/
-
-      - name: Find exe and sig
+      - name: Find exe
         id: exe
         shell: bash
         run: |
           EXE=$(ls aicoder/src-tauri/target/release/bundle/nsis/*.exe 2>/dev/null | grep -v "_0.exe" | head -1)
           echo "EXE_PATH=$EXE" >> $GITHUB_OUTPUT
-          echo "EXE_NAME=$(basename $EXE)" >> $GITHUB_OUTPUT
-          SIG_PATH="${EXE}.sig"
-          if [ -f "$SIG_PATH" ]; then
-            echo "SIG_EXISTS=true" >> $GITHUB_OUTPUT
-          else
-            echo "SIG_EXISTS=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Sign manually if auto-sign failed
-        if: steps.exe.outputs.SIG_EXISTS == 'false'
-        working-directory: ./aicoder
-        shell: bash
-        run: |
-          EXE_PATH="${{ steps.exe.outputs.EXE_PATH }}"
-          echo "Manual signing $EXE_PATH"
-          npm run tauri signer sign -- "$EXE_PATH"
-
-      - name: Create latest.json
-        if: steps.exe.outputs.EXE_PATH != ''
-        id: latest
-        shell: bash
-        run: |
-          VERSION="${{ github.ref_name }}"
-          VERSION="${VERSION#v}"
-          EXE_PATH="${{ steps.exe.outputs.EXE_PATH }}"
-          EXE_NAME="$(basename "$EXE_PATH")"
-          SIG_PATH="${EXE_PATH}.sig"
-          if [ -f "$SIG_PATH" ]; then
-            SIGNATURE=$(cat "$SIG_PATH" | tr -d '\r\n')
-            SIGNATURE_LENGTH=${#SIGNATURE}
-            echo "SIGNATURE_LENGTH=$SIGNATURE_LENGTH" >> $GITHUB_OUTPUT
-          else
-            echo "ERROR: .sig file still missing after manual attempt"
-            exit 1
-          fi
-          PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          cat > latest.json << JSONEOF
-          {
-            "version": "$VERSION",
-            "notes": "Release $VERSION",
-            "pub_date": "$PUB_DATE",
-            "platforms": {
-              "windows-x86_64": {
-                "signature": "$SIGNATURE",
-                "url": "https://github.com/Fancyhe1/H-CLIer/releases/download/${{ github.ref_name }}/$EXE_NAME"
-              }
-            }
-          }
-          JSONEOF
-          cat latest.json
+          echo "EXE_NAME=$(basename "$EXE")" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release on H-CLIer
         if: steps.exe.outputs.EXE_PATH != ''
@@ -103,35 +47,7 @@ jobs:
         with:
           repository: Fancyhe1/H-CLIer
           token: ${{ secrets.GH_PAT }}
-          files: |
-            aicoder/src-tauri/target/release/bundle/nsis/*.exe
-            aicoder/src-tauri/target/release/bundle/nsis/*.sig
-            latest.json
+          files: aicoder/src-tauri/target/release/bundle/nsis/*.exe
           generate_release_notes: true
           tag_name: ${{ github.ref_name }}
           make_latest: true
-
-      - name: Push latest.json to H-CLIer repo root
-        if: steps.latest.outputs.SIGNATURE_LENGTH != ''
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
-        run: |
-          VERSION="${{ github.ref_name }}"
-          VERSION="${VERSION#v}"
-          SHA=$(gh api repos/Fancyhe1/H-CLIer/contents/latest.json --jq '.sha' 2>/dev/null || echo "")
-          CONTENT=$(cat latest.json | base64 -w 0)
-          if [ -n "$SHA" ]; then
-            gh api repos/Fancyhe1/H-CLIer/contents/latest.json \
-              --method PUT \
-              --field message="Update latest.json for $VERSION" \
-              --field content="$CONTENT" \
-              --field branch=main \
-              --field sha="$SHA"
-          else
-            gh api repos/Fancyhe1/H-CLIer/contents/latest.json \
-              --method PUT \
-              --field message="Update latest.json for $VERSION" \
-              --field content="$CONTENT" \
-              --field branch=main
-          fi
