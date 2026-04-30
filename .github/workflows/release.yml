@@ -29,6 +29,15 @@ jobs:
         working-directory: ./aicoder
         run: npm ci
 
+      - name: Sync version to tag
+        shell: bash
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          echo "Syncing version to $VERSION"
+          jq ".version = \"$VERSION\"" aicoder/src-tauri/tauri.conf.json > tmp.json && mv tmp.json aicoder/src-tauri/tauri.conf.json
+          cat aicoder/src-tauri/tauri.conf.json | grep '"version"'
+
       - name: Build Tauri app
         working-directory: ./aicoder
         run: npm run tauri build
@@ -45,7 +54,7 @@ jobs:
         shell: bash
         run: |
           echo "=== Signing installer ==="
-          echo "TAURI_SIGNING_PRIVATE_KEY is set: ${#TAURI_SIGNING_PRIVATE_KEY} chars"
+          echo "TAURI_SIGNING_PRIVATE_KEY length: ${#TAURI_SIGNING_PRIVATE_KEY}"
 
           # Get the exe path
           EXE=$(ls src-tauri/target/release/bundle/nsis/*.exe 2>/dev/null | grep -v "_0.exe" | head -1)
@@ -55,21 +64,21 @@ jobs:
           fi
           echo "Found exe: $EXE"
 
-          # Write private key to file
-          printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" > signing_key.pem
+          # Write private key to file - try base64 decode first, fallback to plain text
+          if echo "$TAURI_SIGNING_PRIVATE_KEY" | base64 -d > signing_key.pem 2>/dev/null; then
+            echo "Key decoded from base64"
+          else
+            printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" > signing_key.pem
+            echo "Key written as plain text"
+          fi
           echo "Key file size: $(wc -c < signing_key.pem) bytes"
 
-          # Sign using tauri signer
-          echo "Running tauri signer sign..."
-          node ./node_modules/@tauri-apps/cli/tauri.js signer sign \
-            -f signing_key.pem \
-            -p "" \
-            "$EXE"
+          # Sign using npx tauri signer sign
+          echo "Running npx tauri signer sign..."
+          npx tauri signer sign -f signing_key.pem -p "" "$EXE"
 
           echo "=== Signing done ==="
           ls -la "${EXE}.sig" 2>/dev/null || echo "No sig file created"
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
 
       - name: Generate latest.json
         working-directory: ./aicoder
