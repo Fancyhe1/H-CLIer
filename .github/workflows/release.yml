@@ -36,6 +36,9 @@ jobs:
         working-directory: ./aicoder
         run: npm run tauri:build
 
+      - name: List bundle contents
+        run: ls -la aicoder/src-tauri/target/release/bundle/nsis/
+
       - name: Find exe and sig
         id: exe
         shell: bash
@@ -65,12 +68,14 @@ jobs:
         shell: bash
         run: |
           VERSION="${{ github.ref_name }}"
-          VERSION="${VERSION#refs/tags/}"
+          VERSION="${VERSION#v}"
           EXE_PATH="${{ steps.exe.outputs.EXE_PATH }}"
           EXE_NAME="$(basename "$EXE_PATH")"
           SIG_PATH="${EXE_PATH}.sig"
           if [ -f "$SIG_PATH" ]; then
-            SIGNATURE=$(cat "$SIG_PATH" | tr -d '\n')
+            SIGNATURE=$(cat "$SIG_PATH" | tr -d '\r\n')
+            SIGNATURE_LENGTH=${#SIGNATURE}
+            echo "SIGNATURE_LENGTH=$SIGNATURE_LENGTH" >> $GITHUB_OUTPUT
           else
             echo "ERROR: .sig file still missing after manual attempt"
             exit 1
@@ -84,7 +89,7 @@ jobs:
             "platforms": {
               "windows-x86_64": {
                 "signature": "$SIGNATURE",
-                "url": "https://github.com/Fancyhe1/H-CLIer/releases/download/$VERSION/$EXE_NAME"
+                "url": "https://github.com/Fancyhe1/H-CLIer/releases/download/${{ github.ref_name }}/$EXE_NAME"
               }
             }
           }
@@ -112,7 +117,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           VERSION="${{ github.ref_name }}"
-          VERSION="${VERSION#refs/tags/}"
+          VERSION="${VERSION#v}"
           SHA=$(gh api repos/Fancyhe1/H-CLIer/contents/latest.json --jq '.sha' 2>/dev/null || echo "")
           CONTENT=$(cat latest.json | base64 -w 0)
           if [ -n "$SHA" ]; then
