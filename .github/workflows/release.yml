@@ -107,6 +107,10 @@ jobs:
           EXE_NAME=$(basename "$EXE_PATH")
           echo "Found EXE: $EXE_NAME"
 
+          # URL encode the exe name (spaces become %20)
+          ENCODED_EXE_NAME=$(echo "$EXE_NAME" | sed 's/ /%20/g')
+          echo "Encoded EXE: $ENCODED_EXE_NAME"
+
           SIG_PATH="${EXE_PATH}.sig"
           echo "Looking for SIG: $SIG_PATH"
           if [ ! -f "$SIG_PATH" ]; then
@@ -127,7 +131,7 @@ jobs:
             "platforms": {
               "windows-x86_64": {
                 "signature": "$SIGNATURE",
-                "url": "https://github.com/Fancyhe1/H-CLIer/releases/download/${{ github.ref_name }}/$EXE_NAME"
+                "url": "https://github.com/Fancyhe1/H-CLIer/releases/download/${{ github.ref_name }}/$ENCODED_EXE_NAME"
               }
             }
           }
