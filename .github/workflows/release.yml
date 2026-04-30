@@ -9,9 +9,8 @@ jobs:
   release:
     runs-on: windows-latest
     permissions:
-      contents: write          # 允许创建 Release（配合 PAT 有效）
+      contents: write
     env:
-      # Tauri 签名密钥（从 Secrets 读取）
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
@@ -29,12 +28,11 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install dependencies (npm)
+      - name: Install dependencies
         working-directory: ./aicoder
         run: npm ci
 
-      # 构建时会自动签名（因为设置了 TAURI_SIGNING_PRIVATE_KEY 环境变量）
-      - name: Build Tauri app
+      - name: Build Tauri app (auto-sign)
         working-directory: ./aicoder
         run: npm run tauri:build
 
@@ -42,7 +40,7 @@ jobs:
         id: exe
         shell: bash
         run: |
-          EXE=$(ls aicoder/src-tauri/target/release/bundle/nsis/*.exe 2>/dev/null | grep -v ".0.exe" | head -1)
+          EXE=$(ls aicoder/src-tauri/target/release/bundle/nsis/*.exe 2>/dev/null | grep -v "_0.exe" | head -1)
           echo "EXE_PATH=$EXE" >> $GITHUB_OUTPUT
           echo "EXE_NAME=$(basename $EXE)" >> $GITHUB_OUTPUT
           SIG_PATH="${EXE}.sig"
@@ -52,14 +50,13 @@ jobs:
             echo "SIG_EXISTS=false" >> $GITHUB_OUTPUT
           fi
 
-      # 可选：如果自动签名失败，手动签名（兜底）
-      - name: Sign manually if needed
+      - name: Sign manually if auto-sign failed
         if: steps.exe.outputs.SIG_EXISTS == 'false'
         working-directory: ./aicoder
         shell: bash
         run: |
           EXE_PATH="${{ steps.exe.outputs.EXE_PATH }}"
-          echo "Signing $EXE_PATH manually"
+          echo "Manual signing $EXE_PATH"
           npm run tauri signer sign -- "$EXE_PATH"
 
       - name: Create latest.json
@@ -74,9 +71,8 @@ jobs:
           SIG_PATH="${EXE_PATH}.sig"
           if [ -f "$SIG_PATH" ]; then
             SIGNATURE=$(cat "$SIG_PATH" | tr -d '\n')
-            echo "SIGNATURE_LENGTH=${#SIGNATURE}" >> $GITHUB_OUTPUT
           else
-            echo "❌ .sig file missing after build and manual attempt"
+            echo "ERROR: .sig file still missing after manual attempt"
             exit 1
           fi
           PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -93,16 +89,14 @@ jobs:
             }
           }
           JSONEOF
-          echo "=== latest.json ==="
           cat latest.json
 
-      # 创建 Release 在公开仓库 H-CLIer
       - name: Create GitHub Release on H-CLIer
         if: steps.exe.outputs.EXE_PATH != ''
         uses: softprops/action-gh-release@v2
         with:
-          repository: Fancyhe1/H-CLIer      # 目标公开仓库
-          token: ${{ secrets.GH_PAT }}       # 使用 PAT（需具有 repo 范围）
+          repository: Fancyhe1/H-CLIer
+          token: ${{ secrets.GH_PAT }}
           files: |
             aicoder/src-tauri/target/release/bundle/nsis/*.exe
             aicoder/src-tauri/target/release/bundle/nsis/*.sig
@@ -111,12 +105,11 @@ jobs:
           tag_name: ${{ github.ref_name }}
           make_latest: true
 
-      # 推送 latest.json 到公开仓库根目录（用于 Tauri 更新器）
-      - name: Upload latest.json to H-CLIer repo root
+      - name: Push latest.json to H-CLIer repo root
         if: steps.latest.outputs.SIGNATURE_LENGTH != ''
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}    # 使用 PAT 而非 GITHUB_TOKEN
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           VERSION="${{ github.ref_name }}"
           VERSION="${VERSION#refs/tags/}"
