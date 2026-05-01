@@ -107,8 +107,8 @@ jobs:
           EXE_NAME=$(basename "$EXE_PATH")
           echo "Found EXE: $EXE_NAME"
 
-          # URL encode the exe name (spaces become %20)
-          ENCODED_EXE_NAME=$(echo "$EXE_NAME" | sed 's/ /%20/g')
+          # URL encode the exe name (handle spaces, dots, and other special chars)
+          ENCODED_EXE_NAME=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$EXE_NAME'))")
           echo "Encoded EXE: $ENCODED_EXE_NAME"
 
           SIG_PATH="${EXE_PATH}.sig"
