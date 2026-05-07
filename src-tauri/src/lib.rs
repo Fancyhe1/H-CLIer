@@ -3,11 +3,13 @@ mod pty;
 mod cli;
 mod config;
 mod checkpoint;
+mod license;
 
 use session::{Session, SessionManager};
 use pty::PtyManager;
 use config::{AppConfig, ConfigManager, ClaudeConfig, GeneralConfig};
 use checkpoint::{Checkpoint, CheckpointDiff, CheckpointManager};
+use license::{LicenseManager, LicenseState, LicenseStatus};
 use std::sync::Mutex;
 use tauri::Manager;
 
@@ -20,6 +22,7 @@ pub struct AppState {
     pty_manager: Mutex<PtyManager>,
     config_manager: Mutex<ConfigManager>,
     checkpoint_manager: Mutex<CheckpointManager>,
+    license_manager: Mutex<LicenseManager>,
 }
 
 // 会话管理命令
@@ -566,6 +569,34 @@ fn get_checkpoint_diff(
     manager.get_checkpoint_diff(&session_id, &checkpoint_id, &project_path)
 }
 
+// 许可证管理命令
+#[tauri::command]
+fn get_machine_id(state: tauri::State<AppState>) -> Result<String, String> {
+    let manager = state.license_manager.lock().map_err(|e| e.to_string())?;
+    Ok(manager.get_machine_id())
+}
+
+#[tauri::command]
+fn check_license_status(state: tauri::State<AppState>) -> Result<LicenseStatus, String> {
+    let manager = state.license_manager.lock().map_err(|e| e.to_string())?;
+    manager.get_status()
+}
+
+#[tauri::command]
+fn activate_license(
+    state: tauri::State<AppState>,
+    code: String,
+) -> Result<LicenseState, String> {
+    let manager = state.license_manager.lock().map_err(|e| e.to_string())?;
+    manager.activate(&code)
+}
+
+#[tauri::command]
+fn revalidate_license(state: tauri::State<AppState>) -> Result<LicenseStatus, String> {
+    let manager = state.license_manager.lock().map_err(|e| e.to_string())?;
+    manager.revalidate()
+}
+
 // 主函数
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -600,11 +631,16 @@ pub fn run() {
             // 初始化检查点管理器
             let checkpoint_manager = CheckpointManager::new(&app_dir);
 
+            // 初始化许可证管理器
+            let license_manager = LicenseManager::new(&db_path, &app_dir)
+                .map_err(|e| format!("Failed to create license manager: {}", e))?;
+
             app.manage(AppState {
                 session_manager: Mutex::new(session_manager),
                 pty_manager: Mutex::new(pty_manager),
                 config_manager: Mutex::new(config_manager),
                 checkpoint_manager: Mutex::new(checkpoint_manager),
+                license_manager: Mutex::new(license_manager),
             });
 
             Ok(())
@@ -660,6 +696,11 @@ pub fn run() {
             restore_checkpoint,
             delete_checkpoint,
             get_checkpoint_diff,
+            // 许可证管理
+            get_machine_id,
+            check_license_status,
+            activate_license,
+            revalidate_license,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

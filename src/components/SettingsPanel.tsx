@@ -28,6 +28,8 @@ import {
   SyncOutlined,
   DownloadOutlined,
   InfoCircleOutlined,
+  SafetyCertificateOutlined,
+  ExclamationCircleOutlined,
 } from '@ant-design/icons'
 import { invoke } from '@tauri-apps/api/core'
 import { useSessionStore } from '../stores/sessionStore'
@@ -69,6 +71,9 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
     checkForUpdates,
     downloadAndInstallUpdate,
     clearUpdateError,
+    licenseStatus,
+    licenseState,
+    checkLicenseStatus,
   } = useSettingsStore()
 
   // 配置已在 App 启动时加载和检测，这里不需要再做
@@ -442,6 +447,85 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
               </Button>
             </Form.Item>
           </Form>
+        </TabPane>
+
+        {/* 许可证 */}
+        <TabPane
+          tab={
+            <span>
+              <SafetyCertificateOutlined />
+              许可证
+            </span>
+          }
+          key="license"
+        >
+          <div style={{ marginBottom: 24 }}>
+            <Alert
+              message={
+                <Space>
+                  <span>激活状态:</span>
+                  {licenseStatus?.is_activated ? (
+                    <Space>
+                      <CheckCircleOutlined style={{ color: '#52c41a' }} />
+                      <span style={{ color: '#52c41a' }}>已激活</span>
+                      {licenseStatus?.tier && (
+                        <span style={{ color: 'rgba(0,0,0,0.45)' }}>({licenseStatus.tier})</span>
+                      )}
+                    </Space>
+                  ) : (
+                    <Space>
+                      <ExclamationCircleOutlined style={{ color: '#ff4d4f' }} />
+                      <span style={{ color: '#ff4d4f' }}>未激活</span>
+                    </Space>
+                  )}
+                </Space>
+              }
+              type={licenseStatus?.is_activated ? 'success' : 'warning'}
+              style={{ marginBottom: 16 }}
+            />
+
+            {licenseState && (
+              <div style={{ marginBottom: 16 }}>
+                <Text type="secondary">
+                  机器ID: {licenseState.machine_id.substring(0, 12)}...
+                </Text>
+                <br />
+                {licenseState.activated_at && (
+                  <Text type="secondary">
+                    激活时间: {new Date(licenseState.activated_at).toLocaleString('zh-CN')}
+                  </Text>
+                )}
+                <br />
+                {licenseState.expires_at && (
+                  <Text type="secondary">
+                    到期时间: {new Date(licenseState.expires_at).toLocaleString('zh-CN')}
+                  </Text>
+                )}
+                <br />
+                {licenseState.license_tier && (
+                  <Text type="secondary">
+                    授权等级: {licenseState.license_tier}
+                  </Text>
+                )}
+              </div>
+            )}
+
+            {licenseStatus?.message && !licenseStatus.is_activated && (
+              <Alert
+                message={licenseStatus.message}
+                type="warning"
+                showIcon
+                style={{ marginBottom: 16 }}
+              />
+            )}
+
+            <Button
+              icon={<SyncOutlined />}
+              onClick={() => checkLicenseStatus()}
+            >
+              检查许可证状态
+            </Button>
+          </div>
         </TabPane>
 
         {/* 关于 */}

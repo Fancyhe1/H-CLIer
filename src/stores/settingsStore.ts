@@ -37,6 +37,26 @@ export interface UpdateInfo {
 
 export type UpdateStatus = 'idle' | 'checking' | 'available' | 'downloading' | 'installing' | 'error' | 'up_to_date'
 
+// 许可证相关类型
+export interface LicenseState {
+  is_activated: boolean
+  invitation_code: string | null
+  machine_id: string
+  activated_at: string | null
+  last_validated_at: string | null
+  expires_at: string | null
+  license_tier: string | null
+  offline_grace_days: number
+}
+
+export interface LicenseStatus {
+  is_activated: boolean
+  status: 'not_activated' | 'activated' | 'expired' | 'invalid'
+  tier: string | null
+  expires_at: string | null
+  message: string | null
+}
+
 // 默认配置
 const defaultConfig: AppConfig = {
   claude: {
@@ -71,6 +91,10 @@ interface SettingsState {
   updateInfo: UpdateInfo | null
   updateError: string | null
 
+  // 许可证相关
+  licenseStatus: LicenseStatus | null
+  licenseState: LicenseState | null
+
   // Actions
   loadConfig: () => Promise<void>
   saveConfig: (config: AppConfig) => Promise<void>
@@ -89,6 +113,9 @@ interface SettingsState {
   downloadAndInstallUpdate: () => Promise<void>
   setUpdateStatus: (status: UpdateStatus) => void
   clearUpdateError: () => void
+  // 许可证相关 Actions
+  checkLicenseStatus: () => Promise<LicenseStatus | null>
+  activateLicense: (code: string) => Promise<boolean>
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -104,6 +131,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   updateStatus: 'idle',
   updateInfo: null,
   updateError: null,
+
+  // 许可证相关状态
+  licenseStatus: null,
+  licenseState: null,
 
   // 加载配置
   loadConfig: async () => {
@@ -289,5 +320,29 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   // 清除更新错误
   clearUpdateError: () => {
     set({ updateError: null, updateStatus: 'idle' })
+  },
+
+  // 检查许可证状态
+  checkLicenseStatus: async () => {
+    try {
+      const status = await invoke<LicenseStatus>('check_license_status')
+      set({ licenseStatus: status })
+      return status
+    } catch (err) {
+      console.error('检查许可证状态失败:', err)
+      return null
+    }
+  },
+
+  // 激活许可证
+  activateLicense: async (code: string) => {
+    try {
+      const state = await invoke<LicenseState>('activate_license', { code })
+      set({ licenseState: state })
+      return true
+    } catch (err) {
+      console.error('激活失败:', err)
+      throw err
+    }
   },
 }))

@@ -31,6 +31,7 @@ import TokenStatsPanel from './components/TokenStatsPanel'
 import CommandPalette from './components/CommandPalette'
 import CheckpointModal from './components/CheckpointModal'
 import FileBrowserModal from './components/FileBrowserModal'
+import ActivationScreen from './components/ActivationScreen'
 import { useSettingsStore } from './stores/settingsStore'
 import { useSessionStore } from './stores/sessionStore'
 import './styles/App.css'
@@ -60,6 +61,9 @@ function App() {
   const [claudeMdPath, setClaudeMdPath] = useState('')
   const [claudeVersion, setClaudeVersion] = useState<string>('')
   const [fileBrowserVisible, setFileBrowserVisible] = useState(false)
+
+  // 许可证激活状态
+  const [isActivated, setIsActivated] = useState<boolean | null>(null)
 
   // 响应式获取当前会话的工作空间
   const { sessions, activeSessionId } = useSessionStore()
@@ -188,6 +192,21 @@ function App() {
     })
   }, [loadConfig])
 
+  // 启动时检查许可证状态
+  useEffect(() => {
+    const checkLicense = async () => {
+      try {
+        const { checkLicenseStatus } = useSettingsStore.getState()
+        const status = await checkLicenseStatus()
+        setIsActivated(status?.is_activated ?? false)
+      } catch (err) {
+        console.error('License check failed:', err)
+        setIsActivated(false)
+      }
+    }
+    checkLicense()
+  }, [])
+
   // 启动时检测 Claude 安装状态（异步，不阻塞 UI）
   useEffect(() => {
     const { checkClaudeInstallation, getClaudeVersion } = useSettingsStore.getState()
@@ -288,7 +307,7 @@ function App() {
   }
 
   // 启动画面
-  if (isLoading) {
+  if (isLoading || isActivated === null) {
     return (
       <div className={`app-splash ${currentTheme}`}>
         <div className="splash-content">
@@ -298,6 +317,25 @@ function App() {
           <Spin indicator={<LoadingOutlined style={{ fontSize: 24, color: currentTheme === 'dark' ? '#69b1ff' : '#1677ff' }} spin />} />
         </div>
       </div>
+    )
+  }
+
+  // 未激活时显示激活界面
+  if (!isActivated) {
+    return (
+      <ConfigProvider
+        theme={{
+          algorithm: antTheme,
+          token: {
+            colorPrimary: '#1677ff',
+          },
+        }}
+      >
+        <ActivationScreen
+          open={true}
+          onSuccess={() => setIsActivated(true)}
+        />
+      </ConfigProvider>
     )
   }
 
