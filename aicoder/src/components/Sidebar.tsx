@@ -773,9 +773,11 @@ function Sidebar(props: SidebarProps) {
   const renderSessionItem = (session: (typeof sessions)[0]) => {
     // 会话是否正在运行（终端已打开）
     const isRunning = runningSessionIds.has(session.id)
-    // 颜色：未运行显示灰色，运行中显示设置的颜色或默认白色
+    // 是否有未读消息
+    const hasUnread = session.hasUnread
+    // 颜色：未运行显示灰色，运行中显示设置的颜色或默认白色，未读时橙色
     const displayColor = isRunning
-      ? (session.color || '#ffffff')
+      ? (hasUnread ? '#fa8c16' : (session.color || '#ffffff'))
       : '#888888'
 
     return (
@@ -785,7 +787,7 @@ function Sidebar(props: SidebarProps) {
         overlayClassName="session-context-menu"
       >
         <div
-          className={`session-item ${session.id === activeSessionId ? 'active' : ''}`}
+          className={`session-item ${session.id === activeSessionId ? 'active' : ''} ${hasUnread ? 'has-unread' : ''}`}
           onClick={() => setActiveSession(session.id)}
         >
           <div className="session-info">
@@ -797,7 +799,10 @@ function Sidebar(props: SidebarProps) {
               }}
             />
             {session.isFavorite && <StarFilled className="favorite-icon" />}
-            <span className="session-title">{session.title}</span>
+            {hasUnread && <span className="unread-dot" />}
+            <span className="session-title" style={hasUnread ? { color: '#fa8c16', fontWeight: 600 } : undefined}>
+              {session.title}
+            </span>
           </div>
           <div className="session-meta">
             <span className="session-time">{formatTimeAgo(session.lastActivityAt)}</span>

@@ -25,6 +25,7 @@ interface SessionState {
   setSessionRunning: (sessionId: string, running: boolean) => void  // 设置会话运行状态
   toggleFavorite: (sessionId: string) => Promise<void>
   setSessionColor: (sessionId: string, color: string) => Promise<void>
+  setHasUnread: (sessionId: string, hasUnread: boolean) => Promise<void>  // 设置未读状态
 }
 
 export const useSessionStore = create<SessionState>((set, get) => ({
@@ -152,6 +153,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     if (!session) return
 
     const updated = { ...session, color }
+    await get().updateSession(updated)
+  },
+
+  setHasUnread: async (sessionId, hasUnread) => {
+    const session = get().sessions.find((s) => s.id === sessionId)
+    if (!session) return
+
+    const updated = { ...session, hasUnread }
     await get().updateSession(updated)
   },
 }))

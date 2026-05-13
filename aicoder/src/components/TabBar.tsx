@@ -139,10 +139,19 @@ function TabBar() {
     }
   }
 
-  const items: TabsProps['items'] = tabs.map((tab) => ({
-    key: tab.key,
-    label: tab.label,
-  }))
+  const items: TabsProps['items'] = tabs.map((tab) => {
+    const session = sessions.find(s => s.id === tab.key)
+    const hasUnread = session?.hasUnread
+    return {
+      key: tab.key,
+      label: (
+        <div className="tab-label-wrapper">
+          <span className="tab-label-text">{tab.label}</span>
+          {hasUnread && <span className="unread-dot" />}
+        </div>
+      ),
+    }
+  })
 
   return (
     <div className="tab-bar">

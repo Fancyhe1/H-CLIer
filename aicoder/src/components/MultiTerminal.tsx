@@ -14,6 +14,8 @@ interface TerminalInstance {
   ptyId: string
   unlisten: () => void
   sessionId: string
+  // 用于标记此终端是否应该在收到输出时标记未读
+  shouldMarkUnread: boolean
 }
 
 function MultiTerminal() {
@@ -25,8 +27,8 @@ function MultiTerminal() {
   const { sessions, activeSessionId, closedSessionId, setClosedSession } = useSessionStore()
   const { config, currentTheme } = useSettingsStore()
 
-  // 销毁指定会话的终端
-  const disposeTerminal = async (sessionId: string) => {
+  // 销毁指定会话的终端（真正关闭会话时调用）
+  const destroyTerminal = async (sessionId: string) => {
     const instance = terminalsRef.current.get(sessionId)
     if (instance) {
       instance.unlisten()
@@ -46,10 +48,10 @@ function MultiTerminal() {
     }
   }
 
-  // 监听关闭会话事件
+  // 监听关闭会话事件（真正销毁）
   useEffect(() => {
     if (closedSessionId) {
-      disposeTerminal(closedSessionId)
+      destroyTerminal(closedSessionId)
       setClosedSession(null)  // 清除关闭标记
     }
   }, [closedSessionId])
@@ -72,7 +74,9 @@ function MultiTerminal() {
   useEffect(() => {
     if (!activeSessionId || !containerRef.current) return
 
-    const session = sessions.find(s => s.id === activeSessionId)
+    // 从当前 sessions 获取会话信息
+    const currentSessions = useSessionStore.getState().sessions
+    const session = currentSessions.find(s => s.id === activeSessionId)
     if (!session) return
 
     // 如果已有终端实例，直接显示
@@ -124,7 +128,8 @@ function MultiTerminal() {
     fitAddon.fit()
 
     // 创建终端实例（先保存，后续填充ptyId和unlisten）
-    terminalsRef.current.set(activeSessionId, { term, fitAddon, ptyId: '', unlisten: () => {}, sessionId: activeSessionId })
+    // 新创建的终端默认应该追踪未读（只有当前会话不需要标记）
+    terminalsRef.current.set(activeSessionId, { term, fitAddon, ptyId: '', unlisten: () => {}, sessionId: activeSessionId, shouldMarkUnread: true })
 
     // 标记会话为运行状态
     useSessionStore.getState().setSessionRunning(activeSessionId, true)
@@ -141,8 +146,35 @@ function MultiTerminal() {
         })
 
         // 监听 PTY 输出
+        let lastUnreadTrigger = 0
         const unlisten = await listen<string>(`pty-output-${ptyId}`, (event) => {
           term.write(event.payload)
+
+          // 如果这个终端需要标记未读（后台运行），且有新输出
+          const instance = terminalsRef.current.get(activeSessionId)
+          if (instance && instance.shouldMarkUnread && event.payload) {
+            // 过滤掉 Claude 的思考过程和状态提示，只对实际内容触发未读
+            const output = event.payload
+            const isNoise = (
+              output.includes('✻') ||                    // 思考过程标记
+              output.includes('Worked for') ||           // 工作时间提示
+              output.includes('Thinking') ||             // 思考中
+              output.includes('╭') ||                   // Claude UI 边框
+              output.includes('╰') ||                   // Claude UI 边框
+              output.includes('│') ||                   // Claude UI 边框
+              output.includes('main-assistant') ||       // 内部标记
+              /^\s*$/.test(output)                       // 空白内容
+            )
+
+            // 只有非噪音内容才触发未读，并使用防抖（2秒内不重复触发）
+            if (!isNoise) {
+              const now = Date.now()
+              if (now - lastUnreadTrigger > 2000) {
+                lastUnreadTrigger = now
+                useSessionStore.getState().setHasUnread(activeSessionId, true)
+              }
+            }
+          }
         })
 
         // 更新实例
@@ -211,7 +243,7 @@ function MultiTerminal() {
       }
     })()
 
-  }, [activeSessionId, sessions]) // 移除 config 依赖
+  }, [activeSessionId]) // 只依赖 activeSessionId，不依赖 sessions
 
   // 当字体大小配置变化时，更新所有已存在终端的字体大小
   useEffect(() => {
@@ -233,9 +265,17 @@ function MultiTerminal() {
     })
   }, [currentTheme])
 
-  // 显示指定终端，隐藏其他
+  // 显示指定终端，隐藏其他（纯 DOM 操作，不触发状态更新）
   const showTerminal = (sessionId: string) => {
     if (!containerRef.current) return
+
+    // 先把所有其他终端设置为"标记未读"模式（它们在后台运行）
+    terminalsRef.current.forEach((instance, id) => {
+      if (id !== sessionId) {
+        instance.shouldMarkUnread = true
+      }
+    })
+
     const children = containerRef.current.children
     for (let i = 0; i < children.length; i++) {
       const child = children[i] as HTMLElement
@@ -245,14 +285,22 @@ function MultiTerminal() {
     // 调整大小
     const instance = terminalsRef.current.get(sessionId)
     if (instance) {
+      instance.shouldMarkUnread = false  // 当前显示的终端不标记未读
       instance.fitAddon.fit()
     }
+  }
+
+  // 清除未读标记（在 useEffect 外调用，避免循环）
+  const clearUnread = (sessionId: string) => {
+    useSessionStore.getState().setHasUnread(sessionId, false)
   }
 
   // 切换终端显示
   useEffect(() => {
     if (activeSessionId) {
       showTerminal(activeSessionId)
+      // 延迟清除未读，避免触发 sessions 更新导致循环
+      setTimeout(() => clearUnread(activeSessionId), 0)
     }
   }, [activeSessionId])
 

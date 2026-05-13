@@ -659,6 +659,39 @@
   background: rgba(255, 77, 79, 0.1);
 }
 
+/* 未读小红点样式 */
+.session-item .unread-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff4d4f;
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+
+.dark .session-item .unread-dot {
+  box-shadow: 0 0 6px #ff4d4f;
+}
+
+.light .session-item .unread-dot {
+  box-shadow: 0 0 4px rgba(255, 77, 79, 0.5);
+}
+
+/* 未读会话项样式 */
+.session-item.has-unread .session-title {
+  font-weight: 600;
+}
+
+.session-item.has-unread .color-tag {
+  animation: unread-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes unread-pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+}
+
 .light .session-context-menu .ant-dropdown-menu {
   background: #fff;
   border: 1px solid #f0f0f0;

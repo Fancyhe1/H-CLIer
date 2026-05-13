@@ -111,3 +111,33 @@
   background: rgba(22, 119, 255, 0.1) !important;
   color: #1677ff !important;
 }
+
+/* 未读小红点样式 */
+.tab-label-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tab-label-text {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.unread-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff4d4f;
+  flex-shrink: 0;
+}
+
+.dark .unread-dot {
+  box-shadow: 0 0 6px #ff4d4f;
+}
+
+.light .unread-dot {
+  box-shadow: 0 0 4px rgba(255, 77, 79, 0.5);
+}

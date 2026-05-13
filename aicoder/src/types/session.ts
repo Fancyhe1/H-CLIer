@@ -14,6 +14,7 @@ export interface Session {
   messageCount: number
   cliSessionId?: string
   description?: string
+  hasUnread?: boolean  // 是否有未读消息
 }
 
 export interface CreateSessionParams {
