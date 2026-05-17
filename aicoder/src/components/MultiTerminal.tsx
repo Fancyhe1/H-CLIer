@@ -156,13 +156,17 @@ function MultiTerminal() {
             // 过滤掉 Claude 的思考过程和状态提示，只对实际内容触发未读
             const output = event.payload
             const isNoise = (
-              output.includes('✻') ||                    // 思考过程标记
+              output.includes('✻') ||                    // 思考结束标记
+              output.includes('※') ||                    // recap 标记
+              output.includes('recap:') ||               // recap 内容
               output.includes('Worked for') ||           // 工作时间提示
               output.includes('Thinking') ||             // 思考中
+              output.includes('Compacting') ||           // 压缩上下文
               output.includes('╭') ||                   // Claude UI 边框
               output.includes('╰') ||                   // Claude UI 边框
               output.includes('│') ||                   // Claude UI 边框
               output.includes('main-assistant') ||       // 内部标记
+              output.includes('disable recaps') ||       // 配置提示
               /^\s*$/.test(output)                       // 空白内容
             )
 
