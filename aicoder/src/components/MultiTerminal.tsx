@@ -189,6 +189,33 @@ function MultiTerminal() {
           invoke('write_to_pty', { ptyId, data }).catch(console.error)
         })
 
+        // Ctrl+C 复制选中内容，Ctrl+V 粘贴
+        // 使用 attachCustomKeyEventHandler 在 xterm 处理之前拦截按键
+        term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
+          if (e.ctrlKey && e.key === 'c') {
+            const selection = term.getSelection()
+            if (selection) {
+              e.preventDefault()
+              e.stopPropagation()
+              navigator.clipboard.writeText(selection).catch(() => {})
+              return false // 阻止 xterm 处理（不发送 \x03）
+            }
+            return true // 无选中时让 xterm 正常处理（发送中断信号）
+          }
+
+          if (e.ctrlKey && e.key === 'v') {
+            e.preventDefault()
+            navigator.clipboard.readText().then((text) => {
+              if (text) {
+                invoke('write_to_pty', { ptyId, data: text })
+              }
+            }).catch(() => {})
+            return false // 阻止 xterm 处理
+          }
+
+          return true
+        })
+
         // Claude 会话：自动启动
         if (session.sessionType === 'claude') {
           const cliSessionId = session.cliSessionId || activeSessionId
