@@ -145,39 +145,27 @@ function MultiTerminal() {
           rows: dims?.rows || 30,
         })
 
-        // 监听 PTY 输出
-        let lastUnreadTrigger = 0
+        // 监听 PTY 输出 - 使用延迟标记策略
+        // 原理：输出开始时不标记，等输出停止3秒后才标记未读
+        // 这样可以过滤掉思考过程和状态提示的频繁输出
+        let outputTimer: ReturnType<typeof setTimeout> | null = null
         const unlisten = await listen<string>(`pty-output-${ptyId}`, (event) => {
           term.write(event.payload)
 
           // 如果这个终端需要标记未读（后台运行），且有新输出
           const instance = terminalsRef.current.get(activeSessionId)
           if (instance && instance.shouldMarkUnread && event.payload) {
-            // 过滤掉 Claude 的思考过程和状态提示，只对实际内容触发未读
-            const output = event.payload
-            const isNoise = (
-              output.includes('✻') ||                    // 思考结束标记
-              output.includes('※') ||                    // recap 标记
-              output.includes('recap:') ||               // recap 内容
-              output.includes('Worked for') ||           // 工作时间提示
-              output.includes('Thinking') ||             // 思考中
-              output.includes('Compacting') ||           // 压缩上下文
-              output.includes('╭') ||                   // Claude UI 边框
-              output.includes('╰') ||                   // Claude UI 边框
-              output.includes('│') ||                   // Claude UI 边框
-              output.includes('main-assistant') ||       // 内部标记
-              output.includes('disable recaps') ||       // 配置提示
-              /^\s*$/.test(output)                       // 空白内容
-            )
-
-            // 只有非噪音内容才触发未读，并使用防抖（2秒内不重复触发）
-            if (!isNoise) {
-              const now = Date.now()
-              if (now - lastUnreadTrigger > 2000) {
-                lastUnreadTrigger = now
+            // 每次收到输出都重置定时器
+            if (outputTimer) {
+              clearTimeout(outputTimer)
+            }
+            // 输出停止3秒后才标记未读
+            outputTimer = setTimeout(() => {
+              const currentInstance = terminalsRef.current.get(activeSessionId)
+              if (currentInstance && currentInstance.shouldMarkUnread) {
                 useSessionStore.getState().setHasUnread(activeSessionId, true)
               }
-            }
+            }, 3000)
           }
         })
 
