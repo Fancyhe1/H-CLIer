@@ -1,13 +1,17 @@
 {
-  "name": "license-server",
-  "version": "1.0.0",
-  "description": "License validation server for H CLIer",
-  "main": "server.js",
+  "name": "hclier-license-server",
+  "version": "2.0.0",
+  "description": "H CLIer License Server - 邀请码验证服务",
+  "private": true,
   "scripts": {
+    "dev": "node server.js",
     "start": "node server.js",
-    "dev": "node server.js"
+    "deploy": "vercel --prod",
+    "generate": "node scripts/generate-codes.js"
   },
   "dependencies": {
-    "express": "^4.18.2"
+    "@libsql/client": "^0.14.0",
+    "express": "^4.21.0",
+    "cors": "^2.8.5"
   }
 }

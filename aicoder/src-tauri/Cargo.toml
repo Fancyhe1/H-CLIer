@@ -29,6 +29,8 @@ chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 rusqlite = { version = "0.32", features = ["chrono", "bundled"] }
 portable-pty = "0.9"
+sha2 = "0.10"
+reqwest = { version = "0.12", features = ["blocking", "json", "rustls-tls"], default-features = false }
 
 [features]
 default = ["custom-protocol"]

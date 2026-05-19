@@ -16,6 +16,7 @@ import {
   Divider,
   Collapse,
   List,
+  Spin,
 } from 'antd'
 import {
   CheckCircleOutlined,
@@ -34,6 +35,9 @@ import {
   SettingOutlined,
   ApiOutlined,
   RocketOutlined,
+  SafetyCertificateOutlined,
+  CopyOutlined,
+  CrownOutlined,
 } from '@ant-design/icons'
 import { invoke } from '@tauri-apps/api/core'
 import { useSessionStore } from '../stores/sessionStore'
@@ -49,13 +53,18 @@ interface SettingsPanelProps {
   onClose: () => void
   theme: 'light' | 'dark'
   onThemeChange: (theme: 'light' | 'dark') => void
+  onShowActivation?: () => void
 }
 
-function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanelProps) {
+function SettingsPanel({ visible, onClose, theme, onThemeChange, onShowActivation }: SettingsPanelProps) {
   const [activeTab, setActiveTab] = useState('general')
   const [claudeForm] = Form.useForm()
   const [generalForm] = Form.useForm()
   const [apiForm] = Form.useForm()
+
+  // License 状态
+  const [licenseStatus, setLicenseStatus] = useState<any>(null)
+  const [machineId, setMachineId] = useState<string>('')
 
   const { sessions, clearAllSessions } = useSessionStore()
   const {
@@ -84,6 +93,14 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
   useEffect(() => {
     getAppVersion()
   }, [])
+
+  // 打开设置时加载 license 状态
+  useEffect(() => {
+    if (visible) {
+      invoke<any>('get_license_status').then(setLicenseStatus).catch(console.error)
+      invoke<string>('get_machine_id').then(setMachineId).catch(console.error)
+    }
+  }, [visible])
 
   // 同步表单数据
   useEffect(() => {
@@ -596,6 +613,98 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
           }
           key="about"
         >
+          {/* 许可证信息 */}
+          <div style={{ marginBottom: 24 }}>
+            <Title level={5}>
+              <SafetyCertificateOutlined style={{ marginRight: 8 }} />
+              许可证
+            </Title>
+            {licenseStatus ? (
+              <div style={{
+                background: licenseStatus.isActivated
+                  ? (theme === 'dark' ? '#1a3a1a' : '#f6ffed')
+                  : (theme === 'dark' ? '#3a1a1a' : '#fff2f0'),
+                border: `1px solid ${licenseStatus.isActivated
+                  ? (theme === 'dark' ? '#2d5a2d' : '#b7eb8f')
+                  : (theme === 'dark' ? '#5a2d2d' : '#ffccc7')}`,
+                borderRadius: 8,
+                padding: '16px 20px',
+                marginBottom: 16,
+              }}>
+                <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Space>
+                      {licenseStatus.isActivated ? (
+                        <CrownOutlined style={{ fontSize: 20, color: '#faad14' }} />
+                      ) : (
+                        <CloseCircleOutlined style={{ fontSize: 20, color: '#ff4d4f' }} />
+                      )}
+                      <Text strong style={{ fontSize: 16 }}>
+                        {licenseStatus.isActivated
+                          ? (licenseStatus.tier === 'pro' ? 'Pro 版' : licenseStatus.tier === 'beta' ? 'Beta 版' : '已激活')
+                          : '未激活'}
+                      </Text>
+                    </Space>
+                    {licenseStatus.isActivated && (
+                      <Tag color="success" icon={<CheckCircleOutlined />}>有效</Tag>
+                    )}
+                  </div>
+
+                  {licenseStatus.expiresAt && (
+                    <Text type="secondary">
+                      有效期至: {new Date(licenseStatus.expiresAt).toLocaleDateString('zh-CN', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                      })}
+                    </Text>
+                  )}
+
+                  {licenseStatus.message && (
+                    <Text type="warning">{licenseStatus.message}</Text>
+                  )}
+                </Space>
+              </div>
+            ) : (
+              <Spin size="small" />
+            )}
+
+            {/* 机器 ID */}
+            {machineId && (
+              <div style={{ marginBottom: 12 }}>
+                <Text type="secondary" style={{ fontSize: 12 }}>机器 ID:</Text>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                  <Text code style={{ fontSize: 11, wordBreak: 'break-all' }}>
+                    {machineId}
+                  </Text>
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<CopyOutlined />}
+                    onClick={() => {
+                      navigator.clipboard.writeText(machineId)
+                      message.success('已复制机器 ID')
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* 更换邀请码按钮 */}
+            <Button
+              block
+              onClick={() => {
+                onClose()
+                onShowActivation?.()
+              }}
+              style={{ marginTop: 8 }}
+            >
+              {licenseStatus?.isActivated ? '更换邀请码' : '输入邀请码激活'}
+            </Button>
+          </div>
+
+          <Divider />
+
           <div style={{ marginBottom: 24 }}>
             <Title level={5}>H CLIer</Title>
             <Text type="secondary">版本: {appVersion || '加载中...'}</Text>

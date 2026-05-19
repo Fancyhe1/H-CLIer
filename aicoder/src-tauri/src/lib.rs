@@ -3,6 +3,7 @@ mod pty;
 mod cli;
 mod config;
 mod checkpoint;
+mod license;
 
 use session::{Session, SessionManager};
 use pty::PtyManager;
@@ -20,6 +21,7 @@ pub struct AppState {
     pty_manager: Mutex<PtyManager>,
     config_manager: Mutex<ConfigManager>,
     checkpoint_manager: Mutex<CheckpointManager>,
+    license_manager: Mutex<license::LicenseManager>,
 }
 
 // 会话管理命令
@@ -517,6 +519,32 @@ fn get_app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
+// License 管理命令
+#[tauri::command]
+fn activate_license(
+    state: tauri::State<AppState>,
+    code: String,
+) -> Result<license::LicenseState, String> {
+    let manager = state.license_manager.lock().map_err(|e| e.to_string())?;
+    manager.activate(&code)
+}
+
+#[tauri::command]
+fn get_license_status(
+    state: tauri::State<AppState>,
+) -> Result<license::LicenseStatus, String> {
+    let manager = state.license_manager.lock().map_err(|e| e.to_string())?;
+    manager.get_status()
+}
+
+#[tauri::command]
+fn get_machine_id(
+    state: tauri::State<AppState>,
+) -> Result<String, String> {
+    let manager = state.license_manager.lock().map_err(|e| e.to_string())?;
+    Ok(manager.get_machine_id())
+}
+
 // 检查点管理命令
 #[tauri::command]
 fn create_checkpoint(
@@ -605,11 +633,16 @@ pub fn run() {
             // 初始化检查点管理器
             let checkpoint_manager = CheckpointManager::new(&app_dir);
 
+            // 初始化 License 管理器
+            let license_manager = license::LicenseManager::new(&db_path, &app_dir)
+                .expect("Failed to create license manager");
+
             app.manage(AppState {
                 session_manager: Mutex::new(session_manager),
                 pty_manager: Mutex::new(pty_manager),
                 config_manager: Mutex::new(config_manager),
                 checkpoint_manager: Mutex::new(checkpoint_manager),
+                license_manager: Mutex::new(license_manager),
             });
 
             Ok(())
@@ -666,6 +699,10 @@ pub fn run() {
             restore_checkpoint,
             delete_checkpoint,
             get_checkpoint_diff,
+            // License 管理
+            activate_license,
+            get_license_status,
+            get_machine_id,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
