@@ -31,7 +31,6 @@ import TokenStatsPanel from './components/TokenStatsPanel'
 import CommandPalette from './components/CommandPalette'
 import CheckpointModal from './components/CheckpointModal'
 import FileBrowserModal from './components/FileBrowserModal'
-import { ActivationScreen } from './components/ActivationScreen'
 import { useSettingsStore } from './stores/settingsStore'
 import { useSessionStore } from './stores/sessionStore'
 import './styles/App.css'
@@ -56,8 +55,6 @@ function App() {
   const [isMaximized, setIsMaximized] = useState(false)
 
   // 底部工具栏状态
-  const [_licenseStatus, setLicenseStatus] = useState<any>(null)
-  const [showActivation, setShowActivation] = useState(false)
   const [claudeMdVisible, setClaudeMdVisible] = useState(false)
   const [claudeMdContent, setClaudeMdContent] = useState('')
   const [claudeMdPath, setClaudeMdPath] = useState('')
@@ -206,16 +203,6 @@ function App() {
       checkForUpdates()
     }, 3000)
     return () => clearTimeout(timer)
-  }, [])
-
-  // 启动时检查 license 状态
-  useEffect(() => {
-    tauriInvoke('get_license_status').then((status: any) => {
-      setLicenseStatus(status)
-      if (!status.isActivated) {
-        setShowActivation(true)
-      }
-    }).catch(console.error)
   }, [])
 
   // 根据主题模式获取实际主题
@@ -536,7 +523,6 @@ function App() {
           const { config, updateGeneralConfig } = useSettingsStore.getState()
           updateGeneralConfig({ ...config.general, theme: t as string })
         }}
-        onShowActivation={() => setShowActivation(true)}
       />
 
       <CommandPalette
@@ -556,14 +542,6 @@ function App() {
         onClose={() => setFileBrowserVisible(false)}
         projectPath={activeSession?.projectPath || ''}
         theme={currentTheme}
-      />
-
-      <ActivationScreen
-        open={showActivation}
-        onSuccess={() => {
-          setShowActivation(false)
-          tauriInvoke('get_license_status').then(setLicenseStatus).catch(console.error)
-        }}
       />
     </ConfigProvider>
   )
