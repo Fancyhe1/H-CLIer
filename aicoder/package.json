@@ -1,6 +1,6 @@
 {
   "name": "hcl-ier",
-  "version": "0.1.9",
+  "version": "0.3.2",
   "description": "H CLIer - AI编程助手管理平台",
   "type": "module",
   "scripts": {
