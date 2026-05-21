@@ -209,6 +209,7 @@ function MultiTerminal() {
 
         // Ctrl+C 复制选中内容，Ctrl+V 粘贴
         // 使用 attachCustomKeyEventHandler 在 xterm 处理之前拦截按键
+        let lastPasteTime = 0
         term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
           if (e.ctrlKey && e.key === 'c') {
             const selection = term.getSelection()
@@ -222,6 +223,9 @@ function MultiTerminal() {
           }
 
           if (e.ctrlKey && e.key === 'v') {
+            const now = Date.now()
+            if (now - lastPasteTime < 100) return false
+            lastPasteTime = now
             e.preventDefault()
             navigator.clipboard.readText().then((text) => {
               if (text) {
