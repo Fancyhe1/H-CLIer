@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Layout, Button, Space, ConfigProvider, Spin, Tooltip, Modal, Input, message } from 'antd'
+import { Layout, Button, Space, ConfigProvider, Spin, Tooltip, Modal, Input, message, Badge } from 'antd'
 import { theme } from 'antd'
 import {
   SettingOutlined,
@@ -20,6 +20,7 @@ import {
   DashboardOutlined,
   OrderedListOutlined,
   MacCommandOutlined,
+  CloudOutlined,
 } from '@ant-design/icons'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { invoke as tauriInvoke } from '@tauri-apps/api/core'
@@ -58,8 +59,10 @@ function App() {
   const [claudeMdVisible, setClaudeMdVisible] = useState(false)
   const [claudeMdContent, setClaudeMdContent] = useState('')
   const [claudeMdPath, setClaudeMdPath] = useState('')
-  const [claudeVersion, setClaudeVersion] = useState<string>('')
   const [fileBrowserVisible, setFileBrowserVisible] = useState(false)
+
+  // 从 store 获取版本和更新状态
+  const { appVersion, updateStatus, getAppVersion } = useSettingsStore()
 
   // 响应式获取当前会话的工作空间
   const { sessions, activeSessionId } = useSessionStore()
@@ -96,16 +99,6 @@ function App() {
   }, [])
 
   const { loadConfig, setCurrentTheme, checkpointVisible, setCheckpointVisible } = useSettingsStore()
-
-  // 获取 Claude 版本
-  const fetchClaudeVersion = async () => {
-    try {
-      const version = await tauriInvoke<string>('get_claude_version')
-      setClaudeVersion(version)
-    } catch (err) {
-      setClaudeVersion('未检测到')
-    }
-  }
 
   // 打开文件管理器
   const openInExplorer = async () => {
@@ -193,7 +186,7 @@ function App() {
     const { checkClaudeInstallation, getClaudeVersion } = useSettingsStore.getState()
     checkClaudeInstallation()
     getClaudeVersion()
-    fetchClaudeVersion()
+    getAppVersion()
   }, [])
 
   // 启动时自动检查更新（延迟 3 秒避免阻塞启动）
@@ -488,7 +481,26 @@ function App() {
                 </Button>
               </Tooltip>
               <div className="status-divider" />
-              <span className="status-info">Claude Code {claudeVersion}</span>
+              <Tooltip title={updateStatus === 'available' ? '有新版本可用，点击设置查看' : `v${appVersion}`}>
+                <span
+                  className="status-info"
+                  style={{ cursor: updateStatus === 'available' ? 'pointer' : 'default' }}
+                  onClick={() => {
+                    if (updateStatus === 'available') {
+                      setSettingsVisible(true)
+                    }
+                  }}
+                >
+                  {updateStatus === 'available' ? (
+                    <Badge dot color="orange" offset={[4, 0]}>
+                      <CloudOutlined style={{ marginRight: 4 }} />
+                      v{appVersion}
+                    </Badge>
+                  ) : (
+                    <>v{appVersion || '...'} </>
+                  )}
+                </span>
+              </Tooltip>
             </div>
           </div>
         </Layout>
