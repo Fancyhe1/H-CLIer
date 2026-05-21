@@ -12,10 +12,36 @@ use config::{AppConfig, ConfigManager, ClaudeConfig, GeneralConfig};
 use checkpoint::{Checkpoint, CheckpointDiff, CheckpointManager};
 use std::sync::Mutex;
 use tauri::Manager;
+use serde::{Deserialize, Serialize};
 
 // Windows 平台隐藏终端窗口
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
+
+// 更新相关结构体
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateInfo {
+    pub version: String,
+    pub download_url: String,
+    pub body: String,
+    pub published_at: String,
+    pub file_size: u64,
+}
+
+#[derive(Debug, Deserialize)]
+struct GitHubRelease {
+    tag_name: String,
+    body: Option<String>,
+    published_at: String,
+    assets: Vec<GitHubAsset>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GitHubAsset {
+    name: String,
+    browser_download_url: String,
+    size: u64,
+}
 
 pub struct AppState {
     session_manager: Mutex<SessionManager>,
@@ -526,7 +552,125 @@ fn get_claude_versions() -> Result<Vec<String>, String> {
 
 #[tauri::command]
 fn get_app_version() -> String {
-    env!("CARGO_PKG_VERSION").to_string()
+    // 优先从环境变量读取（CI/CD 构建时注入），否则从 Cargo.toml 读取
+    let version = option_env!("APP_VERSION")
+        .unwrap_or(env!("CARGO_PKG_VERSION"));
+    // 去掉可能的 v 前缀
+    version.trim_start_matches('v').to_string()
+}
+
+// 版本比较函数：返回 true 如果 remote_version > current_version
+fn is_newer_version(current: &str, remote: &str) -> bool {
+    let parse_version = |v: &str| -> Vec<u32> {
+        v.trim_start_matches('v')
+            .split('.')
+            .filter_map(|s| s.parse().ok())
+            .collect()
+    };
+
+    let current_parts = parse_version(current);
+    let remote_parts = parse_version(remote);
+
+    for i in 0..std::cmp::max(current_parts.len(), remote_parts.len()) {
+        let c = current_parts.get(i).copied().unwrap_or(0);
+        let r = remote_parts.get(i).copied().unwrap_or(0);
+        if r > c {
+            return true;
+        } else if r < c {
+            return false;
+        }
+    }
+    false
+}
+
+#[tauri::command]
+async fn check_github_update() -> Result<UpdateInfo, String> {
+    let client = reqwest::Client::new();
+    let response = client
+        .get("https://api.github.com/repos/Fancyhe1/H-CLIer/releases/latest")
+        .header("Accept", "application/vnd.github.v3+json")
+        .header("User-Agent", "H-CLIer-App")
+        .send()
+        .await
+        .map_err(|e| format!("网络请求失败: {}", e))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        return Err(format!("GitHub API 请求失败: HTTP {}", status));
+    }
+
+    let release: GitHubRelease = response
+        .json()
+        .await
+        .map_err(|e| format!("解析响应失败: {}", e))?;
+
+    let current_version = get_app_version();
+
+    if !is_newer_version(&current_version, &release.tag_name) {
+        return Err("当前已是最新版本".to_string());
+    }
+
+    // 查找 Windows 安装包（.exe 文件）
+    let installer = release.assets.iter()
+        .find(|a| a.name.ends_with(".exe") && !a.name.ends_with(".sig"))
+        .ok_or("未找到安装包")?;
+
+    Ok(UpdateInfo {
+        version: release.tag_name.trim_start_matches('v').to_string(),
+        download_url: installer.browser_download_url.clone(),
+        body: release.body.unwrap_or_default(),
+        published_at: release.published_at,
+        file_size: installer.size,
+    })
+}
+
+#[tauri::command]
+async fn download_update(url: String, app_handle: tauri::AppHandle) -> Result<String, String> {
+    let temp_dir = app_handle.path().temp_dir()
+        .map_err(|e| format!("获取临时目录失败: {}", e))?;
+
+    let file_name = url.split('/').last().unwrap_or("update.exe");
+    let file_path = temp_dir.join(file_name);
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&url)
+        .header("User-Agent", "H-CLIer-App")
+        .send()
+        .await
+        .map_err(|e| format!("下载失败: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("下载失败: HTTP {}", response.status()));
+    }
+
+    let bytes = response.bytes().await
+        .map_err(|e| format!("读取下载内容失败: {}", e))?;
+
+    std::fs::write(&file_path, &bytes)
+        .map_err(|e| format!("保存文件失败: {}", e))?;
+
+    Ok(file_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+async fn install_update(file_path: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+        Command::new("cmd")
+            .args(["/C", "start", "", &file_path, "/S"])
+            .spawn()
+            .map_err(|e| format!("启动安装程序失败: {}", e))?;
+
+        // 退出当前应用
+        std::process::exit(0);
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("当前平台暂不支持自动安装".to_string())
+    }
 }
 
 // License 管理命令
@@ -699,6 +843,9 @@ pub fn run() {
             get_claude_version,
             get_claude_versions,
             get_app_version,
+            check_github_update,
+            download_update,
+            install_update,
             // 配置管理
             get_config,
             save_config,

@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import { invoke } from '@tauri-apps/api/core'
-import { check } from '@tauri-apps/plugin-updater'
 
 // 类型定义（与Rust后端对应）
 export interface ApiConfig {
@@ -31,8 +30,10 @@ export interface AppConfig {
 // 更新相关类型
 export interface UpdateInfo {
   version: string
-  date: string
+  download_url: string
   body: string
+  published_at: string
+  file_size: number
 }
 
 export type UpdateStatus = 'idle' | 'checking' | 'available' | 'downloading' | 'installing' | 'error' | 'up_to_date'
@@ -247,28 +248,22 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
   },
 
-  // 检查更新
+  // 检查更新（使用自定义 GitHub API）
   checkForUpdates: async () => {
     set({ updateStatus: 'checking', updateError: null })
     try {
-      const update = await check()
-      if (update) {
-        set({
-          updateStatus: 'available',
-          updateInfo: {
-            version: update.version,
-            date: update.date || '',
-            body: update.body || '',
-          },
-        })
-        return update as unknown as UpdateInfo
-      } else {
-        set({ updateStatus: 'up_to_date' })
-        return null
-      }
+      const updateInfo = await invoke<UpdateInfo>('check_github_update')
+      set({ updateStatus: 'available', updateInfo })
+      return updateInfo
     } catch (err) {
-      console.error('检查更新失败:', err)
-      set({ updateStatus: 'error', updateError: String(err) })
+      const errStr = String(err)
+      console.error('检查更新失败:', errStr)
+      // 如果是"当前已是最新版本"，显示 up_to_date 状态
+      if (errStr.includes('当前已是最新版本')) {
+        set({ updateStatus: 'up_to_date' })
+      } else {
+        set({ updateStatus: 'error', updateError: errStr })
+      }
       return null
     }
   },
@@ -283,14 +278,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
     set({ updateStatus: 'downloading' })
     try {
-      const update = await check()
-      if (update) {
-        await update.downloadAndInstall((event) => {
-          if (event.event === 'Started' || event.event === 'Progress') {
-            set({ updateStatus: 'installing' })
-          }
-        })
-      }
+      const filePath = await invoke<string>('download_update', {
+        url: updateInfo.download_url,
+      })
+      set({ updateStatus: 'installing' })
+      await invoke('install_update', { filePath })
     } catch (err) {
       console.error('安装更新失败:', err)
       set({ updateStatus: 'error', updateError: String(err) })

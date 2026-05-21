@@ -616,19 +616,55 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
             )}
 
             {updateStatus === 'up_to_date' && (
-              <Text type="success">
-                <CheckCircleOutlined /> 当前已是最新版本
-              </Text>
+              <Alert
+                message="当前已是最新版本"
+                description={`当前版本: v${appVersion}`}
+                type="success"
+                showIcon
+              />
             )}
 
             {updateStatus === 'available' && updateInfo && (
-              <Alert
-                message={`发现新版本: ${updateInfo.version}`}
-                description={updateInfo.body?.substring(0, 100) + (updateInfo.body?.length > 100 ? '...' : '')}
-                type="info"
-                showIcon
-                style={{ marginBottom: 12 }}
-              />
+              <div>
+                <Alert
+                  message={`发现新版本: v${updateInfo.version}`}
+                  type="info"
+                  showIcon
+                  style={{ marginBottom: 12 }}
+                />
+                <div style={{ marginBottom: 12, padding: '8px 12px', background: '#f5f5f5', borderRadius: 4 }}>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    当前版本: v{appVersion} → 最新版本: v{updateInfo.version}
+                  </Text>
+                  <br />
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    文件大小: {(updateInfo.file_size / 1024 / 1024).toFixed(1)} MB
+                  </Text>
+                  <br />
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    发布时间: {new Date(updateInfo.published_at).toLocaleDateString('zh-CN')}
+                  </Text>
+                </div>
+                {updateInfo.body && (
+                  <div style={{ marginBottom: 12 }}>
+                    <Text strong style={{ fontSize: 13 }}>更新日志:</Text>
+                    <div style={{
+                      marginTop: 4,
+                      padding: '8px 12px',
+                      background: '#fafafa',
+                      borderRadius: 4,
+                      maxHeight: 120,
+                      overflow: 'auto',
+                      fontSize: 12,
+                      lineHeight: 1.6
+                    }}>
+                      {updateInfo.body.split('\n').map((line, i) => (
+                        <div key={i}>{line || <br />}</div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
 
             {updateStatus === 'downloading' && (

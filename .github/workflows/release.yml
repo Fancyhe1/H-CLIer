@@ -35,11 +35,28 @@ jobs:
           VERSION="${{ github.ref_name }}"
           VERSION="${VERSION#v}"
           echo "Syncing version to $VERSION"
+
+          # Update tauri.conf.json
           jq ".version = \"$VERSION\"" aicoder/src-tauri/tauri.conf.json > tmp.json && mv tmp.json aicoder/src-tauri/tauri.conf.json
+
+          # Update Cargo.toml
+          sed -i "s/^version = .*/version = \"$VERSION\"/" aicoder/src-tauri/Cargo.toml
+
+          # Update package.json
+          jq ".version = \"$VERSION\"" aicoder/package.json > tmp.json && mv tmp.json aicoder/package.json
+
+          echo "=== Version sync result ==="
+          echo "tauri.conf.json:"
           cat aicoder/src-tauri/tauri.conf.json | grep '"version"'
+          echo "Cargo.toml:"
+          cat aicoder/src-tauri/Cargo.toml | grep '^version'
+          echo "package.json:"
+          cat aicoder/package.json | grep '"version"'
 
       - name: Build Tauri app
         working-directory: ./aicoder
+        env:
+          APP_VERSION: ${{ github.ref_name }}
         run: npm run tauri build
 
       - name: Debug - list bundle contents
