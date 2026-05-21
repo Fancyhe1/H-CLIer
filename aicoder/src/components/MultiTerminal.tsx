@@ -18,6 +18,20 @@ interface TerminalInstance {
   shouldMarkUnread: boolean
 }
 
+// 剥离ANSI转义序列，检查是否包含有意义的可见文本
+function stripAnsi(str: string): string {
+  return str
+    .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')   // CSI序列（颜色、光标移动等）
+    .replace(/\x1b\][^\x07]*\x07/g, '')       // OSC序列
+    .replace(/\x1b[()][AB012]/g, '')          // 字符集选择
+    .replace(/\x1b\[\?25[hl]/g, '')           // 光标显示/隐藏
+    .replace(/\x1b\[\?1049[hl]/g, '')         // 备选屏幕缓冲区
+    .replace(/\x1b[>=]/g, '')                 // 应用/普通键盘模式
+    .replace(/\x1b[78]/g, '')                 // 保存/恢复光标
+    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '') // 控制字符（保留\n和\r）
+    .trim()
+}
+
 function MultiTerminal() {
   const containerRef = useRef<HTMLDivElement>(null)
   const terminalsRef = useRef<Map<string, TerminalInstance>>(new Map())
@@ -147,7 +161,7 @@ function MultiTerminal() {
 
         // 监听 PTY 输出 - 使用延迟标记策略
         // 原理：输出开始时不标记，等输出停止3秒后才标记未读
-        // 这样可以过滤掉思考过程和状态提示的频繁输出
+        // 只有包含可见文本内容（非纯ANSI转义序列）的输出才触发标记
         let outputTimer: ReturnType<typeof setTimeout> | null = null
         const unlisten = await listen<string>(`pty-output-${ptyId}`, (event) => {
           term.write(event.payload)
@@ -155,7 +169,11 @@ function MultiTerminal() {
           // 如果这个终端需要标记未读（后台运行），且有新输出
           const instance = terminalsRef.current.get(activeSessionId)
           if (instance && instance.shouldMarkUnread && event.payload) {
-            // 每次收到输出都重置定时器
+            // 剥离ANSI转义序列，检查是否包含有意义的可见文本
+            const visibleContent = stripAnsi(event.payload)
+            if (!visibleContent) return // 纯转义序列，忽略
+
+            // 每次收到有意义的输出都重置定时器
             if (outputTimer) {
               clearTimeout(outputTimer)
             }
