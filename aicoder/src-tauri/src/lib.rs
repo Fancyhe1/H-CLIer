@@ -4,6 +4,7 @@ mod cli;
 mod config;
 mod checkpoint;
 mod license;
+mod history;
 
 use session::{Session, SessionManager};
 use pty::PtyManager;
@@ -142,6 +143,15 @@ fn check_claude_session_exists(session_id: String, project_path: String) -> Resu
         .join(format!("{}.jsonl", session_id));
 
     Ok(session_file.exists())
+}
+
+// 读取会话历史（从 Claude Code 的 session JSONL 文件）
+#[tauri::command]
+fn read_session_history(
+    session_id: String,
+    project_path: String,
+) -> Result<Vec<history::ChatMessage>, String> {
+    history::read_session_history(&session_id, &project_path)
 }
 
 // PTY终端命令
@@ -662,6 +672,7 @@ pub fn run() {
             empty_trash,
             // Claude 会话检查
             check_claude_session_exists,
+            read_session_history,
             // 文件对话框
             select_folder,
             select_file,

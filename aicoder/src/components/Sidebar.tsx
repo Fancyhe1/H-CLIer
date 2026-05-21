@@ -27,6 +27,7 @@ import {
   SettingOutlined,
   CodeFilled,
   IdcardOutlined,
+  RightOutlined,
 } from '@ant-design/icons'
 import {
   Button,
@@ -37,6 +38,7 @@ import {
   message,
   Empty,
   Tooltip,
+  Checkbox,
 } from 'antd'
 import type { MenuProps } from 'antd'
 import { invoke } from '@tauri-apps/api/core'
@@ -47,6 +49,7 @@ import CreateSessionModal from './CreateSessionModal'
 import TrashModal from './TrashModal'
 import { handleExportSession } from '../utils/export'
 import type { SessionType } from '../types/session'
+import type { ChatMessage } from '../types/history'
 import '../styles/Sidebar.css'
 
 interface SidebarProps {
@@ -90,7 +93,11 @@ function Sidebar(props: SidebarProps) {
   const [editingSession, setEditingSession] = useState<string | null>(null)
   const [newTitle, setNewTitle] = useState('')
   const [historyModalVisible, setHistoryModalVisible] = useState(false)
-  const [historyMessages, setHistoryMessages] = useState<Array<{role: 'user' | 'assistant', content: string}>>([])
+  const [historyMessages, setHistoryMessages] = useState<ChatMessage[]>([])
+  const [showThinking, setShowThinking] = useState(false)
+  const [showToolUse, setShowToolUse] = useState(false)
+  const [showToolResult, setShowToolResult] = useState(false)
+  const [historySearchValue, setHistorySearchValue] = useState('')
   const [summaryModalVisible, setSummaryModalVisible] = useState(false)
   const [trashModalVisible, setTrashModalVisible] = useState(false)
   const [sessionIdModalVisible, setSessionIdModalVisible] = useState(false)
@@ -388,147 +395,15 @@ function Sidebar(props: SidebarProps) {
     ]
   }
 
-  // 解析终端历史记录为消息列表
-  const parseHistoryToMessages = (history: string): Array<{role: 'user' | 'assistant', content: string}> => {
-    if (!history || history.trim().length === 0) {
-      return []
-    }
-
-    const messages: Array<{role: 'user' | 'assistant', content: string}> = []
-
-    // 清理ANSI控制字符和特殊字符
-    let cleanHistory = history
-      .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')   // 移除ANSI颜色码
-      .replace(/\x1b\][^\x07]*\x07/g, '')       // 移除OSC序列
-      .replace(/\x1b[()][AB012]/g, '')          // 移除字符集选择
-      .replace(/\x1b\[\?25[hl]/g, '')           // 移除光标显示/隐藏
-      .replace(/\x1b\[\?1049[hl]/g, '')         // 移除备选屏幕缓冲
-      .replace(/\r\n/g, '\n')
-      .replace(/\r/g, '\n')
-
-    // 需要完全过滤的行模式
-    const lineFilterPatterns = [
-      /^\s*$/,                                     // 空行
-      /^\s*[\$#>]\s*$/,                           // 只有提示符
-      /^\s*[\$#>]\s*(claude|node|npm|npx)\s*/i,   // 命令行
-      /ClaudeCodev\d+/i,                           // 版本信息
-      /Claude\s*Code\s*v\d+/i,                     // 版本信息变体
-      /API\s*Usage\s*(\&|and)\s*Billing/i,        // API使用
-      /^[\s─═]+$/,                                 // 只有分隔线
-      /[─═]{5,}/,                                  // 长分隔线
-      /main-assistant/i,                           // 状态栏
-      /\?\s*for\s*shortcuts/i,                     // 快捷键提示
-      /esc\s*to\s*interrupt/i,                     // 中断提示
-      /high\s*[·•]\s*\/\s*effort/i,                // effort提示
-      /Shimmying/i,                                // 动画文字
-      /\(thinking\)/i,                             // thinking动画
-      /[✽✻✶✢·•○◦●]/,                               // 动画字符
-      /正在转换会话记录/i,                           // 转换提示
-      /\d+\/\d+\s*$/,                              // 进度显示
-      /^\s*@\s*$/,                                 // 只有@符号
-      /qianfan-code/i,                             // 模型名称
-      /^>\s*$/m,                                   // 只有>符号
-      /^\s*exit\s*$/i,                             // exit命令
-      /^\s*clear\s*$/i,                            // clear命令
-      /\[\d+;\d+H/,                                // 光标定位
-      /\[\?25[hl]/,                                // 光标显示
-      /Loading|加载中/i,                           // 加载提示
-      /Please wait|请稍候/i,                        // 等待提示
-    ]
-
-    // 用户消息的标识模式
-    const userPatterns = [
-      /^用户[：:]\s*/i,
-      /^User[：:]\s*/i,
-      /^>\s*.+/,  // 以>开头的输入
-    ]
-
-    // 按段落分割（连续的非空行组成一个段落）
-    const lines = cleanHistory.split('\n')
-    const paragraphs: string[] = []
-    let currentParagraph: string[] = []
-
-    for (const line of lines) {
-      const trimmedLine = line.trim()
-
-      // 检查是否需要过滤整行
-      const shouldFilterLine = lineFilterPatterns.some(p => p.test(trimmedLine))
-
-      if (shouldFilterLine || !trimmedLine) {
-        // 结束当前段落
-        if (currentParagraph.length > 0) {
-          const paragraph = currentParagraph.join('\n').trim()
-          if (paragraph.length > 10) {  // 至少10个字符
-            paragraphs.push(paragraph)
-          }
-          currentParagraph = []
-        }
-        continue
-      }
-
-      // 清理行首符号
-      const cleanLine = trimmedLine
-        .replace(/^[●○◦■□▪▫►►▸▹→•]\s*/, '')  // 移除行首符号
-        .replace(/^\s*[│|]\s*/, '')             // 移除竖线边框
-        .trim()
-
-      if (cleanLine && cleanLine.length > 1) {
-        currentParagraph.push(cleanLine)
-      }
-    }
-
-    // 保存最后一个段落
-    if (currentParagraph.length > 0) {
-      const paragraph = currentParagraph.join('\n').trim()
-      if (paragraph.length > 10) {
-        paragraphs.push(paragraph)
-      }
-    }
-
-    // 分析段落，识别用户/助手消息
-    for (const paragraph of paragraphs) {
-      // 检查是否是用户消息
-      const isUserMessage = userPatterns.some(p => p.test(paragraph)) ||
-                           (paragraph.length < 100 && !paragraph.includes('。') && !paragraph.includes('！') && !paragraph.includes('？') && !paragraph.includes('\n'))
-
-      // 检查是否是助手消息的特征
-      const assistantFeatures = [
-        '你好', '您好', '很高兴', '欢迎', '我可以帮', '有什么我可以',
-        '让我', '我来', '我将', '首先', '接下来', '然后', '最后',
-        '建议', '推荐', '请注意', '需要说明', '总结', '总之',
-        '```', '代码如下', '示例如下', '步骤如下',  // 代码和结构化内容
-        '！', '？', '。',  // 中文标点（长文本）
-      ]
-      const isAssistantMessage = assistantFeatures.some(f => paragraph.includes(f)) ||
-                                  paragraph.length > 100
-
-      if (isUserMessage && !isAssistantMessage) {
-        // 用户消息
-        let content = paragraph
-          .replace(/^用户[：:]\s*/i, '')
-          .replace(/^User[：:]\s*/i, '')
-          .replace(/^>\s*/, '')
-        messages.push({ role: 'user', content })
-      } else {
-        // 助手消息
-        if (messages.length > 0 && messages[messages.length - 1].role === 'assistant') {
-          // 合并连续的助手消息
-          messages[messages.length - 1].content += '\n\n' + paragraph
-        } else {
-          messages.push({ role: 'assistant', content: paragraph })
-        }
-      }
-    }
-
-    return messages
-  }
-
   // 查看历史
-  const handleViewHistory = async (sessionId: string) => {
+  const handleViewHistory = async (sessionId: string, projectPath: string) => {
     try {
-      const history = await invoke<string>('read_terminal_history', { sessionId })
-      const messages = parseHistoryToMessages(history || '')
-      setHistoryMessages(messages)
+      const messages = await invoke<ChatMessage[]>('read_session_history', { sessionId, projectPath })
+      setHistoryMessages(messages || [])
+      setHistorySearchValue('')
+      setShowThinking(false)
+      setShowToolUse(false)
+      setShowToolResult(false)
       setHistoryModalVisible(true)
     } catch (err) {
       message.error('读取历史失败: ' + String(err))
@@ -625,7 +500,7 @@ function Sidebar(props: SidebarProps) {
       key: 'history',
       icon: <HistoryOutlined />,
       label: '查看历史',
-      onClick: () => handleViewHistory(sessionId),
+      onClick: () => handleViewHistory(sessionId, projectPath),
     },
     {
       key: 'summary',
@@ -1058,27 +933,160 @@ function Sidebar(props: SidebarProps) {
         open={historyModalVisible}
         onCancel={() => setHistoryModalVisible(false)}
         footer={null}
-        width={800}
+        width={1000}
+        className={theme === 'dark' ? 'dark' : ''}
+        styles={{ body: { maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' } }}
       >
         {historyMessages.length === 0 ? (
           <Empty description="暂无对话历史" />
         ) : (
-          <div className="history-chat-container">
-            {historyMessages.map((msg, index) => (
-              <div key={index} className={`history-message ${msg.role}`}>
-                <div className="history-message-role">
-                  {msg.role === 'user' ? (
-                    <><UserOutlined /> 用户</>
-                  ) : (
-                    <><RobotOutlined /> Claude</>
-                  )}
-                </div>
-                <div className="history-message-content">
-                  <ReactMarkdown>{msg.content}</ReactMarkdown>
-                </div>
+          <>
+            <div className="history-toolbar">
+              <Input
+                prefix={<SearchOutlined />}
+                placeholder="搜索聊天记录..."
+                value={historySearchValue}
+                onChange={e => setHistorySearchValue(e.target.value)}
+                allowClear
+                size="small"
+              />
+              <div className="history-filters">
+                <Checkbox checked={showThinking} onChange={e => setShowThinking(e.target.checked)}>思考过程</Checkbox>
+                <Checkbox checked={showToolUse} onChange={e => setShowToolUse(e.target.checked)}>工具调用</Checkbox>
+                <Checkbox checked={showToolResult} onChange={e => setShowToolResult(e.target.checked)}>工具结果</Checkbox>
               </div>
-            ))}
-          </div>
+            </div>
+            <div className="history-chat-container">
+              {historyMessages
+                .filter(msg => {
+                  if (!historySearchValue.trim()) return true
+                  const keyword = historySearchValue.toLowerCase()
+                  return msg.content.some(block => {
+                    if (block.text && block.text.toLowerCase().includes(keyword)) return true
+                    if (block.thinking && block.thinking.toLowerCase().includes(keyword)) return true
+                    if (block.toolName && block.toolName.toLowerCase().includes(keyword)) return true
+                    if (block.toolResult && block.toolResult.toLowerCase().includes(keyword)) return true
+                    if (block.toolInput) {
+                      try {
+                        const inputStr = JSON.stringify(block.toolInput).toLowerCase()
+                        if (inputStr.includes(keyword)) return true
+                      } catch { /* ignore */ }
+                    }
+                    return false
+                  })
+                })
+                .map((msg) => {
+                const textBlocks = msg.content.filter(b => b.blockType === 'text')
+                const allDetailBlocks = msg.content.filter(b => b.blockType !== 'text')
+
+                // 根据过滤设置筛选 detail blocks
+                const detailBlocks = allDetailBlocks.filter(b => {
+                  if (b.blockType === 'thinking') return showThinking
+                  if (b.blockType === 'tool_use') return showToolUse
+                  if (b.blockType === 'tool_result') return showToolResult
+                  return true
+                })
+
+                // 跳过没有任何可见内容的消息
+                if (textBlocks.length === 0 && detailBlocks.length === 0) return null
+
+                const thinkingCount = detailBlocks.filter(b => b.blockType === 'thinking').length
+                const toolUseCount = detailBlocks.filter(b => b.blockType === 'tool_use').length
+                const toolResultCount = detailBlocks.filter(b => b.blockType === 'tool_result').length
+
+                const isToolResultOnly = msg.role === 'user' && textBlocks.length === 0
+
+                const summaryParts: string[] = []
+                if (thinkingCount > 0) summaryParts.push('思考过程')
+                if (toolUseCount > 0) summaryParts.push(`${toolUseCount} 个工具调用`)
+                if (toolResultCount > 0) summaryParts.push(`${toolResultCount} 个工具结果`)
+
+                return (
+                  <div key={msg.id} className={`history-message ${msg.role}`}>
+                    {!isToolResultOnly && (
+                      <div className="history-message-role">
+                        {msg.role === 'user' ? (
+                          <><UserOutlined /> 用户</>
+                        ) : (
+                          <><RobotOutlined /> Claude</>
+                        )}
+                      </div>
+                    )}
+                    <div className="history-message-content">
+                      {textBlocks.map((block, bi) => (
+                        block.text && (
+                          <div key={bi} className="history-text">
+                            <ReactMarkdown>{block.text}</ReactMarkdown>
+                          </div>
+                        )
+                      ))}
+
+                      {detailBlocks.length > 0 && (
+                        <details className="history-detail-group">
+                          <summary className="history-detail-group-summary">
+                            <RightOutlined className="history-detail-arrow" />
+                            {summaryParts.join(' / ')}
+                          </summary>
+                          <div className="history-detail-group-body">
+                            {detailBlocks.map((block, bi) => {
+                              if (block.blockType === 'thinking' && block.thinking) {
+                                return (
+                                  <details key={bi} className="history-thinking">
+                                    <summary>
+                                      <ExperimentOutlined /> 思考过程
+                                    </summary>
+                                    <div className="history-thinking-content">
+                                      <ReactMarkdown>{block.thinking}</ReactMarkdown>
+                                    </div>
+                                  </details>
+                                )
+                              }
+
+                              if (block.blockType === 'tool_use') {
+                                const inputSummary = block.toolInput
+                                  ? Object.entries(block.toolInput)
+                                      .map(([k, v]) => `${k}: ${typeof v === 'string' ? v.substring(0, 60) : JSON.stringify(v).substring(0, 60)}`)
+                                      .join(', ')
+                                  : ''
+                                return (
+                                  <details key={bi} className="history-tool-card">
+                                    <summary className="history-tool-card-header">
+                                      <CodeOutlined /> {block.toolName || '工具调用'}
+                                      {inputSummary && <span className="history-tool-summary"> — {inputSummary}</span>}
+                                    </summary>
+                                    <div className="history-tool-card-body">
+                                      {block.toolInput && (
+                                        <pre>{JSON.stringify(block.toolInput, null, 2)}</pre>
+                                      )}
+                                    </div>
+                                  </details>
+                                )
+                              }
+
+                              if (block.blockType === 'tool_result' && block.toolResult) {
+                                return (
+                                  <details key={bi} className="history-tool-card history-tool-result">
+                                    <summary className="history-tool-card-header">
+                                      <CodeOutlined /> 工具结果
+                                    </summary>
+                                    <div className="history-tool-card-body">
+                                      <pre>{block.toolResult}</pre>
+                                    </div>
+                                  </details>
+                                )
+                              }
+
+                              return null
+                            })}
+                          </div>
+                        </details>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </>
         )}
       </Modal>
 
