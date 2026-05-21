@@ -224,7 +224,7 @@ function MultiTerminal() {
 
           if (e.ctrlKey && e.key === 'v') {
             const now = Date.now()
-            if (now - lastPasteTime < 100) return false
+            if (now - lastPasteTime < 400) return false
             lastPasteTime = now
             e.preventDefault()
             navigator.clipboard.readText().then((text) => {
