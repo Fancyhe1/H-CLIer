@@ -42,6 +42,7 @@
             "core:window:allow-is-maximized",
             "core:window:allow-set-always-on-top",
             "core:window:allow-is-always-on-top",
+            "core:window:allow-request-user-attention",
             "dialog:default",
             "clipboard-manager:allow-write-text",
             "clipboard-manager:allow-read-text",

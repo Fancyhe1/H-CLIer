@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { invoke } from '@tauri-apps/api/core'
+import { getCurrentWindow, UserAttentionType } from '@tauri-apps/api/window'
 import type { Session, CreateSessionParams } from '../types/session'
 
 interface SessionState {
@@ -162,5 +163,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
     const updated = { ...session, hasUnread }
     await get().updateSession(updated)
+
+    // 任务栏图标闪烁提示
+    const hasAnyUnread = get().sessions.some((s) => s.hasUnread)
+    if (hasAnyUnread) {
+      getCurrentWindow().requestUserAttention(UserAttentionType.Critical)
+    } else {
+      getCurrentWindow().requestUserAttention(null)
+    }
   },
 }))
