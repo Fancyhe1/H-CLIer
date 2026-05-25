@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { TokenStats, TokenUsage, HeatmapData } from '../types/token'
+import type { TokenStats, TokenUsage, HeatmapData, SessionUsageDelta } from '../types/token'
 
 interface TokenState {
   stats: TokenStats
@@ -8,6 +8,8 @@ interface TokenState {
   // Actions
   fetchStats: () => void
   addUsage: (usage: TokenUsage) => void
+  upsertDailyUsage: (usage: TokenUsage) => void
+  processSessionDelta: (delta: SessionUsageDelta) => void
   getHeatmapData: () => HeatmapData[]
 }
 
@@ -88,6 +90,42 @@ export const useTokenStore = create<TokenState>((set, get) => ({
     const newHistory = [...stats.history, usage]
     localStorage.setItem(STORAGE_KEY, JSON.stringify(newHistory))
     set({ stats: calculateStats(newHistory) })
+  },
+
+  upsertDailyUsage: (usage) => {
+    const { stats } = get()
+    const existing = stats.history.find(h => h.date === usage.date)
+    let newHistory: TokenUsage[]
+    if (existing) {
+      newHistory = stats.history.map(h =>
+        h.date === usage.date
+          ? {
+              ...h,
+              inputTokens: h.inputTokens + usage.inputTokens,
+              outputTokens: h.outputTokens + usage.outputTokens,
+              cachedTokens: h.cachedTokens + usage.cachedTokens,
+              totalCost: h.totalCost + usage.totalCost,
+            }
+          : h
+      )
+    } else {
+      newHistory = [...stats.history, usage]
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newHistory))
+    set({ stats: calculateStats(newHistory) })
+  },
+
+  processSessionDelta: (delta) => {
+    if (delta.inputTokens === 0 && delta.outputTokens === 0) return
+    const date = delta.timestamp ? delta.timestamp.split('T')[0] : new Date().toISOString().split('T')[0]
+    const usage: TokenUsage = {
+      date,
+      inputTokens: delta.inputTokens,
+      outputTokens: delta.outputTokens,
+      cachedTokens: delta.cacheReadTokens,
+      totalCost: delta.cost,
+    }
+    get().upsertDailyUsage(usage)
   },
 
   getHeatmapData: () => {

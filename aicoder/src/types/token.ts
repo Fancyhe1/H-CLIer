@@ -33,3 +33,14 @@ export interface HeatmapData {
   count: number
   level: 0 | 1 | 2 | 3 | 4
 }
+
+export interface SessionUsageDelta {
+  inputTokens: number
+  outputTokens: number
+  cacheCreationTokens: number
+  cacheReadTokens: number
+  cost: number
+  model: string
+  timestamp: string
+  newFileOffset: number
+}

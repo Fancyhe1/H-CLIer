@@ -34,6 +34,7 @@ import CheckpointModal from './components/CheckpointModal'
 import FileBrowserModal from './components/FileBrowserModal'
 import { useSettingsStore } from './stores/settingsStore'
 import { useSessionStore } from './stores/sessionStore'
+import { useTokenPolling } from './hooks/useTokenPolling'
 import './styles/App.css'
 
 const { Content, Sider } = Layout
@@ -68,6 +69,9 @@ function App() {
   const { sessions, activeSessionId } = useSessionStore()
   const activeSession = sessions.find(s => s.id === activeSessionId)
   const currentProjectName = activeSession?.projectPath.split('\\').pop() || null
+
+  // Token 用量轮询
+  useTokenPolling()
 
   // 窗口控制
   const appWindow = getCurrentWindow()

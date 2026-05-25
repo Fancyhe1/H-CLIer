@@ -5,6 +5,7 @@ mod config;
 mod checkpoint;
 mod license;
 mod history;
+mod token_usage;
 
 use session::{Session, SessionManager};
 use pty::PtyManager;
@@ -149,35 +150,7 @@ fn empty_trash(state: tauri::State<AppState>) -> Result<usize, String> {
 // 检查 Claude 会话是否存在
 #[tauri::command]
 fn check_claude_session_exists(session_id: String, project_path: String) -> Result<bool, String> {
-    use std::path::PathBuf;
-
-    // Claude 路径编码规则：
-    // : → -, \ 或 / → -, 英文字母保持原样, 中文字符每个变成一个 -
-    let encoded_path: String = project_path
-        .chars()
-        .map(|c| {
-            if c == ':' || c == '\\' || c == '/' {
-                "-".to_string()
-            } else if c.is_ascii() {
-                c.to_string()
-            } else {
-                // 中文字符或其他非ASCII字符，每个变成一个 -
-                "-".to_string()
-            }
-        })
-        .collect();
-
-    // Claude 会话文件路径
-    let home = std::env::var("USERPROFILE")
-        .or_else(|_| std::env::var("HOME"))
-        .map_err(|e| e.to_string())?;
-
-    let session_file = PathBuf::from(home)
-        .join(".claude")
-        .join("projects")
-        .join(&encoded_path)
-        .join(format!("{}.jsonl", session_id));
-
+    let session_file = history::get_session_jsonl_path(&session_id, &project_path)?;
     Ok(session_file.exists())
 }
 
@@ -188,6 +161,16 @@ fn read_session_history(
     project_path: String,
 ) -> Result<Vec<history::ChatMessage>, String> {
     history::read_session_history(&session_id, &project_path)
+}
+
+// 获取会话 token 用量（增量扫描 JSONL 文件）
+#[tauri::command]
+fn get_session_token_usage(
+    session_id: String,
+    project_path: String,
+    last_offset: u64,
+) -> Result<token_usage::SessionUsageDelta, String> {
+    token_usage::scan_session_usage(&session_id, &project_path, last_offset)
 }
 
 // PTY终端命令
@@ -828,6 +811,7 @@ pub fn run() {
             // Claude 会话检查
             check_claude_session_exists,
             read_session_history,
+            get_session_token_usage,
             // 文件对话框
             select_folder,
             select_file,

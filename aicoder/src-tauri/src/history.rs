@@ -32,7 +32,7 @@ pub struct ContentBlock {
 
 /// Encode project path using Claude Code's encoding rules:
 /// : -> -, \ or / -> -, ASCII letters kept, non-ASCII chars become -
-fn encode_project_path(project_path: &str) -> String {
+pub fn encode_project_path(project_path: &str) -> String {
     project_path
         .chars()
         .map(|c| {
@@ -48,7 +48,7 @@ fn encode_project_path(project_path: &str) -> String {
 }
 
 /// Get the path to Claude Code's session JSONL file
-fn get_session_jsonl_path(session_id: &str, project_path: &str) -> Result<PathBuf, String> {
+pub fn get_session_jsonl_path(session_id: &str, project_path: &str) -> Result<PathBuf, String> {
     let encoded = encode_project_path(project_path);
     let home = std::env::var("USERPROFILE")
         .or_else(|_| std::env::var("HOME"))

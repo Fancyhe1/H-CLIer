@@ -995,6 +995,11 @@ details[open] > .history-detail-group-summary .history-detail-arrow {
   user-select: none;
   -webkit-user-select: none;
 }
+
+.sidebar.dragging-active .session-item:hover,
+.sidebar.dragging-active .group-title-wrapper:hover {
+  background: transparent;
+}
 }
 
 .light .session-context-menu .ant-dropdown-menu {
