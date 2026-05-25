@@ -85,55 +85,97 @@
   font-size: 12px;
 }
 
-/* 月度活动 */
+/* 月度活动 - 日历样式 */
 .monthly-activity {
   padding: 16px 0;
 }
 
-.monthly-grid {
+.monthly-calendar-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  gap: 24px;
   margin-bottom: 16px;
 }
 
-.month-box {
-  padding: 16px;
-  border-radius: 8px;
+.month-calendar {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  min-height: 80px;
-  cursor: default;
-  transition: transform 0.2s;
 }
 
-.month-box:hover {
-  transform: scale(1.03);
-}
-
-.month-label {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.85);
-  margin-bottom: 4px;
-}
-
-.month-value {
-  font-size: 18px;
+.month-calendar-title {
+  font-size: 14px;
   font-weight: 600;
-  color: #fff;
+  margin-bottom: 6px;
+  color: #ccc;
 }
 
-/* 无数据月份文字用浅色 */
-.month-box[style*="161b22"] .month-label,
-.month-box[style*="ebedf0"] .month-label {
-  color: #999;
+.month-calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  width: 100%;
+  max-width: 140px;
+  margin-bottom: 2px;
 }
 
-.month-box[style*="161b22"] .month-value,
-.month-box[style*="ebedf0"] .month-value {
-  color: #666;
+.month-calendar-weekdays span {
+  font-size: 10px;
+  color: #888;
+  text-align: center;
+  line-height: 16px;
+}
+
+.month-calendar-grid-inner {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  width: 100%;
+  max-width: 140px;
+}
+
+.calendar-cell {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 2px;
+  min-width: 0;
+}
+
+.calendar-cell.empty {
+  background: transparent;
+}
+
+.calendar-cell.level-0 {
+  background-color: #161b22;
+}
+
+.calendar-cell.level-1 {
+  background-color: #0e4429;
+}
+
+.calendar-cell.level-2 {
+  background-color: #006d32;
+}
+
+.calendar-cell.level-3 {
+  background-color: #26a641;
+}
+
+.calendar-cell.level-4 {
+  background-color: #39d353;
+}
+
+.calendar-cell:not(.empty):hover {
+  transform: scale(1.3);
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.2);
+  z-index: 1;
+}
+
+.month-calendar-total {
+  font-size: 11px;
+  color: #888;
+  margin-top: 4px;
+  height: 16px;
 }
 
 .heatmap-legend {

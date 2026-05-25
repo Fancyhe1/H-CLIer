@@ -21,32 +21,31 @@ import '../styles/TokenStatsPanel.css'
 
 const { Title, Text } = Typography
 
-// 月度活动概览
+// 月度活动概览 - 日历样式
 function MonthlyActivity() {
   const { stats } = useTokenStore()
 
   // 生成最近6个月
-  const months: { key: string; label: string }[] = []
+  const months: { year: number; month: number; key: string; label: string }[] = []
   const now = new Date()
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    const key = d.toISOString().slice(0, 7) // "2026-04"
-    const label = `${d.getFullYear()}年${d.getMonth() + 1}月`
-    months.push({ key, label })
+    months.push({
+      year: d.getFullYear(),
+      month: d.getMonth(), // 0-indexed
+      key: d.toISOString().slice(0, 7),
+      label: `${d.getMonth() + 1}月`,
+    })
   }
 
-  // 按月聚合
-  const monthlyData = months.map(m => {
-    const entries = stats.history.filter(h => h.date.startsWith(m.key))
-    const totalTokens = entries.reduce((sum, h) => sum + h.inputTokens + h.outputTokens, 0)
-    const totalCost = entries.reduce((sum, h) => sum + h.totalCost, 0)
-    return { ...m, totalTokens, totalCost }
-  })
+  // 建立日期 -> token 数的映射
+  const dataMap = new Map(stats.history.map(h => [h.date, h.inputTokens + h.outputTokens]))
 
-  const maxTokens = Math.max(...monthlyData.map(m => m.totalTokens), 1)
+  // 全局最大值（用于颜色等级）
+  const allTokens = [...dataMap.values()]
+  const maxTokens = allTokens.length > 0 ? Math.max(...allTokens) : 1
 
-  // 颜色等级：根据占比分5档
-  const getLevel = (tokens: number) => {
+  const getLevel = (tokens: number): 0 | 1 | 2 | 3 | 4 => {
     if (tokens === 0) return 0
     const ratio = tokens / maxTokens
     if (ratio < 0.2) return 1
@@ -56,27 +55,56 @@ function MonthlyActivity() {
   }
 
   const levelColors = ['#161b22', '#0e4429', '#006d32', '#26a641', '#39d353']
+  const weekdayLabels = ['一', '二', '三', '四', '五', '六', '日']
 
   return (
     <div className="monthly-activity">
-      <div className="monthly-grid">
-        {monthlyData.map((m, i) => {
-          const level = getLevel(m.totalTokens)
+      <div className="monthly-calendar-grid">
+        {months.map((m, mi) => {
+          // 该月第一天是星期几（0=周日，转换为周一起始）
+          const firstDay = new Date(m.year, m.month, 1).getDay()
+          const startOffset = firstDay === 0 ? 6 : firstDay - 1 // 周一=0, 周日=6
+          // 该月天数
+          const daysInMonth = new Date(m.year, m.month + 1, 0).getDate()
+          // 该月总 token
+          let monthTotal = 0
+
+          // 生成日格子
+          const cells: { day: number; dateStr: string; tokens: number; level: number }[] = []
+          for (let day = 1; day <= daysInMonth; day++) {
+            const dateStr = `${m.year}-${String(m.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+            const tokens = dataMap.get(dateStr) || 0
+            monthTotal += tokens
+            cells.push({ day, dateStr, tokens, level: getLevel(tokens) })
+          }
+
           return (
-            <Tooltip
-              key={i}
-              title={`${m.label}\n总量: ${m.totalTokens.toLocaleString()} tokens\n花费: $${m.totalCost.toFixed(4)}`}
-            >
-              <div
-                className="month-box"
-                style={{ backgroundColor: levelColors[level] }}
-              >
-                <div className="month-label">{m.label}</div>
-                <div className="month-value">
-                  {m.totalTokens > 0 ? `${(m.totalTokens / 1000).toFixed(1)}k` : '-'}
-                </div>
+            <div key={mi} className="month-calendar">
+              <div className="month-calendar-title">{m.label}</div>
+              <div className="month-calendar-weekdays">
+                {weekdayLabels.map((w, wi) => (
+                  <span key={wi}>{w}</span>
+                ))}
               </div>
-            </Tooltip>
+              <div className="month-calendar-grid-inner">
+                {/* 前面的空白占位 */}
+                {Array.from({ length: startOffset }).map((_, i) => (
+                  <div key={`empty-${i}`} className="calendar-cell empty" />
+                ))}
+                {/* 日格子 */}
+                {cells.map((c) => (
+                  <Tooltip key={c.day} title={`${c.dateStr}\n${c.tokens.toLocaleString()} tokens`}>
+                    <div
+                      className={`calendar-cell level-${c.level}`}
+                      style={{ backgroundColor: levelColors[c.level] }}
+                    />
+                  </Tooltip>
+                ))}
+              </div>
+              <div className="month-calendar-total">
+                {monthTotal > 0 ? `${(monthTotal / 1000).toFixed(1)}k` : ''}
+              </div>
+            </div>
           )
         })}
       </div>
