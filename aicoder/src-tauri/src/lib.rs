@@ -163,13 +163,13 @@ fn read_session_history(
     history::read_session_history(&session_id, &project_path)
 }
 
-// 获取会话 token 用量（增量扫描 JSONL 文件）
+// 获取会话 token 用量（增量扫描 JSONL 文件，按日期分组）
 #[tauri::command]
 fn get_session_token_usage(
     session_id: String,
     project_path: String,
     last_offset: u64,
-) -> Result<token_usage::SessionUsageDelta, String> {
+) -> Result<token_usage::SessionUsageResult, String> {
     token_usage::scan_session_usage(&session_id, &project_path, last_offset)
 }
 

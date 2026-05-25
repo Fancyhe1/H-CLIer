@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { TokenStats, TokenUsage, HeatmapData, SessionUsageDelta } from '../types/token'
+import type { TokenStats, TokenUsage, HeatmapData, SessionUsageDelta, SessionUsageResult } from '../types/token'
 
 interface TokenState {
   stats: TokenStats
@@ -11,6 +11,7 @@ interface TokenState {
   addUsage: (usage: TokenUsage) => void
   upsertDailyUsage: (usage: TokenUsage) => void
   processSessionDelta: (delta: SessionUsageDelta) => void
+  processSessionResult: (result: SessionUsageResult) => void
   getHeatmapData: () => HeatmapData[]
 }
 
@@ -123,15 +124,20 @@ export const useTokenStore = create<TokenState>((set, get) => ({
 
   processSessionDelta: (delta) => {
     if (delta.inputTokens === 0 && delta.outputTokens === 0) return
-    const date = delta.timestamp ? delta.timestamp.split('T')[0] : new Date().toISOString().split('T')[0]
     const usage: TokenUsage = {
-      date,
+      date: delta.date,
       inputTokens: delta.inputTokens,
       outputTokens: delta.outputTokens,
       cachedTokens: delta.cacheReadTokens,
       totalCost: delta.cost,
     }
     get().upsertDailyUsage(usage)
+  },
+
+  processSessionResult: (result) => {
+    for (const delta of result.deltas) {
+      get().processSessionDelta(delta)
+    }
   },
 
   getHeatmapData: () => {

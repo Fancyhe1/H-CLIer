@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { useTokenStore } from '../stores/tokenStore'
 import { useSessionStore } from '../stores/sessionStore'
-import type { SessionUsageDelta } from '../types/token'
+import type { SessionUsageResult } from '../types/token'
 
 const POLL_INTERVAL = 15000 // 15 seconds
 
@@ -18,13 +18,13 @@ async function scanAllSessions() {
   for (const session of claudeSessions) {
     const cliId = session.cliSessionId!
     try {
-      const delta = await invoke<SessionUsageDelta>('get_session_token_usage', {
+      const result = await invoke<SessionUsageResult>('get_session_token_usage', {
         sessionId: cliId,
         projectPath: session.projectPath,
         lastOffset: offsetMap.get(cliId) || 0,
       })
-      offsetMap.set(cliId, delta.newFileOffset)
-      useTokenStore.getState().processSessionDelta(delta)
+      offsetMap.set(cliId, result.newFileOffset)
+      useTokenStore.getState().processSessionResult(result)
     } catch {
       // 文件不存在等情况，静默跳过
     }
@@ -59,14 +59,14 @@ export function useTokenPolling() {
       const lastOffset = offsetMap.get(cliId) || 0
 
       try {
-        const delta = await invoke<SessionUsageDelta>('get_session_token_usage', {
+        const result = await invoke<SessionUsageResult>('get_session_token_usage', {
           sessionId: cliId,
           projectPath: session.projectPath,
           lastOffset,
         })
 
-        offsetMap.set(cliId, delta.newFileOffset)
-        useTokenStore.getState().processSessionDelta(delta)
+        offsetMap.set(cliId, result.newFileOffset)
+        useTokenStore.getState().processSessionResult(result)
       } catch {
         // 静默忽略
       }

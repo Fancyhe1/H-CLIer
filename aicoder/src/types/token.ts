@@ -41,6 +41,10 @@ export interface SessionUsageDelta {
   cacheReadTokens: number
   cost: number
   model: string
-  timestamp: string
+  date: string
+}
+
+export interface SessionUsageResult {
+  deltas: SessionUsageDelta[]
   newFileOffset: number
 }
