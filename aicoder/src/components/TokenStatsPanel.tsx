@@ -86,8 +86,10 @@ function ActivityHeatmap() {
 function TrendChart() {
   const { stats } = useTokenStore()
 
-  // 取最近7天数据
-  const recentData = stats.history.slice(-7)
+  // 按日期排序，取最近7天数据
+  const recentData = [...stats.history]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-7)
 
   const maxTokens = Math.max(...recentData.map(d => d.inputTokens + d.outputTokens))
 
