@@ -6,12 +6,16 @@ import {
   Statistic,
   Typography,
   Tooltip,
+  Button,
+  message,
 } from 'antd'
 import {
   DollarOutlined,
   DatabaseOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons'
 import { useTokenStore } from '../stores/tokenStore'
+import { refreshAllStats } from '../hooks/useTokenPolling'
 import '../styles/TokenStatsPanel.css'
 
 const { Title, Text } = Typography
@@ -124,17 +128,42 @@ function TrendChart() {
 
 function TokenStatsPanel() {
   const { stats, fetchStats } = useTokenStore()
+  const [refreshing, setRefreshing] = useState(false)
 
   useEffect(() => {
     fetchStats()
   }, [fetchStats])
+
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    try {
+      await refreshAllStats()
+      message.success('用量统计已刷新')
+    } catch {
+      message.error('刷新失败')
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   const formatNumber = (n: number) => n.toLocaleString()
   const formatCost = (n: number) => `$${n.toFixed(4)}`
 
   return (
     <div className="token-stats-panel">
-      <Title level={4}>Token 统计</Title>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <Title level={4} style={{ margin: 0 }}>Token 统计</Title>
+        <Tooltip title="重新扫描所有会话用量">
+          <Button
+            icon={<ReloadOutlined spin={refreshing} />}
+            onClick={handleRefresh}
+            loading={refreshing}
+            size="small"
+          >
+            刷新
+          </Button>
+        </Tooltip>
+      </div>
 
       <Row gutter={[16, 16]} className="stats-row">
         <Col span={8}>

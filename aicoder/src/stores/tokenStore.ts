@@ -7,6 +7,7 @@ interface TokenState {
 
   // Actions
   fetchStats: () => void
+  clearStats: () => void
   addUsage: (usage: TokenUsage) => void
   upsertDailyUsage: (usage: TokenUsage) => void
   processSessionDelta: (delta: SessionUsageDelta) => void
@@ -83,6 +84,11 @@ export const useTokenStore = create<TokenState>((set, get) => ({
       const history = JSON.parse(stored) as TokenUsage[]
       set({ stats: calculateStats(history) })
     }
+  },
+
+  clearStats: () => {
+    localStorage.removeItem(STORAGE_KEY)
+    set({ stats: emptyStats })
   },
 
   addUsage: (usage) => {
