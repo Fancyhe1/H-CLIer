@@ -192,6 +192,30 @@
   border-radius: 2px;
 }
 
+.legend-item.level-0 {
+  background-color: #e1e4e8;
+}
+
+.legend-item.level-1 {
+  background-color: #0e4429;
+}
+
+.legend-item.level-2 {
+  background-color: #006d32;
+}
+
+.legend-item.level-3 {
+  background-color: #26a641;
+}
+
+.legend-item.level-4 {
+  background-color: #39d353;
+}
+
+.dark .legend-item.level-0 {
+  background-color: #30363d;
+}
+
 /* 会话用量列表 */
 .session-usage-list {
   display: flex;

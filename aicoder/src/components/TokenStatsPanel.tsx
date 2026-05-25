@@ -57,7 +57,6 @@ function MonthlyActivity() {
     return 4
   }
 
-  const levelColors = ['#161b22', '#0e4429', '#006d32', '#26a641', '#39d353']
   const weekdayLabels = ['一', '二', '三', '四', '五', '六', '日']
 
   return (
@@ -97,10 +96,7 @@ function MonthlyActivity() {
                 {/* 日格子 */}
                 {cells.map((c) => (
                   <Tooltip key={c.day} title={`${c.dateStr}\n${c.tokens.toLocaleString()} tokens`}>
-                    <div
-                      className={`calendar-cell level-${c.level}`}
-                      style={{ backgroundColor: levelColors[c.level] }}
-                    />
+                    <div className={`calendar-cell level-${c.level}`} />
                   </Tooltip>
                 ))}
               </div>
@@ -113,8 +109,8 @@ function MonthlyActivity() {
       </div>
       <div className="heatmap-legend">
         <Text type="secondary">少</Text>
-        {levelColors.map((color, i) => (
-          <div key={i} className="legend-item" style={{ backgroundColor: color }} />
+        {[0, 1, 2, 3, 4].map(level => (
+          <div key={level} className={`legend-item level-${level}`} />
         ))}
         <Text type="secondary">多</Text>
       </div>
