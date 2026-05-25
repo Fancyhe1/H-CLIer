@@ -168,13 +168,24 @@ function TrendChart() {
   )
 }
 
-// 会话用量列表
+// 会话用量列表（按工作空间分组）
 function SessionUsageList() {
   const { sessions } = useSessionStore()
   const [sessionUsages, setSessionUsages] = useState<Map<string, SessionTotalUsage>>(new Map())
   const [loading, setLoading] = useState(false)
 
   const claudeSessions = sessions.filter(s => s.sessionType === 'claude' && s.cliSessionId)
+
+  // 按工作空间（projectPath）分组
+  const grouped = new Map<string, typeof claudeSessions>()
+  for (const session of claudeSessions) {
+    const list = grouped.get(session.projectPath) || []
+    list.push(session)
+    grouped.set(session.projectPath, list)
+  }
+
+  // 工作空间排序：按会话数量降序
+  const sortedGroups = [...grouped.entries()].sort((a, b) => b[1].length - a[1].length)
 
   const loadAll = async () => {
     setLoading(true)
@@ -206,6 +217,20 @@ function SessionUsageList() {
     return n.toString()
   }
 
+  // 计算工作空间汇总
+  const getWorkspaceTotal = (sessionList: typeof claudeSessions) => {
+    let input = 0, output = 0, cost = 0
+    for (const s of sessionList) {
+      const u = sessionUsages.get(s.id)
+      if (u) {
+        input += u.inputTokens
+        output += u.outputTokens
+        cost += u.cost
+      }
+    }
+    return { input, output, cost }
+  }
+
   if (claudeSessions.length === 0) return null
 
   return (
@@ -219,30 +244,47 @@ function SessionUsageList() {
       }
     >
       <div className="session-usage-list">
-        {claudeSessions.map(session => {
-          const usage = sessionUsages.get(session.id)
+        {sortedGroups.map(([projectPath, sessionList]) => {
+          const workspaceName = projectPath.split('\\').pop() || projectPath.split('/').pop() || projectPath
+          const total = getWorkspaceTotal(sessionList)
           return (
-            <div key={session.id} className="session-usage-item">
-              <div className="session-usage-info">
-                <div className="session-usage-title">{session.title}</div>
-                <div className="session-usage-id">{session.cliSessionId}</div>
-              </div>
-              {usage && (
-                <div className="session-usage-tokens">
-                  <div className="session-usage-stat">
-                    <div className="session-usage-stat-value">{formatNumber(usage.inputTokens)}</div>
-                    <div className="session-usage-stat-label">输入</div>
-                  </div>
-                  <div className="session-usage-stat">
-                    <div className="session-usage-stat-value">{formatNumber(usage.outputTokens)}</div>
-                    <div className="session-usage-stat-label">输出</div>
-                  </div>
-                  <div className="session-usage-stat">
-                    <div className="session-usage-stat-value" style={{ color: '#cf1322' }}>${usage.cost.toFixed(4)}</div>
-                    <div className="session-usage-stat-label">花费</div>
-                  </div>
+            <div key={projectPath} className="workspace-group">
+              <div className="workspace-header">
+                <div className="workspace-name">{workspaceName}</div>
+                <div className="workspace-total">
+                  <span>{formatNumber(total.input + total.output)} tokens</span>
+                  <span style={{ color: '#cf1322' }}>${total.cost.toFixed(4)}</span>
                 </div>
-              )}
+              </div>
+              <div className="workspace-sessions">
+                {sessionList.map(session => {
+                  const usage = sessionUsages.get(session.id)
+                  return (
+                    <div key={session.id} className="session-usage-item">
+                      <div className="session-usage-info">
+                        <div className="session-usage-title">{session.title}</div>
+                        <div className="session-usage-id">{session.cliSessionId}</div>
+                      </div>
+                      {usage && (
+                        <div className="session-usage-tokens">
+                          <div className="session-usage-stat">
+                            <div className="session-usage-stat-value">{formatNumber(usage.inputTokens)}</div>
+                            <div className="session-usage-stat-label">输入</div>
+                          </div>
+                          <div className="session-usage-stat">
+                            <div className="session-usage-stat-value">{formatNumber(usage.outputTokens)}</div>
+                            <div className="session-usage-stat-label">输出</div>
+                          </div>
+                          <div className="session-usage-stat">
+                            <div className="session-usage-stat-value" style={{ color: '#cf1322' }}>${usage.cost.toFixed(4)}</div>
+                            <div className="session-usage-stat-label">花费</div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )
         })}
