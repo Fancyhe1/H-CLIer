@@ -4,7 +4,21 @@ use crate::pty::PtyManager;
 
 pub fn check_claude() -> Result<bool, Box<dyn std::error::Error>> {
     // 检测 Claude Code CLI (@anthropic-ai/claude-code)
-    // 1. 检测 npx claude-code
+    // 1. 检测 claude.cmd (Windows npm 全局安装，最快)
+    if let Ok(output) = Command::new("claude.cmd").arg("--version").output() {
+        if output.status.success() {
+            return Ok(true);
+        }
+    }
+
+    // 2. 检测 claude (非 .cmd)
+    if let Ok(output) = Command::new("claude").arg("--version").output() {
+        if output.status.success() {
+            return Ok(true);
+        }
+    }
+
+    // 3. 检测 npx claude-code（较慢，作为回退）
     if let Ok(output) = Command::new("npx")
         .args(&["-y", "@anthropic-ai/claude-code", "--version"])
         .output()
@@ -14,14 +28,7 @@ pub fn check_claude() -> Result<bool, Box<dyn std::error::Error>> {
         }
     }
 
-    // 2. 检测 claude.cmd (Windows npm 全局安装)
-    if let Ok(output) = Command::new("claude.cmd").arg("--version").output() {
-        if output.status.success() {
-            return Ok(true);
-        }
-    }
-
-    // 3. 检测 npx claude (另一种调用方式)
+    // 4. 检测 npx claude (另一种调用方式)
     if let Ok(output) = Command::new("npx")
         .args(&["-y", "claude", "--version"])
         .output()
@@ -58,24 +65,43 @@ pub fn check_claude() -> Result<bool, Box<dyn std::error::Error>> {
 }
 
 pub fn get_claude_version() -> Result<String, Box<dyn std::error::Error>> {
-    // 优先使用 npx 检测 Claude Code CLI 版本
+    // 优先使用 claude.cmd（快速，全局安装时可用）
+    let output = Command::new("claude.cmd")
+        .arg("--version")
+        .output();
+
+    if let Ok(output) = output {
+        if output.status.success() {
+            let version = String::from_utf8_lossy(&output.stdout);
+            let version = version.trim();
+            // 提取版本号，去掉 "(Claude Code)" 等后缀
+            let version = version.split_whitespace().next().unwrap_or(version);
+            return Ok(version.to_string());
+        }
+    }
+
+    // 回退到 npx（较慢）
     let output = Command::new("npx")
         .args(&["-y", "@anthropic-ai/claude-code", "--version"])
         .output()?;
 
     if output.status.success() {
         let version = String::from_utf8_lossy(&output.stdout);
-        return Ok(version.trim().to_string());
+        let version = version.trim();
+        let version = version.split_whitespace().next().unwrap_or(version);
+        return Ok(version.to_string());
     }
 
-    // 回退到 claude.cmd
-    let output = Command::new("claude.cmd")
+    // 回退到 claude（非 .cmd）
+    let output = Command::new("claude")
         .arg("--version")
         .output()?;
 
     if output.status.success() {
         let version = String::from_utf8_lossy(&output.stdout);
-        Ok(version.trim().to_string())
+        let version = version.trim();
+        let version = version.split_whitespace().next().unwrap_or(version);
+        Ok(version.to_string())
     } else {
         Err("Failed to get Claude Code version".into())
     }

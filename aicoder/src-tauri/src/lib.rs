@@ -6,6 +6,7 @@ mod checkpoint;
 mod license;
 mod history;
 mod token_usage;
+mod claude_config;
 
 use session::{Session, SessionManager};
 use pty::PtyManager;
@@ -553,6 +554,21 @@ fn get_claude_versions() -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
+fn get_claude_mcp_servers() -> Result<Vec<claude_config::McpServerInfo>, String> {
+    claude_config::get_mcp_servers().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_claude_skills() -> Result<Vec<claude_config::SkillInfo>, String> {
+    claude_config::get_skills().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_claude_hooks() -> Result<Vec<claude_config::HookInfo>, String> {
+    claude_config::get_hooks().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn get_app_version() -> String {
     // 优先从环境变量读取（CI/CD 构建时注入），否则从 Cargo.toml 读取
     let version = option_env!("APP_VERSION")
@@ -847,6 +863,9 @@ pub fn run() {
             spawn_claude,
             get_claude_version,
             get_claude_versions,
+            get_claude_mcp_servers,
+            get_claude_skills,
+            get_claude_hooks,
             get_app_version,
             check_github_update,
             download_update,

@@ -38,6 +38,23 @@ export interface UpdateInfo {
 
 export type UpdateStatus = 'idle' | 'checking' | 'available' | 'downloading' | 'installing' | 'error' | 'up_to_date'
 
+// Claude Code 配置数据类型
+export interface McpServerInfo {
+  name: string
+  command: string
+  args: string[]
+}
+
+export interface SkillInfo {
+  name: string
+  description: string
+}
+
+export interface HookInfo {
+  event: string
+  command: string
+}
+
 // 默认配置
 const defaultConfig: AppConfig = {
   claude: {
@@ -73,6 +90,11 @@ interface SettingsState {
   updateInfo: UpdateInfo | null
   updateError: string | null
 
+  // Claude Code 配置数据
+  mcpServers: McpServerInfo[]
+  skills: SkillInfo[]
+  hooks: HookInfo[]
+
   // Actions
   loadConfig: () => Promise<void>
   saveConfig: (config: AppConfig) => Promise<void>
@@ -92,6 +114,11 @@ interface SettingsState {
   downloadAndInstallUpdate: () => Promise<void>
   setUpdateStatus: (status: UpdateStatus) => void
   clearUpdateError: () => void
+
+  // Claude Code 配置数据加载
+  loadMcpServers: () => Promise<void>
+  loadSkills: () => Promise<void>
+  loadHooks: () => Promise<void>
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -108,6 +135,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   updateStatus: 'idle',
   updateInfo: null,
   updateError: null,
+
+  // Claude Code 配置数据
+  mcpServers: [],
+  skills: [],
+  hooks: [],
 
   // 加载配置
   loadConfig: async () => {
@@ -297,5 +329,38 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   // 清除更新错误
   clearUpdateError: () => {
     set({ updateError: null, updateStatus: 'idle' })
+  },
+
+  // 加载 MCP Server 配置
+  loadMcpServers: async () => {
+    try {
+      const servers = await invoke<McpServerInfo[]>('get_claude_mcp_servers')
+      set({ mcpServers: servers })
+    } catch (err) {
+      console.error('加载 MCP Server 配置失败:', err)
+      set({ mcpServers: [] })
+    }
+  },
+
+  // 加载 Skills 列表
+  loadSkills: async () => {
+    try {
+      const skills = await invoke<SkillInfo[]>('get_claude_skills')
+      set({ skills })
+    } catch (err) {
+      console.error('加载 Skills 列表失败:', err)
+      set({ skills: [] })
+    }
+  },
+
+  // 加载 Hooks 配置
+  loadHooks: async () => {
+    try {
+      const hooks = await invoke<HookInfo[]>('get_claude_hooks')
+      set({ hooks })
+    } catch (err) {
+      console.error('加载 Hooks 配置失败:', err)
+      set({ hooks: [] })
+    }
   },
 }))

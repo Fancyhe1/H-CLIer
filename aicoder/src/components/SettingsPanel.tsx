@@ -29,15 +29,13 @@ import {
   SyncOutlined,
   DownloadOutlined,
   InfoCircleOutlined,
-  PlusOutlined,
-  DeleteOutlined,
   SettingOutlined,
   ApiOutlined,
   RocketOutlined,
 } from '@ant-design/icons'
 import { invoke } from '@tauri-apps/api/core'
 import { useSessionStore } from '../stores/sessionStore'
-import { useSettingsStore } from '../stores/settingsStore'
+import { useSettingsStore, McpServerInfo, SkillInfo, HookInfo } from '../stores/settingsStore'
 import '../styles/SettingsPanel.css'
 
 const { TabPane } = Tabs
@@ -76,6 +74,12 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
     checkForUpdates,
     downloadAndInstallUpdate,
     clearUpdateError,
+    mcpServers,
+    skills,
+    hooks,
+    loadMcpServers,
+    loadSkills,
+    loadHooks,
   } = useSettingsStore()
 
   // 配置已在 App 启动时加载和检测，这里不需要再做
@@ -84,6 +88,19 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
   useEffect(() => {
     getAppVersion()
   }, [])
+
+  // 切换到 Claude Code tab 时加载 MCP/Skills/Hooks 数据，并确保版本已检测
+  useEffect(() => {
+    if (activeTab === 'claude') {
+      loadMcpServers()
+      loadSkills()
+      loadHooks()
+      // 如果版本还未获取，重新检测
+      if (claudeInstalled && !claudeVersion) {
+        getClaudeVersion()
+      }
+    }
+  }, [activeTab])
 
   // 同步表单数据
   useEffect(() => {
@@ -311,27 +328,32 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
               {/* 安装状态 */}
               <Alert
                 message={
-                  <Space>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <span>Claude Code 安装状态:</span>
                     {claudeInstalled === null ? (
                       <Tag>检测中...</Tag>
                     ) : claudeInstalled ? (
-                      <Tag icon={<CheckCircleOutlined />} color="success">
-                        已安装 {claudeVersion && `(${claudeVersion})`}
-                      </Tag>
+                      <>
+                        <Tag icon={<CheckCircleOutlined />} color="success">
+                          已安装
+                        </Tag>
+                        {claudeVersion && (
+                          <Text type="secondary" style={{ fontSize: 12 }}>
+                            v{claudeVersion}
+                          </Text>
+                        )}
+                      </>
                     ) : (
                       <Tag icon={<CloseCircleOutlined />} color="error">
                         未安装
                       </Tag>
                     )}
-                  </Space>
+                    <Button size="small" onClick={handleRecheckClaude} style={{ marginLeft: 'auto' }}>
+                      重新检测
+                    </Button>
+                  </div>
                 }
                 type={claudeInstalled ? 'success' : 'warning'}
-                action={
-                  <Button size="small" onClick={handleRecheckClaude}>
-                    重新检测
-                  </Button>
-                }
                 style={{ marginBottom: 16 }}
               />
 
@@ -462,6 +484,9 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
                 <span>
                   <SettingOutlined style={{ marginRight: 8 }} />
                   <Text strong>MCP Server</Text>
+                  {mcpServers.length > 0 && (
+                    <Tag color="blue" style={{ marginLeft: 8 }}>{mcpServers.length}</Tag>
+                  )}
                 </span>
               }
               key="mcp"
@@ -474,25 +499,30 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
                 style={{ marginBottom: 16 }}
               />
 
-              <div style={{ marginBottom: 16 }}>
-                <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+              {mcpServers.length === 0 ? (
+                <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
                   当前暂无已配置的 MCP Server
                 </Text>
-                <Button type="dashed" icon={<PlusOutlined />} block>
-                  添加 MCP Server
-                </Button>
-              </div>
-
-              <List
-                size="small"
-                header={<Text strong>已配置的 Server</Text>}
-                dataSource={[]}
-                renderItem={(item: any) => (
-                  <List.Item actions={[<Button type="text" size="small" icon={<DeleteOutlined />}>删除</Button>]}>
-                    {item.name}
-                  </List.Item>
-                )}
-              />
+              ) : (
+                <List
+                  size="small"
+                  header={<Text strong>已配置的 Server</Text>}
+                  dataSource={mcpServers}
+                  style={{ marginBottom: 16 }}
+                  renderItem={(item: McpServerInfo) => (
+                    <List.Item>
+                      <List.Item.Meta
+                        title={<Text>{item.name}</Text>}
+                        description={
+                          <Text type="secondary" style={{ fontSize: 12 }}>
+                            {item.command} {item.args.join(' ')}
+                          </Text>
+                        }
+                      />
+                    </List.Item>
+                  )}
+                />
+              )}
             </Panel>
 
             {/* Skills */}
@@ -501,6 +531,9 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
                 <span>
                   <CodeOutlined style={{ marginRight: 8 }} />
                   <Text strong>Skills</Text>
+                  {skills.length > 0 && (
+                    <Tag color="green" style={{ marginLeft: 8 }}>{skills.length}</Tag>
+                  )}
                 </span>
               }
               key="skills"
@@ -513,34 +546,29 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
                 style={{ marginBottom: 16 }}
               />
 
-              <div style={{ marginBottom: 16 }}>
-                <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-                  已安装的 Skills
+              {skills.length === 0 ? (
+                <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
+                  暂无已安装的 Skills
                 </Text>
+              ) : (
                 <List
                   size="small"
-                  dataSource={[
-                    { name: 'commit', description: 'Git 提交辅助' },
-                    { name: 'review', description: '代码审查助手' },
-                  ]}
-                  renderItem={(item: { name: string; description: string }) => (
-                    <List.Item
-                      actions={[
-                        <Button type="text" size="small" danger icon={<DeleteOutlined />}>删除</Button>
-                      ]}
-                    >
+                  header={<Text strong>已安装的 Skills ({skills.length})</Text>}
+                  dataSource={skills}
+                  renderItem={(item: SkillInfo) => (
+                    <List.Item>
                       <List.Item.Meta
                         title={<Text>{item.name}</Text>}
-                        description={item.description}
+                        description={
+                          <Text type="secondary" style={{ fontSize: 12 }}>
+                            {item.description || '无描述'}
+                          </Text>
+                        }
                       />
                     </List.Item>
                   )}
                 />
-              </div>
-
-              <Button type="dashed" icon={<PlusOutlined />} block>
-                添加 Skill
-              </Button>
+              )}
             </Panel>
 
             {/* 钩子 */}
@@ -549,6 +577,9 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
                 <span>
                   <RocketOutlined style={{ marginRight: 8 }} />
                   <Text strong>钩子</Text>
+                  {hooks.length > 0 && (
+                    <Tag color="orange" style={{ marginLeft: 8 }}>{hooks.length}</Tag>
+                  )}
                 </span>
               }
               key="hooks"
@@ -561,27 +592,29 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
                 style={{ marginBottom: 16 }}
               />
 
-              <Form layout="vertical">
-                <Form.Item label="会话开始前">
-                  <Input placeholder="scripts/before-session.sh" />
-                </Form.Item>
-
-                <Form.Item label="会话结束后">
-                  <Input placeholder="scripts/after-session.sh" />
-                </Form.Item>
-
-                <Form.Item label="命令执行前">
-                  <Input placeholder="scripts/before-command.sh" />
-                </Form.Item>
-
-                <Form.Item label="命令执行后">
-                  <Input placeholder="scripts/after-command.sh" />
-                </Form.Item>
-
-                <Button type="primary" htmlType="submit" loading={isLoading}>
-                  保存钩子配置
-                </Button>
-              </Form>
+              {hooks.length === 0 ? (
+                <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
+                  当前暂无已配置的钩子
+                </Text>
+              ) : (
+                <List
+                  size="small"
+                  header={<Text strong>已配置的钩子 ({hooks.length})</Text>}
+                  dataSource={hooks}
+                  renderItem={(item: HookInfo) => (
+                    <List.Item>
+                      <List.Item.Meta
+                        title={<Text>{item.event}</Text>}
+                        description={
+                          <Text type="secondary" style={{ fontSize: 12 }} copyable>
+                            {item.command}
+                          </Text>
+                        }
+                      />
+                    </List.Item>
+                  )}
+                />
+              )}
             </Panel>
           </Collapse>
         </TabPane>
