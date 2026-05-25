@@ -159,6 +159,7 @@ jobs:
 
       - name: Generate changelog
         id: changelog
+        working-directory: ./aicoder
         shell: bash
         run: |
           CURRENT_TAG="${{ github.ref_name }}"
