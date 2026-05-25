@@ -85,9 +85,55 @@
   font-size: 12px;
 }
 
-/* 热力图 */
-.activity-heatmap {
+/* 月度活动 */
+.monthly-activity {
   padding: 16px 0;
+}
+
+.monthly-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.month-box {
+  padding: 16px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 80px;
+  cursor: default;
+  transition: transform 0.2s;
+}
+
+.month-box:hover {
+  transform: scale(1.03);
+}
+
+.month-label {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+  margin-bottom: 4px;
+}
+
+.month-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+}
+
+/* 无数据月份文字用浅色 */
+.month-box[style*="161b22"] .month-label,
+.month-box[style*="ebedf0"] .month-label {
+  color: #999;
+}
+
+.month-box[style*="161b22"] .month-value,
+.month-box[style*="ebedf0"] .month-value {
+  color: #666;
 }
 
 .heatmap-legend {
@@ -95,36 +141,12 @@
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
-  margin-bottom: 16px;
 }
 
 .legend-item {
   width: 12px;
   height: 12px;
   border-radius: 2px;
-}
-
-.heatmap-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.heatmap-week {
-  display: flex;
-  gap: 4px;
-}
-
-.heatmap-day {
-  width: 12px;
-  height: 12px;
-  border-radius: 2px;
-  transition: all 0.2s;
-}
-
-.heatmap-day:hover {
-  transform: scale(1.2);
-  box-shadow: 0 0 4px rgba(0, 0, 0, 0.2);
 }
 
 /* 暗色主题 */
