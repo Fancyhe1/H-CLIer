@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   PlusOutlined,
   SearchOutlined,
@@ -33,7 +33,6 @@ import {
   Button,
   Input,
   Tree,
-  Dropdown,
   Modal,
   message,
   Empty,
@@ -50,6 +49,7 @@ import TrashModal from './TrashModal'
 import { handleExportSession } from '../utils/export'
 import type { SessionType } from '../types/session'
 import type { ChatMessage } from '../types/history'
+import ContextMenu from './ContextMenu'
 import '../styles/Sidebar.css'
 
 interface SidebarProps {
@@ -104,6 +104,32 @@ function Sidebar(props: SidebarProps) {
   const [summaryData, setSummaryData] = useState<any>(null)
   const [expandedKeys, setExpandedKeys] = useState<string[]>([])
 
+  // 拖拽相关状态
+  const sidebarContentRef = useRef<HTMLDivElement>(null)
+  const sessionDragRef = useRef<{
+    startX: number
+    startY: number
+    sessionId: string
+    projectPath: string
+    started: boolean
+  } | null>(null)
+  const sessionDragJustEnded = useRef(false)
+  const [draggedSessionId, setDraggedSessionId] = useState<string | null>(null)
+  const [sessionDropGroupId, setSessionDropGroupId] = useState<string | null>(null)
+  const [sessionDropInsertIndex, setSessionDropInsertIndex] = useState<number | null>(null)
+
+  const workspaceDragRef = useRef<{
+    startX: number
+    startY: number
+    path: string
+    started: boolean
+  } | null>(null)
+  const workspaceDragJustEnded = useRef(false)
+  const [draggedWorkspacePath, setDraggedWorkspacePath] = useState<string | null>(null)
+  const [workspaceDropInsertIndex, setWorkspaceDropInsertIndex] = useState<number | null>(null)
+
+  const isDragging = draggedSessionId !== null || draggedWorkspacePath !== null
+
   const {
     sessions,
     activeSessionId,
@@ -116,6 +142,9 @@ function Sidebar(props: SidebarProps) {
     createSession,
     claudeSessions,
     terminalSessions,
+    workspaceOrder,
+    reorderSessions,
+    reorderWorkspaceFolders,
   } = useSessionStore()
 
   useEffect(() => {
@@ -157,6 +186,179 @@ function Sidebar(props: SidebarProps) {
       setExpandedKeys([...expandedKeys, key])
     }
   }
+
+  // 获取会话插入位置（基于鼠标位置，找最近的间隙）
+  const getInsertIndexFromPoint = useCallback((_x: number, y: number, projectPath: string): number | null => {
+    const container = sidebarContentRef.current
+    if (!container) return null
+
+    const allEls = container.querySelectorAll('[data-session-id]')
+    const sessionEls = Array.from(allEls).filter(
+      el => el.getAttribute('data-workspace-path') === projectPath
+    )
+    if (sessionEls.length === 0) return 0
+
+    // 先看鼠标是否在某个会话上
+    for (let i = 0; i < sessionEls.length; i++) {
+      const rect = sessionEls[i].getBoundingClientRect()
+      if (y >= rect.top && y <= rect.bottom) {
+        const midY = (rect.top + rect.bottom) / 2
+        return y < midY ? i : i + 1
+      }
+    }
+
+    // 鼠标不在任何会话上，找最近的
+    let closestIndex = 0
+    let closestDistance = Infinity
+    for (let i = 0; i < sessionEls.length; i++) {
+      const rect = sessionEls[i].getBoundingClientRect()
+      const distTop = Math.abs(y - rect.top)
+      const distBottom = Math.abs(y - rect.bottom)
+      const dist = Math.min(distTop, distBottom)
+      if (dist < closestDistance) {
+        closestDistance = dist
+        closestIndex = distTop < distBottom ? i : i + 1
+      }
+    }
+
+    return closestIndex
+  }, [])
+
+  // 会话拖拽开始
+  const handleSessionMouseDown = useCallback((sessionId: string, projectPath: string, e: React.MouseEvent) => {
+    if (e.button !== 0) return
+    sessionDragRef.current = { startX: e.clientX, startY: e.clientY, sessionId, projectPath, started: false }
+  }, [])
+
+  // 获取工作区插入位置
+  const getWorkspaceInsertIndex = useCallback((_x: number, y: number): number | null => {
+    const container = sidebarContentRef.current
+    if (!container) return null
+
+    const groupEls = Array.from(container.querySelectorAll('[data-workspace-group]'))
+    if (groupEls.length === 0) return 0
+
+    // 先看鼠标是否在某个工作区上
+    for (let i = 0; i < groupEls.length; i++) {
+      const rect = groupEls[i].getBoundingClientRect()
+      if (y >= rect.top && y <= rect.bottom) {
+        const midY = (rect.top + rect.bottom) / 2
+        return y < midY ? i : i + 1
+      }
+    }
+
+    // 鼠标不在任何工作区上，找最近的
+    let closestIndex = 0
+    let closestDistance = Infinity
+    for (let i = 0; i < groupEls.length; i++) {
+      const rect = groupEls[i].getBoundingClientRect()
+      const distTop = Math.abs(y - rect.top)
+      const distBottom = Math.abs(y - rect.bottom)
+      const dist = Math.min(distTop, distBottom)
+      if (dist < closestDistance) {
+        closestDistance = dist
+        closestIndex = distTop < distBottom ? i : i + 1
+      }
+    }
+
+    return closestIndex
+  }, [])
+
+  // 工作区拖拽开始
+  const handleWorkspaceMouseDown = useCallback((path: string, e: React.MouseEvent) => {
+    if (e.button !== 0) return
+    workspaceDragRef.current = { startX: e.clientX, startY: e.clientY, path, started: false }
+  }, [])
+
+  // 文档级别的 mousemove/mouseup 处理会话拖拽
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      // 会话拖拽
+      if (sessionDragRef.current) {
+        const dx = e.clientX - sessionDragRef.current.startX
+        const dy = e.clientY - sessionDragRef.current.startY
+        if (!sessionDragRef.current.started) {
+          if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+            sessionDragRef.current.started = true
+            setDraggedSessionId(sessionDragRef.current.sessionId)
+            setSessionDropGroupId(sessionDragRef.current.projectPath)
+          }
+          return
+        }
+        const insertIndex = getInsertIndexFromPoint(e.clientX, e.clientY, sessionDragRef.current.projectPath)
+        setSessionDropInsertIndex(insertIndex)
+      }
+
+      // 工作区拖拽
+      if (workspaceDragRef.current) {
+        const dx = e.clientX - workspaceDragRef.current.startX
+        const dy = e.clientY - workspaceDragRef.current.startY
+        if (!workspaceDragRef.current.started) {
+          if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+            workspaceDragRef.current.started = true
+            setDraggedWorkspacePath(workspaceDragRef.current.path)
+          }
+          return
+        }
+        const insertIndex = getWorkspaceInsertIndex(e.clientX, e.clientY)
+        setWorkspaceDropInsertIndex(insertIndex)
+      }
+    }
+
+    const handleMouseUp = () => {
+      // 会话拖拽结束
+      if (sessionDragRef.current?.started) {
+        sessionDragJustEnded.current = true
+        const { sessionId, projectPath } = sessionDragRef.current
+        if (sessionDropInsertIndex !== null) {
+          const groupSessions = sessions
+            .filter(s => s.projectPath === projectPath && !s.isFavorite)
+            .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+          const currentIdx = groupSessions.findIndex(s => s.id === sessionId)
+          if (currentIdx !== -1) {
+            const newOrder = [...groupSessions.map(s => s.id)]
+            const [removed] = newOrder.splice(currentIdx, 1)
+            const insertAt = sessionDropInsertIndex > currentIdx ? sessionDropInsertIndex - 1 : sessionDropInsertIndex
+            newOrder.splice(insertAt, 0, removed)
+            reorderSessions(newOrder)
+          }
+        }
+        setDraggedSessionId(null)
+        setSessionDropGroupId(null)
+        setSessionDropInsertIndex(null)
+      }
+      sessionDragRef.current = null
+
+      // 工作区拖拽结束
+      if (workspaceDragRef.current?.started) {
+        workspaceDragJustEnded.current = true
+        const { path } = workspaceDragRef.current
+        if (workspaceDropInsertIndex !== null) {
+          const normalSessions = sessions.filter(s => !s.isFavorite && s.sessionType === activeTab)
+          const groupedPaths = [...new Set(normalSessions.map(s => s.projectPath))]
+          const orderedPaths = [...(workspaceOrder[activeTab] || []), ...groupedPaths.filter(p => !(workspaceOrder[activeTab] || []).includes(p))]
+          const currentIdx = orderedPaths.indexOf(path)
+          if (currentIdx !== -1) {
+            const newOrder = [...orderedPaths]
+            const [removed] = newOrder.splice(currentIdx, 1)
+            const insertAt = workspaceDropInsertIndex > currentIdx ? workspaceDropInsertIndex - 1 : workspaceDropInsertIndex
+            newOrder.splice(insertAt, 0, removed)
+            reorderWorkspaceFolders(activeTab, newOrder)
+          }
+        }
+        setDraggedWorkspacePath(null)
+        setWorkspaceDropInsertIndex(null)
+      }
+      workspaceDragRef.current = null
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [sessions, activeTab, workspaceOrder, sessionDropInsertIndex, workspaceDropInsertIndex, getInsertIndexFromPoint, getWorkspaceInsertIndex, reorderSessions, reorderWorkspaceFolders])
 
   // 处理导出
   const handleExportClick = async (sessionId: string, format: 'md' | 'html' | 'json') => {
@@ -655,15 +857,28 @@ function Sidebar(props: SidebarProps) {
       ? (hasUnread ? '#fa8c16' : (session.color || '#ffffff'))
       : '#888888'
 
+    const isDraggingThis = draggedSessionId === session.id
+    const isInDropGroup = sessionDropGroupId === session.projectPath
+    const groupSessions = sessions
+      .filter(s => s.projectPath === session.projectPath && !s.isFavorite)
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+    const idxInGroup = groupSessions.findIndex(s => s.id === session.id)
+    const showDropBar = isInDropGroup && sessionDropInsertIndex === idxInGroup && !isDraggingThis
+
     return (
-      <Dropdown
-        menu={{ items: createMenuItems(session.id, session.isFavorite, session.projectPath) }}
-        trigger={['contextMenu']}
-        overlayClassName="session-context-menu"
-      >
+      <ContextMenu items={createMenuItems(session.id, session.isFavorite, session.projectPath)}>
         <div
-          className={`session-item ${session.id === activeSessionId ? 'active' : ''} ${hasUnread ? 'has-unread' : ''}`}
-          onClick={() => setActiveSession(session.id)}
+          className={`session-item ${session.id === activeSessionId ? 'active' : ''} ${hasUnread ? 'has-unread' : ''} ${isDraggingThis ? 'dragging' : ''} ${showDropBar ? 'drop-bar-above' : ''}`}
+          data-session-id={session.id}
+          data-workspace-path={session.projectPath}
+          onMouseDown={(e) => handleSessionMouseDown(session.id, session.projectPath, e)}
+          onClick={() => {
+            if (sessionDragJustEnded.current) {
+              sessionDragJustEnded.current = false
+              return
+            }
+            setActiveSession(session.id)
+          }}
         >
           <div className="session-info">
             <div
@@ -699,7 +914,7 @@ function Sidebar(props: SidebarProps) {
             </div>
           </div>
         </div>
-      </Dropdown>
+      </ContextMenu>
     )
   }
 
@@ -718,20 +933,26 @@ function Sidebar(props: SidebarProps) {
       {} as Record<string, typeof normalSessions>
     )
 
+    // 按保存的工作区顺序排序
+    const savedOrder = workspaceOrder[activeTab] || []
+    const sortedGroupEntries = Object.entries(groupedSessions).sort(([a], [b]) => {
+      const aIdx = savedOrder.indexOf(a)
+      const bIdx = savedOrder.indexOf(b)
+      if (aIdx === -1 && bIdx === -1) return 0
+      if (aIdx === -1) return 1
+      if (bIdx === -1) return -1
+      return aIdx - bIdx
+    })
+
     const treeData = []
 
     if (favoriteSessions.length > 0) {
-      // 获取收藏会话的项目路径（用于新建会话）
       const favoriteProjectPaths = [...new Set(favoriteSessions.map(s => s.projectPath))]
       const defaultProjectPath = favoriteProjectPaths[0] || ''
 
       treeData.push({
         title: (
-          <Dropdown
-            menu={{ items: createGroupMenuItems(defaultProjectPath, favoriteSessions.length, true) }}
-            trigger={['contextMenu']}
-            overlayClassName="session-context-menu"
-          >
+          <ContextMenu items={createGroupMenuItems(defaultProjectPath, favoriteSessions.length, true)}>
             <div
               className="group-title-wrapper"
               onClick={(e) => toggleExpand('favorites', e)}
@@ -741,38 +962,50 @@ function Sidebar(props: SidebarProps) {
               </span>
               <span className="group-count">{favoriteSessions.length}</span>
             </div>
-          </Dropdown>
+          </ContextMenu>
         ),
         key: 'favorites',
-        children: favoriteSessions.map((session) => ({
-          title: renderSessionItem(session),
-          key: session.id,
-          isLeaf: true,
-        })),
+        children: favoriteSessions
+          .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+          .map((session) => ({
+            title: renderSessionItem(session),
+            key: session.id,
+            isLeaf: true,
+          })),
       })
     }
 
-    Object.entries(groupedSessions).forEach(([path, pathSessions]) => {
+    sortedGroupEntries.forEach(([path, pathSessions], groupIdx) => {
+      const isDraggingThis = draggedWorkspacePath === path
+      const showDropBar = workspaceDropInsertIndex === groupIdx && !isDraggingThis
+
+      // 按 sortOrder 排序
+      const sortedSessions = [...pathSessions].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+
       treeData.push({
         title: (
-          <Dropdown
-            menu={{ items: createGroupMenuItems(path, pathSessions.length, false) }}
-            trigger={['contextMenu']}
-            overlayClassName="session-context-menu"
-          >
+          <ContextMenu items={createGroupMenuItems(path, pathSessions.length, false)}>
             <div
-              className="group-title-wrapper"
-              onClick={(e) => toggleExpand(path, e)}
+              className={`group-title-wrapper ${isDraggingThis ? 'dragging' : ''} ${showDropBar ? 'drop-bar-above' : ''}`}
+              data-workspace-group={path}
+              onMouseDown={(e) => handleWorkspaceMouseDown(path, e)}
+              onClick={(e) => {
+                if (workspaceDragJustEnded.current) {
+                  workspaceDragJustEnded.current = false
+                  return
+                }
+                toggleExpand(path, e)
+              }}
             >
               <span className="group-title">
                 <FolderOutlined /> {path.split('/').pop()}
               </span>
               <span className="group-count">{pathSessions.length}</span>
             </div>
-          </Dropdown>
+          </ContextMenu>
         ),
         key: path,
-        children: pathSessions.map((session) => ({
+        children: sortedSessions.map((session) => ({
           title: renderSessionItem(session),
           key: session.id,
           isLeaf: true,
@@ -812,7 +1045,7 @@ function Sidebar(props: SidebarProps) {
   const currentSessionList = activeTab === 'claude' ? claudeSessionList : terminalSessionList
 
   return (
-    <div className="sidebar">
+    <div className={`sidebar ${isDragging ? 'dragging-active' : ''}`}>
       <div className="sidebar-header">
         <span className="logo">
           <span className="logo-icon">🚀</span>
@@ -870,7 +1103,7 @@ function Sidebar(props: SidebarProps) {
         </Button>
       </div>
 
-      <div className="sidebar-content">
+      <div className="sidebar-content" ref={sidebarContentRef}>
         {currentSessionList.length === 0 ? (
           <div className="empty-state">
             <p>暂无{activeTab === 'claude' ? ' Claude' : '终端'}会话</p>

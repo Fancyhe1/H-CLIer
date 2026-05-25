@@ -279,15 +279,7 @@ function App() {
     return '跟随系统 (点击切换: 浅色)'
   }
 
-  const renderContent = () => {
-    switch (activePanel) {
-      case 'stats':
-        return <TokenStatsPanel />
-      case 'terminal':
-      default:
-        return <MultiTerminal />
-    }
-  }
+  // 面板始终挂载，用 CSS display 切换可见性，避免卸载导致会话丢失
 
   // 启动画面
   if (isLoading) {
@@ -419,7 +411,12 @@ function App() {
           {/* 标签栏 */}
           <TabBar />
           <Content className="app-content">
-            {renderContent()}
+            <div style={{ display: activePanel === 'terminal' ? 'block' : 'none', width: '100%', height: '100%' }}>
+              <MultiTerminal />
+            </div>
+            <div style={{ display: activePanel === 'stats' ? 'block' : 'none', width: '100%', height: '100%', overflow: 'auto' }}>
+              <TokenStatsPanel />
+            </div>
           </Content>
           {/* 底部状态栏 */}
           <div className={`status-bar ${currentTheme}`}>

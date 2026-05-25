@@ -972,6 +972,29 @@ details[open] > .history-detail-group-summary .history-detail-arrow {
   0%, 100% { opacity: 0.7; }
   50% { opacity: 1; }
 }
+
+/* 拖拽状态样式 */
+.session-item.dragging,
+.group-title-wrapper.dragging {
+  opacity: 0.4;
+}
+
+.session-item.drop-bar-above,
+.group-title-wrapper.drop-bar-above {
+  border-top: 2px solid #1890ff;
+  margin-top: -1px;
+}
+
+.session-item.drop-bar-below,
+.group-title-wrapper.drop-bar-below {
+  border-bottom: 2px solid #1890ff;
+  margin-bottom: -1px;
+}
+
+.sidebar.dragging-active {
+  user-select: none;
+  -webkit-user-select: none;
+}
 }
 
 .light .session-context-menu .ant-dropdown-menu {

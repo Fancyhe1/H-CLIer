@@ -13,36 +13,6 @@ interface TokenState {
 
 const STORAGE_KEY = 'hcl-ier_token_stats'
 
-// 生成模拟数据
-function generateMockData(): TokenUsage[] {
-  const data: TokenUsage[] = []
-  const now = new Date()
-
-  for (let i = 179; i >= 0; i--) {
-    const date = new Date(now)
-    date.setDate(date.getDate() - i)
-
-    // 随机生成用量（周末较少）
-    const isWeekend = date.getDay() === 0 || date.getDay() === 6
-    const baseTokens = isWeekend ? 1000 : 5000
-    const randomFactor = Math.random() * 0.5 + 0.5
-
-    const inputTokens = Math.floor(baseTokens * randomFactor)
-    const outputTokens = Math.floor(inputTokens * 0.6)
-    const cachedTokens = Math.floor(inputTokens * 0.3)
-
-    data.push({
-      date: date.toISOString().split('T')[0],
-      inputTokens,
-      outputTokens,
-      cachedTokens,
-      totalCost: (inputTokens + outputTokens) * 0.000003,
-    })
-  }
-
-  return data
-}
-
 // 计算统计数据
 function calculateStats(history: TokenUsage[]): TokenStats {
   const now = new Date()
@@ -80,8 +50,29 @@ function calculateStats(history: TokenUsage[]): TokenStats {
   }
 }
 
+const emptyStats: TokenStats = {
+  today: { input: 0, output: 0, cached: 0, cost: 0 },
+  thisWeek: { input: 0, output: 0, cached: 0, cost: 0 },
+  thisMonth: { input: 0, output: 0, cached: 0, cost: 0 },
+  history: [],
+}
+
+// 初始化时从 localStorage 加载
+function loadInitialStats(): TokenStats {
+  const stored = localStorage.getItem(STORAGE_KEY)
+  if (stored) {
+    try {
+      const history = JSON.parse(stored) as TokenUsage[]
+      return calculateStats(history)
+    } catch {
+      return emptyStats
+    }
+  }
+  return emptyStats
+}
+
 export const useTokenStore = create<TokenState>((set, get) => ({
-  stats: calculateStats(generateMockData()),
+  stats: loadInitialStats(),
   isLoading: false,
 
   fetchStats: () => {
@@ -101,6 +92,7 @@ export const useTokenStore = create<TokenState>((set, get) => ({
 
   getHeatmapData: () => {
     const { stats } = get()
+    if (stats.history.length === 0) return []
     const maxCount = Math.max(...stats.history.map(h => h.inputTokens + h.outputTokens))
 
     return stats.history.map(h => {

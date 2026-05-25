@@ -632,7 +632,7 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
                   showIcon
                   style={{ marginBottom: 12 }}
                 />
-                <div style={{ marginBottom: 12, padding: '8px 12px', background: '#f5f5f5', borderRadius: 4 }}>
+                <div style={{ marginBottom: 12, padding: '8px 12px', background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', borderRadius: 4 }}>
                   <Text type="secondary" style={{ fontSize: 12 }}>
                     当前版本: v{appVersion} → 最新版本: v{updateInfo.version}
                   </Text>
@@ -651,7 +651,7 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
                     <div style={{
                       marginTop: 4,
                       padding: '8px 12px',
-                      background: '#fafafa',
+                      background: theme === 'dark' ? '#2a2a2a' : '#fafafa',
                       borderRadius: 4,
                       maxHeight: 120,
                       overflow: 'auto',

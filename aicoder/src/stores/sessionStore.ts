@@ -10,6 +10,7 @@ interface SessionState {
   runningSessionIds: Set<string>  // 正在运行的会话ID（终端已打开）
   isLoading: boolean
   error: string | null
+  workspaceOrder: Record<string, string[]>  // 工作区文件夹顺序
 
   // Computed
   claudeSessions: () => Session[]
@@ -27,6 +28,21 @@ interface SessionState {
   toggleFavorite: (sessionId: string) => Promise<void>
   setSessionColor: (sessionId: string, color: string) => Promise<void>
   setHasUnread: (sessionId: string, hasUnread: boolean) => Promise<void>  // 设置未读状态
+  reorderSessions: (sessionIds: string[]) => Promise<void>
+  reorderWorkspaceFolders: (sessionType: string, paths: string[]) => void
+}
+
+// 从 localStorage 加载工作区顺序
+function loadWorkspaceOrder(): Record<string, string[]> {
+  const result: Record<string, string[]> = {}
+  for (const sessionType of ['claude', 'terminal']) {
+    const key = `hcl-ier_workspace_order_${sessionType}`
+    try {
+      const stored = localStorage.getItem(key)
+      if (stored) result[sessionType] = JSON.parse(stored)
+    } catch { /* ignore */ }
+  }
+  return result
 }
 
 export const useSessionStore = create<SessionState>((set, get) => ({
@@ -36,6 +52,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   runningSessionIds: new Set<string>(),
   isLoading: false,
   error: null,
+  workspaceOrder: loadWorkspaceOrder(),
 
   // 获取 Claude 会话
   claudeSessions: () => {
@@ -171,5 +188,32 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     } else {
       getCurrentWindow().requestUserAttention(null)
     }
+  },
+
+  reorderSessions: async (sessionIds: string[]) => {
+    try {
+      await invoke('reorder_sessions', { sessionIds })
+      set((state) => {
+        const sortOrderMap = new Map(sessionIds.map((id, index) => [id, index]))
+        const updatedSessions = state.sessions.map(s => {
+          const newSortOrder = sortOrderMap.get(s.id)
+          if (newSortOrder !== undefined) {
+            return { ...s, sortOrder: newSortOrder }
+          }
+          return s
+        })
+        return { sessions: updatedSessions }
+      })
+    } catch (err) {
+      set({ error: String(err) })
+    }
+  },
+
+  reorderWorkspaceFolders: (sessionType: string, paths: string[]) => {
+    const key = `hcl-ier_workspace_order_${sessionType}`
+    localStorage.setItem(key, JSON.stringify(paths))
+    set((state) => ({
+      workspaceOrder: { ...state.workspaceOrder, [sessionType]: paths }
+    }))
   },
 }))

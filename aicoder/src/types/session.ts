@@ -15,6 +15,7 @@ export interface Session {
   cliSessionId?: string
   description?: string
   hasUnread?: boolean  // 是否有未读消息
+  sortOrder: number
 }
 
 export interface CreateSessionParams {

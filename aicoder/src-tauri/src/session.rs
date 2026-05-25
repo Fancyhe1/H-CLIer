@@ -52,6 +52,7 @@ pub struct Session {
     pub message_count: i64,
     pub cli_session_id: Option<String>,
     pub description: Option<String>,
+    pub sort_order: i64,
 }
 
 pub struct SessionManager {
@@ -96,6 +97,12 @@ impl SessionManager {
             [],
         );
 
+        // 迁移：添加 sort_order 列（如果不存在）
+        let _ = conn.execute(
+            "ALTER TABLE sessions ADD COLUMN sort_order INTEGER DEFAULT 0",
+            [],
+        );
+
         // 创建索引
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_project_path ON sessions(project_path)",
@@ -128,11 +135,21 @@ impl SessionManager {
 
         let now = Utc::now();
 
+        // 计算最大 sort_order
+        let max_sort_order: i64 = self.conn
+            .query_row(
+                "SELECT COALESCE(MAX(sort_order), 0) FROM sessions WHERE is_active = 1",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(0);
+        let sort_order = max_sort_order + 1;
+
         self.conn.execute(
             r#"
             INSERT INTO sessions (id, project_path, title, session_type, color, is_favorite, is_active,
-                created_at, last_activity_at, deleted_at, message_count, cli_session_id, description)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+                created_at, last_activity_at, deleted_at, message_count, cli_session_id, description, sort_order)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
             "#,
             params![
                 &id,
@@ -148,6 +165,7 @@ impl SessionManager {
                 0i64,
                 None::<&str>,
                 None::<&str>,
+                sort_order,
             ],
         )?;
 
@@ -165,6 +183,7 @@ impl SessionManager {
             message_count: 0,
             cli_session_id: None,
             description: None,
+            sort_order,
         })
     }
 
@@ -172,10 +191,10 @@ impl SessionManager {
         let mut stmt = self.conn.prepare(
             r#"
             SELECT id, project_path, title, session_type, color, is_favorite, is_active,
-                created_at, last_activity_at, deleted_at, message_count, cli_session_id, description
+                created_at, last_activity_at, deleted_at, message_count, cli_session_id, description, sort_order
             FROM sessions
             WHERE is_active = 1
-            ORDER BY last_activity_at DESC
+            ORDER BY sort_order ASC, last_activity_at DESC
             "#
         )?;
 
@@ -194,6 +213,7 @@ impl SessionManager {
                 message_count: row.get(10)?,
                 cli_session_id: row.get(11)?,
                 description: row.get(12)?,
+                sort_order: row.get(13)?,
             })
         })?.collect::<Result<Vec<_>, _>>()?;
 
@@ -204,7 +224,7 @@ impl SessionManager {
         let mut stmt = self.conn.prepare(
             r#"
             SELECT id, project_path, title, session_type, color, is_favorite, is_active,
-                created_at, last_activity_at, deleted_at, message_count, cli_session_id, description
+                created_at, last_activity_at, deleted_at, message_count, cli_session_id, description, sort_order
             FROM sessions
             WHERE is_active = 0
             ORDER BY deleted_at DESC
@@ -226,6 +246,7 @@ impl SessionManager {
                 message_count: row.get(10)?,
                 cli_session_id: row.get(11)?,
                 description: row.get(12)?,
+                sort_order: row.get(13)?,
             })
         })?.collect::<Result<Vec<_>, _>>()?;
 
@@ -246,8 +267,9 @@ impl SessionManager {
                 deleted_at = ?8,
                 message_count = ?9,
                 cli_session_id = ?10,
-                description = ?11
-            WHERE id = ?12
+                description = ?11,
+                sort_order = ?12
+            WHERE id = ?13
             "#,
             params![
                 &session.project_path,
@@ -261,10 +283,23 @@ impl SessionManager {
                 session.message_count,
                 &session.cli_session_id,
                 &session.description,
+                session.sort_order,
                 &session.id,
             ],
         )?;
 
+        Ok(())
+    }
+
+    pub fn reorder_sessions(&self, session_ids: &[String]) -> Result<(), rusqlite::Error> {
+        let tx = self.conn.unchecked_transaction()?;
+        for (i, id) in session_ids.iter().enumerate() {
+            tx.execute(
+                "UPDATE sessions SET sort_order = ?1 WHERE id = ?2",
+                params![i as i64, id],
+            )?;
+        }
+        tx.commit()?;
         Ok(())
     }
 

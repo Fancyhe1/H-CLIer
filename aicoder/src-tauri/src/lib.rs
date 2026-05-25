@@ -53,6 +53,16 @@ pub struct AppState {
 
 // 会话管理命令
 #[tauri::command]
+fn reorder_sessions(
+    state: tauri::State<AppState>,
+    session_ids: Vec<String>,
+) -> Result<(), String> {
+    let manager = state.session_manager.lock().map_err(|e| e.to_string())?;
+    manager.reorder_sessions(&session_ids)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn create_session(
     state: tauri::State<AppState>,
     project_path: String,
@@ -803,6 +813,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             // 会话管理
+            reorder_sessions,
             create_session,
             get_sessions,
             update_session,

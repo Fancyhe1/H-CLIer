@@ -23,6 +23,8 @@ class LocalStorageSessionManager {
     const sessionType = params.sessionType || 'claude'
     const prefix = sessionType === 'claude' ? 'Claude' : '终端'
 
+    const maxSortOrder = sessions.filter(s => s.isActive).reduce((max, s) => Math.max(max, s.sortOrder || 0), 0)
+
     const session: Session = {
       id: crypto.randomUUID(),
       projectPath: params.projectPath,
@@ -36,6 +38,7 @@ class LocalStorageSessionManager {
       messageCount: 0,
       cliSessionId: undefined,
       description: undefined,
+      sortOrder: maxSortOrder + 1,
     }
 
     sessions.push(session)
@@ -46,7 +49,17 @@ class LocalStorageSessionManager {
   getAllSessions(): Session[] {
     return this.loadFromStorage()
       .filter(s => s.isActive)
-      .sort((a, b) => new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime())
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+  }
+
+  reorderSessions(sessionIds: string[]): void {
+    const sessions = this.loadFromStorage()
+    const sessionMap = new Map(sessions.map(s => [s.id, s]))
+    sessionIds.forEach((id, index) => {
+      const session = sessionMap.get(id)
+      if (session) session.sortOrder = index
+    })
+    this.saveToStorage(sessions)
   }
 
   updateSession(session: Session): void {
