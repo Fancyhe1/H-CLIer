@@ -42,7 +42,8 @@
 
 .trend-card,
 .heatmap-card,
-.detail-card {
+.detail-card,
+.session-list-card {
   margin-bottom: 24px;
 }
 
@@ -93,7 +94,7 @@
 .monthly-calendar-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
+  gap: 32px;
   margin-bottom: 16px;
 }
 
@@ -104,40 +105,40 @@
 }
 
 .month-calendar-title {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   color: #ccc;
 }
 
 .month-calendar-weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 2px;
+  gap: 3px;
   width: 100%;
-  max-width: 140px;
-  margin-bottom: 2px;
+  max-width: 175px;
+  margin-bottom: 3px;
 }
 
 .month-calendar-weekdays span {
-  font-size: 10px;
-  color: #888;
+  font-size: 12px;
+  color: #999;
   text-align: center;
-  line-height: 16px;
+  line-height: 18px;
 }
 
 .month-calendar-grid-inner {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 2px;
+  gap: 3px;
   width: 100%;
-  max-width: 140px;
+  max-width: 175px;
 }
 
 .calendar-cell {
   width: 100%;
   aspect-ratio: 1;
-  border-radius: 2px;
+  border-radius: 3px;
   min-width: 0;
 }
 
@@ -146,7 +147,7 @@
 }
 
 .calendar-cell.level-0 {
-  background-color: #161b22;
+  background-color: #21262d;
 }
 
 .calendar-cell.level-1 {
@@ -172,10 +173,10 @@
 }
 
 .month-calendar-total {
-  font-size: 11px;
-  color: #888;
-  margin-top: 4px;
-  height: 16px;
+  font-size: 12px;
+  color: #999;
+  margin-top: 6px;
+  height: 18px;
 }
 
 .heatmap-legend {
@@ -189,6 +190,75 @@
   width: 12px;
   height: 12px;
   border-radius: 2px;
+}
+
+/* 会话用量列表 */
+.session-usage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.session-usage-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 6px;
+  background: #141414;
+}
+
+.session-usage-item:hover {
+  background: #1f1f1f;
+}
+
+.session-usage-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.session-usage-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #e0e0e0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-usage-id {
+  font-size: 11px;
+  color: #666;
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-usage-tokens {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: 16px;
+}
+
+.session-usage-stat {
+  text-align: right;
+}
+
+.session-usage-stat-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e0e0e0;
+}
+
+.session-usage-stat-label {
+  font-size: 11px;
+  color: #888;
 }
 
 /* 暗色主题 */
@@ -207,14 +277,16 @@
 
 .dark .trend-card,
 .dark .heatmap-card,
-.dark .detail-card {
+.dark .detail-card,
+.dark .session-list-card {
   background: #1f1f1f;
   border-color: #303030;
 }
 
 .dark .trend-card .ant-card-head,
 .dark .heatmap-card .ant-card-head,
-.dark .detail-card .ant-card-head {
+.dark .detail-card .ant-card-head,
+.dark .session-list-card .ant-card-head {
   border-color: #303030;
 }
 

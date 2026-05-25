@@ -15,8 +15,11 @@ import {
   ReloadOutlined,
   PercentageOutlined,
 } from '@ant-design/icons'
+import { invoke } from '@tauri-apps/api/core'
 import { useTokenStore } from '../stores/tokenStore'
+import { useSessionStore } from '../stores/sessionStore'
 import { refreshAllStats } from '../hooks/useTokenPolling'
+import type { SessionTotalUsage } from '../types/token'
 import '../styles/TokenStatsPanel.css'
 
 const { Title, Text } = Typography
@@ -162,6 +165,89 @@ function TrendChart() {
         })}
       </div>
     </div>
+  )
+}
+
+// 会话用量列表
+function SessionUsageList() {
+  const { sessions } = useSessionStore()
+  const [sessionUsages, setSessionUsages] = useState<Map<string, SessionTotalUsage>>(new Map())
+  const [loading, setLoading] = useState(false)
+
+  const claudeSessions = sessions.filter(s => s.sessionType === 'claude' && s.cliSessionId)
+
+  const loadAll = async () => {
+    setLoading(true)
+    const map = new Map<string, SessionTotalUsage>()
+    for (const session of claudeSessions) {
+      try {
+        const usage = await invoke<SessionTotalUsage>('get_session_total_usage', {
+          sessionId: session.cliSessionId!,
+          projectPath: session.projectPath,
+        })
+        map.set(session.id, usage)
+      } catch {
+        // skip
+      }
+    }
+    setSessionUsages(map)
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    if (claudeSessions.length > 0) {
+      loadAll()
+    }
+  }, [sessions.length])
+
+  const formatNumber = (n: number) => {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`
+    return n.toString()
+  }
+
+  if (claudeSessions.length === 0) return null
+
+  return (
+    <Card
+      title="会话用量"
+      className="session-list-card"
+      extra={
+        <Button size="small" icon={<ReloadOutlined spin={loading} />} onClick={loadAll} loading={loading}>
+          刷新
+        </Button>
+      }
+    >
+      <div className="session-usage-list">
+        {claudeSessions.map(session => {
+          const usage = sessionUsages.get(session.id)
+          return (
+            <div key={session.id} className="session-usage-item">
+              <div className="session-usage-info">
+                <div className="session-usage-title">{session.title}</div>
+                <div className="session-usage-id">{session.cliSessionId}</div>
+              </div>
+              {usage && (
+                <div className="session-usage-tokens">
+                  <div className="session-usage-stat">
+                    <div className="session-usage-stat-value">{formatNumber(usage.inputTokens)}</div>
+                    <div className="session-usage-stat-label">输入</div>
+                  </div>
+                  <div className="session-usage-stat">
+                    <div className="session-usage-stat-value">{formatNumber(usage.outputTokens)}</div>
+                    <div className="session-usage-stat-label">输出</div>
+                  </div>
+                  <div className="session-usage-stat">
+                    <div className="session-usage-stat-value" style={{ color: '#cf1322' }}>${usage.cost.toFixed(4)}</div>
+                    <div className="session-usage-stat-label">花费</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </Card>
   )
 }
 
@@ -323,6 +409,8 @@ function TokenStatsPanel() {
       <Card title="月度活动" className="heatmap-card">
         <MonthlyActivity />
       </Card>
+
+      <SessionUsageList />
     </div>
   )
 }

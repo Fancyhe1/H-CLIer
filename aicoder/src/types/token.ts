@@ -48,3 +48,12 @@ export interface SessionUsageResult {
   deltas: SessionUsageDelta[]
   newFileOffset: number
 }
+
+export interface SessionTotalUsage {
+  inputTokens: number
+  outputTokens: number
+  cacheCreationTokens: number
+  cacheReadTokens: number
+  cost: number
+  model: string
+}

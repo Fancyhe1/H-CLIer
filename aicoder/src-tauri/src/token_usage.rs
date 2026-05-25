@@ -222,3 +222,85 @@ pub fn scan_session_usage(
         new_file_offset: file_len,
     })
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionTotalUsage {
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub cache_creation_tokens: u64,
+    pub cache_read_tokens: u64,
+    pub cost: f64,
+    pub model: String,
+}
+
+/// Scan entire JSONL file and return total token usage for the session.
+pub fn get_session_total_usage(
+    session_id: &str,
+    project_path: &str,
+) -> Result<SessionTotalUsage, String> {
+    let jsonl_path = get_session_jsonl_path(session_id, project_path)?;
+
+    if !jsonl_path.exists() {
+        return Ok(SessionTotalUsage {
+            input_tokens: 0,
+            output_tokens: 0,
+            cache_creation_tokens: 0,
+            cache_read_tokens: 0,
+            cost: 0.0,
+            model: String::new(),
+        });
+    }
+
+    let file = fs::File::open(&jsonl_path)
+        .map_err(|e| format!("Failed to open session file: {}", e))?;
+    let reader = BufReader::new(file);
+
+    let mut total_input: u64 = 0;
+    let mut total_output: u64 = 0;
+    let mut total_cache_creation: u64 = 0;
+    let mut total_cache_read: u64 = 0;
+    let mut model = String::new();
+
+    for line in reader.lines() {
+        let line = match line {
+            Ok(l) => l,
+            Err(_) => continue,
+        };
+
+        let v: serde_json::Value = match serde_json::from_str(&line) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+
+        if v.get("type").and_then(|t| t.as_str()) != Some("assistant") {
+            continue;
+        }
+
+        let usage = match v.get("message").and_then(|m| m.get("usage")) {
+            Some(u) => u,
+            None => continue,
+        };
+
+        total_input += usage.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
+        total_output += usage.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
+        total_cache_creation += usage.get("cache_creation_input_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
+        total_cache_read += usage.get("cache_read_input_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
+
+        if let Some(m) = v.get("message").and_then(|m| m.get("model")).and_then(|m| m.as_str()) {
+            model = m.to_string();
+        }
+    }
+
+    let pricing = get_model_pricing(&model);
+    let cost = calculate_cost(&pricing, total_input, total_output, total_cache_creation, total_cache_read);
+
+    Ok(SessionTotalUsage {
+        input_tokens: total_input,
+        output_tokens: total_output,
+        cache_creation_tokens: total_cache_creation,
+        cache_read_tokens: total_cache_read,
+        cost,
+        model,
+    })
+}

@@ -173,6 +173,15 @@ fn get_session_token_usage(
     token_usage::scan_session_usage(&session_id, &project_path, last_offset)
 }
 
+// 获取单个会话的 token 总量（全量扫描）
+#[tauri::command]
+fn get_session_total_usage(
+    session_id: String,
+    project_path: String,
+) -> Result<token_usage::SessionTotalUsage, String> {
+    token_usage::get_session_total_usage(&session_id, &project_path)
+}
+
 // PTY终端命令
 #[tauri::command]
 fn create_pty(
@@ -812,6 +821,7 @@ pub fn run() {
             check_claude_session_exists,
             read_session_history,
             get_session_token_usage,
+            get_session_total_usage,
             // 文件对话框
             select_folder,
             select_file,
