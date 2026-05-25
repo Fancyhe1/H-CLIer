@@ -90,17 +90,17 @@ function ActivityHeatmap() {
 function TrendChart() {
   const { stats } = useTokenStore()
 
-  // 生成最近7个日历天
-  const last7Days: string[] = []
-  for (let i = 6; i >= 0; i--) {
+  // 生成最近14个日历天
+  const last14Days: string[] = []
+  for (let i = 13; i >= 0; i--) {
     const d = new Date()
     d.setDate(d.getDate() - i)
-    last7Days.push(d.toISOString().split('T')[0])
+    last14Days.push(d.toISOString().split('T')[0])
   }
 
   // 建立日期 -> 数据的映射
   const dataMap = new Map(stats.history.map(h => [h.date, h]))
-  const chartData = last7Days.map(date => dataMap.get(date) || { date, inputTokens: 0, outputTokens: 0, cachedTokens: 0, totalCost: 0 })
+  const chartData = last14Days.map(date => dataMap.get(date) || { date, inputTokens: 0, outputTokens: 0, cachedTokens: 0, totalCost: 0 })
 
   const maxTokens = Math.max(...chartData.map(d => d.inputTokens + d.outputTokens), 1)
 
@@ -234,7 +234,7 @@ function TokenStatsPanel() {
         </Col>
       </Row>
 
-      <Card title="最近7天趋势" className="trend-card">
+      <Card title="最近14天趋势" className="trend-card">
         <TrendChart />
       </Card>
 
