@@ -9,7 +9,42 @@ const POLL_INTERVAL = 15000 // 15 seconds
 export function useTokenPolling() {
   const offsetMapRef = useRef<Map<string, number>>(new Map())
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const backfilledRef = useRef(false)
 
+  // 启动时全量扫描所有 Claude 会话
+  useEffect(() => {
+    if (backfilledRef.current) return
+    backfilledRef.current = true
+
+    const backfill = async () => {
+      const { sessions } = useSessionStore.getState()
+      const claudeSessions = sessions.filter(
+        s => s.sessionType === 'claude' && s.cliSessionId
+      )
+
+      for (const session of claudeSessions) {
+        const cliId = session.cliSessionId!
+        // 已有偏移量则跳过（避免重复扫描）
+        if (offsetMapRef.current.has(cliId)) continue
+
+        try {
+          const delta = await invoke<SessionUsageDelta>('get_session_token_usage', {
+            sessionId: cliId,
+            projectPath: session.projectPath,
+            lastOffset: 0,
+          })
+          offsetMapRef.current.set(cliId, delta.newFileOffset)
+          useTokenStore.getState().processSessionDelta(delta)
+        } catch {
+          // 文件不存在等情况，静默跳过
+        }
+      }
+    }
+
+    backfill()
+  }, [])
+
+  // 持续轮询活跃会话（增量更新）
   useEffect(() => {
     const poll = async () => {
       const { sessions, activeSessionId } = useSessionStore.getState()
@@ -18,31 +53,27 @@ export function useTokenPolling() {
       const session = sessions.find(s => s.id === activeSessionId)
       if (!session || session.sessionType !== 'claude' || !session.cliSessionId) return
 
-      const sessionId = session.cliSessionId
-      const lastOffset = offsetMapRef.current.get(sessionId) || 0
+      const cliId = session.cliSessionId
+      const lastOffset = offsetMapRef.current.get(cliId) || 0
 
       try {
         const delta = await invoke<SessionUsageDelta>('get_session_token_usage', {
-          sessionId,
+          sessionId: cliId,
           projectPath: session.projectPath,
           lastOffset,
         })
 
-        // Update offset for next poll
-        offsetMapRef.current.set(sessionId, delta.newFileOffset)
-
-        // Feed into token store
+        offsetMapRef.current.set(cliId, delta.newFileOffset)
         useTokenStore.getState().processSessionDelta(delta)
-      } catch (err) {
-        // Silently ignore - file may not exist yet
-        console.debug('[TokenPolling] Error:', err)
+      } catch {
+        // 静默忽略
       }
     }
 
-    // Initial poll
+    // 首次轮询
     poll()
 
-    // Set up interval
+    // 定时轮询
     intervalRef.current = setInterval(poll, POLL_INTERVAL)
 
     return () => {
@@ -51,5 +82,5 @@ export function useTokenPolling() {
         intervalRef.current = null
       }
     }
-  }, []) // Empty deps - reads from store directly
+  }, [])
 }
