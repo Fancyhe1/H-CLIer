@@ -90,19 +90,26 @@ function ActivityHeatmap() {
 function TrendChart() {
   const { stats } = useTokenStore()
 
-  // 按日期排序，取最近7天数据
-  const recentData = [...stats.history]
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .slice(-7)
+  // 生成最近7个日历天
+  const last7Days: string[] = []
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date()
+    d.setDate(d.getDate() - i)
+    last7Days.push(d.toISOString().split('T')[0])
+  }
 
-  const maxTokens = Math.max(...recentData.map(d => d.inputTokens + d.outputTokens))
+  // 建立日期 -> 数据的映射
+  const dataMap = new Map(stats.history.map(h => [h.date, h]))
+  const chartData = last7Days.map(date => dataMap.get(date) || { date, inputTokens: 0, outputTokens: 0, cachedTokens: 0, totalCost: 0 })
+
+  const maxTokens = Math.max(...chartData.map(d => d.inputTokens + d.outputTokens), 1)
 
   return (
     <div className="trend-chart">
       <div className="chart-bars">
-        {recentData.map((d, i) => {
+        {chartData.map((d, i) => {
           const total = d.inputTokens + d.outputTokens
-          const height = maxTokens > 0 ? (total / maxTokens) * 100 : 0
+          const height = (total / maxTokens) * 100
 
           return (
             <Tooltip
@@ -112,7 +119,7 @@ function TrendChart() {
               <div className="chart-bar-wrapper">
                 <div
                   className="chart-bar"
-                  style={{ height: `${height}%` }}
+                  style={{ height: `${height}%`, opacity: total === 0 ? 0.3 : 1 }}
                 />
                 <Text className="chart-label" type="secondary">
                   {d.date.slice(5)}
