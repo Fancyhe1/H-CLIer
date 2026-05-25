@@ -147,7 +147,7 @@
 }
 
 .calendar-cell.level-0 {
-  background-color: #30363d;
+  background-color: #e1e4e8;
 }
 
 .calendar-cell.level-1 {
@@ -210,20 +210,20 @@
   align-items: center;
   justify-content: space-between;
   padding: 6px 0;
-  border-bottom: 1px solid #303030;
+  border-bottom: 1px solid #e8e8e8;
 }
 
 .workspace-name {
   font-size: 13px;
   font-weight: 600;
-  color: #aaa;
+  color: #555;
 }
 
 .workspace-total {
   display: flex;
   gap: 12px;
   font-size: 12px;
-  color: #888;
+  color: #999;
 }
 
 .workspace-sessions {
@@ -239,11 +239,11 @@
   justify-content: space-between;
   padding: 10px 14px;
   border-radius: 6px;
-  background: #141414;
+  background: #f7f7f7;
 }
 
 .session-usage-item:hover {
-  background: #1f1f1f;
+  background: #efefef;
 }
 
 .session-usage-info {
@@ -257,7 +257,7 @@
 .session-usage-title {
   font-size: 14px;
   font-weight: 500;
-  color: #e0e0e0;
+  color: #333;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -265,7 +265,7 @@
 
 .session-usage-id {
   font-size: 11px;
-  color: #666;
+  color: #999;
   font-family: monospace;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -287,12 +287,12 @@
 .session-usage-stat-value {
   font-size: 14px;
   font-weight: 600;
-  color: #e0e0e0;
+  color: #333;
 }
 
 .session-usage-stat-label {
   font-size: 11px;
-  color: #888;
+  color: #999;
 }
 
 /* 暗色主题 */
@@ -326,4 +326,46 @@
 
 .dark .chart-bar {
   background: linear-gradient(to top, #177ddc, #3c9ae8);
+}
+
+/* 暗色主题 - 日历 */
+.dark .calendar-cell.level-0 {
+  background-color: #30363d;
+}
+
+/* 暗色主题 - 会话用量列表 */
+.dark .workspace-header {
+  border-bottom-color: #303030;
+}
+
+.dark .workspace-name {
+  color: #aaa;
+}
+
+.dark .workspace-total {
+  color: #888;
+}
+
+.dark .session-usage-item {
+  background: #141414;
+}
+
+.dark .session-usage-item:hover {
+  background: #1f1f1f;
+}
+
+.dark .session-usage-title {
+  color: #e0e0e0;
+}
+
+.dark .session-usage-id {
+  color: #666;
+}
+
+.dark .session-usage-stat-value {
+  color: #e0e0e0;
+}
+
+.dark .session-usage-stat-label {
+  color: #888;
 }
