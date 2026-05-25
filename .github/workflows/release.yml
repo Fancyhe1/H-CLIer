@@ -157,6 +157,71 @@ jobs:
           echo "=== latest.json ==="
           cat latest.json
 
+      - name: Generate changelog
+        id: changelog
+        shell: bash
+        run: |
+          CURRENT_TAG="${{ github.ref_name }}"
+
+          # 获取上一个 tag
+          PREV_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -2 | tail -1)
+
+          echo "Current tag: $CURRENT_TAG"
+          echo "Previous tag: $PREV_TAG"
+
+          # 生成 changelog
+          CHANGELOG=""
+
+          if [ -z "$PREV_TAG" ] || [ "$PREV_TAG" = "$CURRENT_TAG" ]; then
+            # 第一个版本，显示所有 commit
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges -20)
+          else
+            # 获取两个 tag 之间的 commit
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges "${PREV_TAG}..${CURRENT_TAG}")
+          fi
+
+          # 如果 changelog 为空，使用默认信息
+          if [ -z "$CHANGELOG" ]; then
+            CHANGELOG="- 版本更新"
+          fi
+
+          # 分类整理 changelog
+          FEATURES=""
+          FIXES=""
+          OTHERS=""
+
+          while IFS= read -r line; do
+            if echo "$line" | grep -qiE '^.*(feat|新[增加]|功能).*'; then
+              FEATURES="${FEATURES}${line}\n"
+            elif echo "$line" | grep -qiE '^.*(fix|修[复正]|bug).*'; then
+              FIXES="${FIXES}${line}\n"
+            else
+              OTHERS="${OTHERS}${line}\n"
+            fi
+          done <<< "$CHANGELOG"
+
+          # 构建最终 notes
+          NOTES="## ${CURRENT_TAG}\n\n"
+
+          if [ -n "$FEATURES" ]; then
+            NOTES="${NOTES}### ✨ 新功能\n${FEATURES}\n"
+          fi
+
+          if [ -n "$FIXES" ]; then
+            NOTES="${NOTES}### 🐛 问题修复\n${FIXES}\n"
+          fi
+
+          if [ -n "$OTHERS" ]; then
+            NOTES="${NOTES}### 📦 其他更新\n${OTHERS}\n"
+          fi
+
+          NOTES="${NOTES}\n---\n**下载说明**: 下载 \`.exe\` 文件运行即可安装"
+
+          # 保存到文件（避免转义问题）
+          echo -e "$NOTES" > release_notes.md
+          echo "=== Release Notes ==="
+          cat release_notes.md
+
       - name: Upload to H-CLIer Release
         working-directory: ./aicoder
         shell: bash
@@ -176,12 +241,12 @@ jobs:
 
           echo "Creating release and uploading $EXE_NAME..."
 
+          # 使用生成的 release notes
           gh release create "${{ github.ref_name }}" \
             --repo Fancyhe1/H-CLIer \
             --title "${{ github.ref_name }}" \
-            --notes "Release ${{ github.ref_name }}" \
-            --latest \
-            --generate-notes
+            --notes-file release_notes.md \
+            --latest
 
           echo "Uploading exe..."
           gh release upload "${{ github.ref_name }}" "$EXE_PATH" --repo Fancyhe1/H-CLIer
