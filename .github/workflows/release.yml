@@ -166,13 +166,18 @@ jobs:
 
           echo "Current tag: $CURRENT_TAG"
 
-          # 获取所有 tag 列表
-          ALL_TAGS=$(git tag -l "v*" | sort -V)
+          # 获取所有 tag 列表（不使用 sort -V，避免兼容性问题）
           echo "=== All tags ==="
-          echo "$ALL_TAGS"
+          git tag -l "v*"
 
-          # 获取上一个版本的 tag（排除当前 tag）
-          PREV_TAG=$(echo "$ALL_TAGS" | grep -v "^${CURRENT_TAG}$" | tail -1)
+          # 获取上一个版本的 tag（使用 git describe）
+          # git describe 会找到当前 commit 之前的 tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
+
+          # 如果上面失败，尝试从 tag 列表获取
+          if [ -z "$PREV_TAG" ]; then
+            PREV_TAG=$(git tag -l "v*" | grep -v "^${CURRENT_TAG}$" | tail -1 || true)
+          fi
 
           echo "Previous tag: $PREV_TAG"
 
@@ -180,13 +185,13 @@ jobs:
           CHANGELOG=""
 
           if [ -z "$PREV_TAG" ] || [ "$PREV_TAG" = "$CURRENT_TAG" ]; then
-            # 第一个版本，显示最近 30 条 commit
+            # 第一个版本或找不到上一个 tag，显示最近 30 条 commit
             echo "No previous tag found, showing last 30 commits"
-            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges -30)
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges -30 || true)
           else
             # 获取两个 tag 之间的所有 commit
             echo "Getting commits between $PREV_TAG and $CURRENT_TAG"
-            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges "${PREV_TAG}..${CURRENT_TAG}")
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges "${PREV_TAG}..HEAD" || true)
           fi
 
           echo "=== Raw changelog ==="
