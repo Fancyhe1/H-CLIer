@@ -278,14 +278,14 @@ jobs:
           fi
 
           echo "Uploading exe..."
-          gh release upload "${{ github.ref_name }}" "$EXE_PATH" --repo Fancyhe1/H-CLIer
+          gh release upload "${{ github.ref_name }}" "$EXE_PATH" --repo Fancyhe1/H-CLIer --clobber
 
           if [ -f "$SIG_PATH" ]; then
             echo "Uploading sig..."
-            gh release upload "${{ github.ref_name }}" "$SIG_PATH" --repo Fancyhe1/H-CLIer
+            gh release upload "${{ github.ref_name }}" "$SIG_PATH" --repo Fancyhe1/H-CLIer --clobber
           fi
 
           echo "Uploading latest.json..."
-          gh release upload "${{ github.ref_name }}" "latest.json" --repo Fancyhe1/H-CLIer
+          gh release upload "${{ github.ref_name }}" "latest.json" --repo Fancyhe1/H-CLIer --clobber
 
           echo "=== Done ==="
