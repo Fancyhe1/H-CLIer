@@ -1,0 +1,309 @@
+/* ===== 仪表盘样式 ===== */
+
+/* 统计概览 */
+.dashboard-stats {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.dashboard-stat-card {
+  flex: 1;
+  padding: 16px;
+  border-radius: 10px;
+  text-align: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.dashboard-stat-card:hover {
+  transform: translateY(-2px);
+}
+
+.dark .dashboard-stat-card {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border: 1px solid #2a2a3e;
+}
+
+.light .dashboard-stat-card {
+  background: linear-gradient(135deg, #f0f2ff 0%, #e8f4fd 100%);
+  border: 1px solid #d9e2ec;
+}
+
+.dashboard-stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.2;
+  transition: all 0.3s ease;
+}
+
+.dark .dashboard-stat-value {
+  color: #e6e6e6;
+}
+
+.light .dashboard-stat-value {
+  color: #1a1a2e;
+}
+
+.dashboard-stat-label {
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.dark .dashboard-stat-label {
+  color: #888;
+}
+
+.light .dashboard-stat-label {
+  color: #666;
+}
+
+/* 会话卡片网格 */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.dashboard-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dark .dashboard-section-title {
+  color: #c8c8d0;
+}
+
+.light .dashboard-section-title {
+  color: #333;
+}
+
+/* 会话卡片 */
+.session-card {
+  padding: 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  animation: fade-in-up 0.35s ease both;
+  position: relative;
+  overflow: hidden;
+}
+
+.session-card:nth-child(1) { animation-delay: 0.05s; }
+.session-card:nth-child(2) { animation-delay: 0.1s; }
+.session-card:nth-child(3) { animation-delay: 0.15s; }
+.session-card:nth-child(4) { animation-delay: 0.2s; }
+.session-card:nth-child(5) { animation-delay: 0.25s; }
+.session-card:nth-child(6) { animation-delay: 0.3s; }
+
+.dark .session-card {
+  background: #1e1e2e;
+  border: 1px solid #2a2a3e;
+}
+
+.light .session-card {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+}
+
+.session-card:hover {
+  transform: translateY(-3px);
+}
+
+.dark .session-card:hover {
+  border-color: #4a4a6e;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.light .session-card:hover {
+  border-color: #b0c4de;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+/* 活跃会话 - 脉冲边框 */
+.session-card.is-active {
+  animation: fade-in-up 0.35s ease both, pulse-glow 2.5s ease-in-out infinite;
+}
+
+.dark .session-card.is-active {
+  border-color: #4f6ef7;
+}
+
+.light .session-card.is-active {
+  border-color: #5b7cfa;
+}
+
+/* 卡片头部 */
+.session-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.session-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+.dark .session-card-title {
+  color: #e6e6e6;
+}
+
+.light .session-card-title {
+  color: #1a1a2e;
+}
+
+/* Agent 标签 */
+.agent-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+}
+
+.agent-badge.agent-claude {
+  background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.25);
+}
+
+.agent-badge.agent-terminal {
+  background: linear-gradient(135deg, #0891b2 0%, #22d3ee 100%);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(8, 145, 178, 0.25);
+}
+
+/* 卡片详情 */
+.session-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.dark .session-card-meta {
+  color: #888;
+}
+
+.light .session-card-meta {
+  color: #999;
+}
+
+.session-card-path {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+  font-size: 11px;
+}
+
+.dark .session-card-path {
+  color: #666;
+}
+
+.light .session-card-path {
+  color: #aaa;
+}
+
+/* 活动指示器 */
+.activity-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.activity-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.activity-dot.active {
+  background: #22c55e;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+  animation: pulse-dot 1.8s ease-in-out infinite;
+}
+
+.activity-dot.idle {
+  background: #888;
+}
+
+.dark .activity-dot.idle {
+  background: #555;
+}
+
+/* 空状态 */
+.dashboard-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 0;
+  color: #666;
+}
+
+.dashboard-empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.3;
+}
+
+.dashboard-empty-text {
+  font-size: 14px;
+}
+
+.dark .dashboard-empty-text {
+  color: #666;
+}
+
+.light .dashboard-empty-text {
+  color: #999;
+}
+
+/* ===== 动画 ===== */
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(79, 110, 247, 0);
+  }
+  50% {
+    box-shadow: 0 0 16px 2px rgba(79, 110, 247, 0.15);
+  }
+}
+
+@keyframes pulse-dot {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(0.85);
+  }
+}

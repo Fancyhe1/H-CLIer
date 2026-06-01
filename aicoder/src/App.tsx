@@ -32,8 +32,10 @@ import TokenStatsPanel from './components/TokenStatsPanel'
 import CommandPalette from './components/CommandPalette'
 import CheckpointModal from './components/CheckpointModal'
 import FileBrowserModal from './components/FileBrowserModal'
+import DashboardModal from './components/DashboardModal'
 import { useSettingsStore } from './stores/settingsStore'
 import { useSessionStore } from './stores/sessionStore'
+import { useKeybindingStore } from './stores/keybindingStore'
 import { useTokenPolling } from './hooks/useTokenPolling'
 import './styles/App.css'
 
@@ -46,7 +48,7 @@ type PanelType = 'terminal' | 'stats'
 type ThemeMode = 'light' | 'dark' | 'system'
 
 function App() {
-  const [collapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
   const [themeMode, setThemeMode] = useState<ThemeMode>('dark')
   const [currentTheme, setCurrentThemeLocal] = useState<'light' | 'dark'>('dark')
   const [settingsVisible, setSettingsVisible] = useState(false)
@@ -61,6 +63,7 @@ function App() {
   const [claudeMdContent, setClaudeMdContent] = useState('')
   const [claudeMdPath, setClaudeMdPath] = useState('')
   const [fileBrowserVisible, setFileBrowserVisible] = useState(false)
+  const [dashboardVisible, setDashboardVisible] = useState(false)
 
   // 从 store 获取版本和更新状态
   const { appVersion, updateStatus, getAppVersion } = useSettingsStore()
@@ -230,18 +233,91 @@ function App() {
     setCurrentTheme(resolved)
   }, [themeMode])
 
+  // 快捷键初始化：从配置加载自定义绑定
+  useEffect(() => {
+    useKeybindingStore.getState().loadBindings()
+  }, [])
+
   // 键盘快捷键监听
   useEffect(() => {
+    const store = useKeybindingStore.getState()
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl+K 打开命令面板
-      if (e.ctrlKey && e.key === 'k') {
+      // 忽略输入框中的快捷键（除了 ESC）
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return
+      }
+
+      const { matchesKeybinding } = useKeybindingStore.getState()
+
+      // 命令面板
+      if (matchesKeybinding(e, store.getKeybinding('command-palette'))) {
         e.preventDefault()
         setCommandPaletteVisible(true)
+        return
       }
-      // Ctrl+Shift+T 打开Token统计
-      if (e.ctrlKey && e.shiftKey && e.key === 'T') {
+      // 新建会话
+      if (matchesKeybinding(e, store.getKeybinding('new-session'))) {
+        e.preventDefault()
+        const btn = document.querySelector('[data-testid="new-session-btn"]') as HTMLButtonElement
+        btn?.click()
+        return
+      }
+      // 关闭当前会话
+      if (matchesKeybinding(e, store.getKeybinding('close-session'))) {
+        e.preventDefault()
+        const { activeSessionId, setClosedSession } = useSessionStore.getState()
+        if (activeSessionId) {
+          setClosedSession(activeSessionId)
+        }
+        return
+      }
+      // 切换侧边栏
+      if (matchesKeybinding(e, store.getKeybinding('toggle-sidebar'))) {
+        e.preventDefault()
+        setCollapsed(prev => !prev)
+        return
+      }
+      // 上一个标签
+      if (matchesKeybinding(e, store.getKeybinding('prev-session'))) {
+        e.preventDefault()
+        const { sessions, activeSessionId, setActiveSession } = useSessionStore.getState()
+        if (sessions.length > 1 && activeSessionId) {
+          const idx = sessions.findIndex(s => s.id === activeSessionId)
+          const prevIdx = idx > 0 ? idx - 1 : sessions.length - 1
+          setActiveSession(sessions[prevIdx].id)
+        }
+        return
+      }
+      // 下一个标签
+      if (matchesKeybinding(e, store.getKeybinding('next-session'))) {
+        e.preventDefault()
+        const { sessions, activeSessionId, setActiveSession } = useSessionStore.getState()
+        if (sessions.length > 1 && activeSessionId) {
+          const idx = sessions.findIndex(s => s.id === activeSessionId)
+          const nextIdx = idx < sessions.length - 1 ? idx + 1 : 0
+          setActiveSession(sessions[nextIdx].id)
+        }
+        return
+      }
+      // 打开设置
+      if (matchesKeybinding(e, store.getKeybinding('open-settings'))) {
+        e.preventDefault()
+        setSettingsVisible(true)
+        return
+      }
+      // Token 统计
+      if (matchesKeybinding(e, store.getKeybinding('token-stats'))) {
         e.preventDefault()
         setActivePanel('stats')
+        return
+      }
+      // 窗口置顶
+      if (matchesKeybinding(e, store.getKeybinding('toggle-pin'))) {
+        e.preventDefault()
+        toggleAlwaysOnTop()
+        return
       }
     }
 
@@ -477,6 +553,7 @@ function App() {
                   icon={<DashboardOutlined />}
                   className="status-btn"
                   size="small"
+                  onClick={() => setDashboardVisible(true)}
                 >
                   仪表盘
                 </Button>
@@ -541,7 +618,34 @@ function App() {
       <CommandPalette
         visible={commandPaletteVisible}
         onClose={() => setCommandPaletteVisible(false)}
+        onNewSession={() => {
+          const btn = document.querySelector('[data-testid="new-session-btn"]') as HTMLButtonElement
+          btn?.click()
+        }}
+        onCloseSession={() => {
+          const { activeSessionId, setClosedSession } = useSessionStore.getState()
+          if (activeSessionId) setClosedSession(activeSessionId)
+        }}
+        onToggleSidebar={() => setCollapsed(prev => !prev)}
+        onPrevSession={() => {
+          const { sessions, activeSessionId, setActiveSession } = useSessionStore.getState()
+          if (sessions.length > 1 && activeSessionId) {
+            const idx = sessions.findIndex(s => s.id === activeSessionId)
+            const prevIdx = idx > 0 ? idx - 1 : sessions.length - 1
+            setActiveSession(sessions[prevIdx].id)
+          }
+        }}
+        onNextSession={() => {
+          const { sessions, activeSessionId, setActiveSession } = useSessionStore.getState()
+          if (sessions.length > 1 && activeSessionId) {
+            const idx = sessions.findIndex(s => s.id === activeSessionId)
+            const nextIdx = idx < sessions.length - 1 ? idx + 1 : 0
+            setActiveSession(sessions[nextIdx].id)
+          }
+        }}
         onOpenStats={() => setActivePanel('stats')}
+        onOpenSettings={() => setSettingsVisible(true)}
+        onTogglePin={toggleAlwaysOnTop}
       />
 
       <CheckpointModal
@@ -554,6 +658,12 @@ function App() {
         visible={fileBrowserVisible}
         onClose={() => setFileBrowserVisible(false)}
         projectPath={activeSession?.projectPath || ''}
+        theme={currentTheme}
+      />
+
+      <DashboardModal
+        visible={dashboardVisible}
+        onClose={() => setDashboardVisible(false)}
         theme={currentTheme}
       />
     </ConfigProvider>
