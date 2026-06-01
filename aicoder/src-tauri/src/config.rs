@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -53,6 +54,17 @@ pub struct AppConfig {
     pub general: GeneralConfig,
 }
 
+/// 常用语条目
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PhraseItem {
+    /// 唯一标识
+    pub id: String,
+    /// 显示名称
+    pub label: String,
+    /// 填充内容
+    pub content: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GeneralConfig {
     /// 主题设置
@@ -63,6 +75,12 @@ pub struct GeneralConfig {
     pub auto_start_claude: bool,
     /// 默认导出路径
     pub default_export_path: Option<String>,
+    /// 自定义快捷键绑定：actionId -> keyCombo
+    #[serde(default)]
+    pub keybindings: Option<HashMap<String, String>>,
+    /// 自定义常用语列表
+    #[serde(default)]
+    pub phrases: Option<Vec<PhraseItem>>,
 }
 
 impl Default for AppConfig {
@@ -81,6 +99,8 @@ impl Default for GeneralConfig {
             terminal_font_size: 14,
             auto_start_claude: false,
             default_export_path: None,
+            keybindings: None,
+            phrases: None,
         }
     }
 }

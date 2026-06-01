@@ -70,6 +70,23 @@ function MultiTerminal() {
     }
   }, [closedSessionId])
 
+  // 监听常用语追加事件
+  useEffect(() => {
+    const handleAppendToTerminal = (e: Event) => {
+      const customEvent = e as CustomEvent
+      const text = customEvent.detail?.text
+      if (!text || !activeSessionId) return
+
+      const instance = terminalsRef.current.get(activeSessionId)
+      if (instance?.ptyId) {
+        invoke('write_to_pty', { ptyId: instance.ptyId, data: text })
+      }
+    }
+
+    window.addEventListener('append-to-terminal', handleAppendToTerminal)
+    return () => window.removeEventListener('append-to-terminal', handleAppendToTerminal)
+  }, [activeSessionId])
+
   // 当 activeSessionId 变为 null 时，确保没有终端显示
   useEffect(() => {
     if (!activeSessionId) {
@@ -207,10 +224,11 @@ function MultiTerminal() {
           invoke('write_to_pty', { ptyId, data }).catch(console.error)
         })
 
-        // Ctrl+C 复制选中内容，Ctrl+V 粘贴
+        // 键盘快捷键拦截
         // 使用 attachCustomKeyEventHandler 在 xterm 处理之前拦截按键
         let lastPasteTime = 0
         term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
+          // Ctrl+C 复制选中内容，无选中时发送中断信号
           if (e.ctrlKey && e.key === 'c') {
             const selection = term.getSelection()
             if (selection) {
@@ -222,6 +240,7 @@ function MultiTerminal() {
             return true // 无选中时让 xterm 正常处理（发送中断信号）
           }
 
+          // Ctrl+V 粘贴
           if (e.ctrlKey && e.key === 'v') {
             const now = Date.now()
             if (now - lastPasteTime < 400) return false
@@ -233,6 +252,31 @@ function MultiTerminal() {
               }
             }).catch(() => {})
             return false // 阻止 xterm 处理
+          }
+
+          // 全局快捷键：拦截需要在终端聚焦时也能工作的快捷键
+          // 通过自定义事件转发给 App.tsx 的全局处理器
+          const globalShortcuts = [
+            { ctrl: true, shift: false, key: 'k' },  // 命令面板
+            { ctrl: true, shift: false, key: 'n' },  // 新建会话
+            { ctrl: true, shift: false, key: 'w' },  // 关闭会话
+            { ctrl: true, shift: true, key: 'T' },   // Token 统计
+            { ctrl: true, shift: true, key: 'P' },   // 窗口置顶
+          ]
+
+          for (const shortcut of globalShortcuts) {
+            if (
+              e.ctrlKey === shortcut.ctrl &&
+              e.shiftKey === shortcut.shift &&
+              e.key.toLowerCase() === shortcut.key.toLowerCase()
+            ) {
+              e.preventDefault()
+              e.stopPropagation()
+              window.dispatchEvent(
+                new CustomEvent('global-shortcut', { detail: { originalEvent: e } })
+              )
+              return false // 阻止 xterm 处理
+            }
           }
 
           return true

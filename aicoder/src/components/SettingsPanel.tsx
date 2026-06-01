@@ -20,6 +20,7 @@ import {
 import {
   CheckCircleOutlined,
   CloseCircleOutlined,
+  CloseOutlined,
   MoonOutlined,
   SunOutlined,
   ClearOutlined,
@@ -32,10 +33,14 @@ import {
   SettingOutlined,
   ApiOutlined,
   RocketOutlined,
+  EditOutlined,
+  UndoOutlined,
 } from '@ant-design/icons'
 import { invoke } from '@tauri-apps/api/core'
 import { useSessionStore } from '../stores/sessionStore'
 import { useSettingsStore, McpServerInfo, SkillInfo, HookInfo } from '../stores/settingsStore'
+import { useKeybindingStore } from '../stores/keybindingStore'
+import { usePhraseStore } from '../stores/phraseStore'
 import '../styles/SettingsPanel.css'
 
 const { TabPane } = Tabs
@@ -56,6 +61,147 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
   const [apiForm] = Form.useForm()
 
   const { sessions, clearAllSessions } = useSessionStore()
+  const {
+    getAllKeybindings,
+    setCustomBinding,
+    removeCustomBinding,
+    resetAllBindings,
+  } = useKeybindingStore()
+  const {
+    phrases,
+    loadPhrases,
+    addPhrase,
+    updatePhrase,
+    removePhrase,
+  } = usePhraseStore()
+
+  // 常用语编辑状态
+  const [editingPhraseId, setEditingPhraseId] = useState<string | null>(null)
+  const [phraseLabel, setPhraseLabel] = useState('')
+  const [phraseContent, setPhraseContent] = useState('')
+  const [showPhraseForm, setShowPhraseForm] = useState(false)
+
+  // 快捷键编辑状态
+  const [editingActionId, setEditingActionId] = useState<string | null>(null)
+  const [recordingKey, setRecordingKey] = useState(false)
+
+  // 开始录制快捷键
+  const startRecording = (actionId: string) => {
+    setEditingActionId(actionId)
+    setRecordingKey(true)
+  }
+
+  // 取消录制
+  const cancelRecording = () => {
+    setEditingActionId(null)
+    setRecordingKey(false)
+  }
+
+  // 录制快捷键的键盘事件处理
+  useEffect(() => {
+    if (!recordingKey) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+
+      // ESC 取消
+      if (e.key === 'Escape') {
+        cancelRecording()
+        return
+      }
+
+      // 忽略单独的修饰键
+      if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) {
+        return
+      }
+
+      // 构建快捷键字符串
+      const parts: string[] = []
+      if (e.ctrlKey) parts.push('Ctrl')
+      if (e.shiftKey) parts.push('Shift')
+      if (e.altKey) parts.push('Alt')
+
+      // 主键名称
+      let keyName = e.key
+      if (keyName === ' ') keyName = 'Space'
+      if (keyName === 'ArrowUp') keyName = 'Up'
+      if (keyName === 'ArrowDown') keyName = 'Down'
+      if (keyName === 'ArrowLeft') keyName = 'Left'
+      if (keyName === 'ArrowRight') keyName = 'Right'
+
+      parts.push(keyName)
+      const keyCombo = parts.join('+')
+
+      // 检查冲突
+      const allBindings = getAllKeybindings()
+      const conflict = allBindings.find(
+        b => b.currentKey === keyCombo && b.id !== editingActionId
+      )
+
+      if (conflict) {
+        message.warning(`快捷键 ${keyCombo} 已被"${conflict.title}"使用，请选择其他快捷键`)
+        return
+      }
+
+      // 保存
+      if (editingActionId) {
+        setCustomBinding(editingActionId, keyCombo)
+        message.success(`快捷键已设置为 ${keyCombo}`)
+      }
+      cancelRecording()
+    }
+
+    window.addEventListener('keydown', handleKeyDown, true)
+    return () => window.removeEventListener('keydown', handleKeyDown, true)
+  }, [recordingKey, editingActionId])
+
+  // 加载常用语
+  useEffect(() => {
+    loadPhrases()
+  }, [])
+
+  // 常用语操作
+  const handleSavePhrase = () => {
+    if (!phraseLabel.trim() || !phraseContent.trim()) {
+      message.warning('名称和内容不能为空')
+      return
+    }
+    if (editingPhraseId) {
+      updatePhrase(editingPhraseId, phraseLabel.trim(), phraseContent.trim())
+      message.success('常用语已更新')
+    } else {
+      addPhrase(phraseLabel.trim(), phraseContent.trim())
+      message.success('常用语已添加')
+    }
+    setPhraseLabel('')
+    setPhraseContent('')
+    setEditingPhraseId(null)
+    setShowPhraseForm(false)
+  }
+
+  const handleEditPhrase = (id: string) => {
+    const phrase = phrases.find(p => p.id === id)
+    if (phrase) {
+      setEditingPhraseId(id)
+      setPhraseLabel(phrase.label)
+      setPhraseContent(phrase.content)
+      setShowPhraseForm(true)
+    }
+  }
+
+  const handleDeletePhrase = (id: string) => {
+    removePhrase(id)
+    message.success('常用语已删除')
+  }
+
+  const handleCancelPhrase = () => {
+    setPhraseLabel('')
+    setPhraseContent('')
+    setEditingPhraseId(null)
+    setShowPhraseForm(false)
+  }
+
   const {
     config,
     isLoading,
@@ -267,6 +413,104 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
               <Text type="secondary">当前共有 {sessions.length} 个会话</Text>
             </Form.Item>
 
+            <Divider />
+
+            <Title level={5}>常用语</Title>
+            <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
+              在命令面板中选择常用语，自动填充到终端输入栏
+            </Text>
+
+            {phrases.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                {phrases.map(phrase => (
+                  <div
+                    key={phrase.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '8px 12px',
+                      marginBottom: 4,
+                      borderRadius: 6,
+                      background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5',
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <Text strong style={{ fontSize: 13 }}>{phrase.label}</Text>
+                      <br />
+                      <Text
+                        type="secondary"
+                        style={{ fontSize: 12 }}
+                        ellipsis
+                      >
+                        {phrase.content}
+                      </Text>
+                    </div>
+                    <Space size={4}>
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<EditOutlined />}
+                        onClick={() => handleEditPhrase(phrase.id)}
+                      />
+                      <Button
+                        type="text"
+                        size="small"
+                        danger
+                        icon={<CloseOutlined />}
+                        onClick={() => handleDeletePhrase(phrase.id)}
+                      />
+                    </Space>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {showPhraseForm ? (
+              <div style={{
+                padding: 12,
+                marginBottom: 12,
+                borderRadius: 6,
+                border: `1px solid ${theme === 'dark' ? '#444' : '#d9d9d9'}`,
+                background: theme === 'dark' ? '#1f1f1f' : '#fff',
+              }}>
+                <Form.Item label="名称" style={{ marginBottom: 8 }}>
+                  <Input
+                    value={phraseLabel}
+                    onChange={e => setPhraseLabel(e.target.value)}
+                    placeholder="如：问候语"
+                    size="small"
+                  />
+                </Form.Item>
+                <Form.Item label="内容" style={{ marginBottom: 8 }}>
+                  <Input.TextArea
+                    value={phraseContent}
+                    onChange={e => setPhraseContent(e.target.value)}
+                    placeholder="要填充到终端的文本内容"
+                    rows={3}
+                    size="small"
+                  />
+                </Form.Item>
+                <Space>
+                  <Button type="primary" size="small" onClick={handleSavePhrase}>
+                    {editingPhraseId ? '更新' : '添加'}
+                  </Button>
+                  <Button size="small" onClick={handleCancelPhrase}>
+                    取消
+                  </Button>
+                </Space>
+              </div>
+            ) : (
+              <Button
+                type="dashed"
+                block
+                onClick={() => setShowPhraseForm(true)}
+                style={{ marginBottom: 12 }}
+              >
+                + 添加常用语
+              </Button>
+            )}
+
             <Form.Item
               name="default_export_path"
               label="默认导出路径"
@@ -302,6 +546,123 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
               </Button>
             </Form.Item>
           </Form>
+        </TabPane>
+
+        {/* 快捷键设置 */}
+        <TabPane
+          tab={
+            <span>
+              <EditOutlined />
+              快捷键
+            </span>
+          }
+          key="keybindings"
+        >
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <Title level={5} style={{ margin: 0 }}>快捷键设置</Title>
+              <Button
+                size="small"
+                icon={<UndoOutlined />}
+                onClick={() => {
+                  resetAllBindings()
+                  message.success('已恢复所有默认快捷键')
+                }}
+              >
+                全部恢复默认
+              </Button>
+            </div>
+            <Text type="secondary">点击"编辑"后按下新的快捷键组合，ESC 取消。</Text>
+          </div>
+
+          {(['全局', '会话', '终端'] as const).map(category => {
+            const categoryBindings = getAllKeybindings().filter(b => b.category === category)
+            if (categoryBindings.length === 0) return null
+            return (
+              <div key={category} style={{ marginBottom: 24 }}>
+                <Text strong style={{ fontSize: 13, color: theme === 'dark' ? '#aaa' : '#666' }}>
+                  {category}
+                </Text>
+                <div style={{ marginTop: 8 }}>
+                  {categoryBindings.map(binding => {
+                    const isEditing = editingActionId === binding.id
+                    const isCustom = binding.currentKey !== binding.defaultKey
+
+                    return (
+                      <div
+                        key={binding.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '8px 12px',
+                          marginBottom: 4,
+                          borderRadius: 6,
+                          background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5',
+                          border: isEditing
+                            ? '1px solid #1677ff'
+                            : '1px solid transparent',
+                        }}
+                      >
+                        <div>
+                          <Text>{binding.title}</Text>
+                          <br />
+                          <Text type="secondary" style={{ fontSize: 11 }}>
+                            {binding.description}
+                          </Text>
+                        </div>
+                        <Space size={4}>
+                          {isEditing ? (
+                            <Tag
+                              color="processing"
+                              style={{ cursor: 'pointer', fontFamily: 'monospace', padding: '2px 8px' }}
+                              onClick={cancelRecording}
+                            >
+                              请按下快捷键...
+                            </Tag>
+                          ) : (
+                            <>
+                              <kbd
+                                style={{
+                                  padding: '2px 8px',
+                                  background: theme === 'dark' ? '#3a3a3a' : '#e8e8e8',
+                                  border: `1px solid ${theme === 'dark' ? '#555' : '#d9d9d9'}`,
+                                  borderRadius: 4,
+                                  fontFamily: 'monospace',
+                                  fontSize: 12,
+                                  color: theme === 'dark' ? '#fff' : '#333',
+                                }}
+                              >
+                                {binding.currentKey}
+                              </kbd>
+                              <Button
+                                type="text"
+                                size="small"
+                                icon={<EditOutlined />}
+                                onClick={() => startRecording(binding.id)}
+                              />
+                              {isCustom && (
+                                <Button
+                                  type="text"
+                                  size="small"
+                                  icon={<UndoOutlined />}
+                                  onClick={() => {
+                                    removeCustomBinding(binding.id)
+                                    message.success('已恢复默认快捷键')
+                                  }}
+                                  title="恢复默认"
+                                />
+                              )}
+                            </>
+                          )}
+                        </Space>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
         </TabPane>
 
         {/* Claude Code 设置 */}

@@ -48,7 +48,7 @@ type PanelType = 'terminal' | 'stats'
 type ThemeMode = 'light' | 'dark' | 'system'
 
 function App() {
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed] = useState(false)
   const [themeMode, setThemeMode] = useState<ThemeMode>('dark')
   const [currentTheme, setCurrentThemeLocal] = useState<'light' | 'dark'>('dark')
   const [settingsVisible, setSettingsVisible] = useState(false)
@@ -238,91 +238,100 @@ function App() {
     useKeybindingStore.getState().loadBindings()
   }, [])
 
-  // 键盘快捷键监听
-  useEffect(() => {
-    const store = useKeybindingStore.getState()
+  // 快捷键处理函数（全局 keydown 和终端转发事件共用）
+  const handleShortcut = (e: KeyboardEvent) => {
+    const { matchesKeybinding, getKeybinding } = useKeybindingStore.getState()
 
+    // 命令面板
+    if (matchesKeybinding(e, getKeybinding('command-palette'))) {
+      e.preventDefault()
+      setCommandPaletteVisible(true)
+      return
+    }
+    // 新建会话
+    if (matchesKeybinding(e, getKeybinding('new-session'))) {
+      e.preventDefault()
+      const btn = document.querySelector('[data-testid="new-session-btn"]') as HTMLButtonElement
+      btn?.click()
+      return
+    }
+    // 关闭当前会话
+    if (matchesKeybinding(e, getKeybinding('close-session'))) {
+      e.preventDefault()
+      const { activeSessionId, setClosedSession } = useSessionStore.getState()
+      if (activeSessionId) {
+        setClosedSession(activeSessionId)
+      }
+      return
+    }
+    // 上一个标签
+    if (matchesKeybinding(e, getKeybinding('prev-session'))) {
+      e.preventDefault()
+      const { sessions, activeSessionId, setActiveSession } = useSessionStore.getState()
+      if (sessions.length > 1 && activeSessionId) {
+        const idx = sessions.findIndex(s => s.id === activeSessionId)
+        const prevIdx = idx > 0 ? idx - 1 : sessions.length - 1
+        setActiveSession(sessions[prevIdx].id)
+      }
+      return
+    }
+    // 下一个标签
+    if (matchesKeybinding(e, getKeybinding('next-session'))) {
+      e.preventDefault()
+      const { sessions, activeSessionId, setActiveSession } = useSessionStore.getState()
+      if (sessions.length > 1 && activeSessionId) {
+        const idx = sessions.findIndex(s => s.id === activeSessionId)
+        const nextIdx = idx < sessions.length - 1 ? idx + 1 : 0
+        setActiveSession(sessions[nextIdx].id)
+      }
+      return
+    }
+    // 打开设置
+    if (matchesKeybinding(e, getKeybinding('open-settings'))) {
+      e.preventDefault()
+      setSettingsVisible(true)
+      return
+    }
+    // Token 统计
+    if (matchesKeybinding(e, getKeybinding('token-stats'))) {
+      e.preventDefault()
+      setActivePanel('stats')
+      return
+    }
+    // 窗口置顶
+    if (matchesKeybinding(e, getKeybinding('toggle-pin'))) {
+      e.preventDefault()
+      toggleAlwaysOnTop()
+      return
+    }
+  }
+
+  // 键盘快捷键监听（全局）
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // 忽略输入框中的快捷键（除了 ESC）
+      // 忽略输入框中的快捷键
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
         return
       }
-
-      const { matchesKeybinding } = useKeybindingStore.getState()
-
-      // 命令面板
-      if (matchesKeybinding(e, store.getKeybinding('command-palette'))) {
-        e.preventDefault()
-        setCommandPaletteVisible(true)
-        return
-      }
-      // 新建会话
-      if (matchesKeybinding(e, store.getKeybinding('new-session'))) {
-        e.preventDefault()
-        const btn = document.querySelector('[data-testid="new-session-btn"]') as HTMLButtonElement
-        btn?.click()
-        return
-      }
-      // 关闭当前会话
-      if (matchesKeybinding(e, store.getKeybinding('close-session'))) {
-        e.preventDefault()
-        const { activeSessionId, setClosedSession } = useSessionStore.getState()
-        if (activeSessionId) {
-          setClosedSession(activeSessionId)
-        }
-        return
-      }
-      // 切换侧边栏
-      if (matchesKeybinding(e, store.getKeybinding('toggle-sidebar'))) {
-        e.preventDefault()
-        setCollapsed(prev => !prev)
-        return
-      }
-      // 上一个标签
-      if (matchesKeybinding(e, store.getKeybinding('prev-session'))) {
-        e.preventDefault()
-        const { sessions, activeSessionId, setActiveSession } = useSessionStore.getState()
-        if (sessions.length > 1 && activeSessionId) {
-          const idx = sessions.findIndex(s => s.id === activeSessionId)
-          const prevIdx = idx > 0 ? idx - 1 : sessions.length - 1
-          setActiveSession(sessions[prevIdx].id)
-        }
-        return
-      }
-      // 下一个标签
-      if (matchesKeybinding(e, store.getKeybinding('next-session'))) {
-        e.preventDefault()
-        const { sessions, activeSessionId, setActiveSession } = useSessionStore.getState()
-        if (sessions.length > 1 && activeSessionId) {
-          const idx = sessions.findIndex(s => s.id === activeSessionId)
-          const nextIdx = idx < sessions.length - 1 ? idx + 1 : 0
-          setActiveSession(sessions[nextIdx].id)
-        }
-        return
-      }
-      // 打开设置
-      if (matchesKeybinding(e, store.getKeybinding('open-settings'))) {
-        e.preventDefault()
-        setSettingsVisible(true)
-        return
-      }
-      // Token 统计
-      if (matchesKeybinding(e, store.getKeybinding('token-stats'))) {
-        e.preventDefault()
-        setActivePanel('stats')
-        return
-      }
-      // 窗口置顶
-      if (matchesKeybinding(e, store.getKeybinding('toggle-pin'))) {
-        e.preventDefault()
-        toggleAlwaysOnTop()
-        return
-      }
+      handleShortcut(e)
     }
 
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+
+    // 监听终端转发的全局快捷键事件
+    const handleTerminalShortcut = (e: Event) => {
+      const originalEvent = (e as CustomEvent).detail?.originalEvent
+      if (originalEvent) {
+        handleShortcut(originalEvent)
+      }
+    }
+    window.addEventListener('global-shortcut', handleTerminalShortcut)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('global-shortcut', handleTerminalShortcut)
+    }
   }, [])
 
   // 切换置顶
@@ -626,7 +635,6 @@ function App() {
           const { activeSessionId, setClosedSession } = useSessionStore.getState()
           if (activeSessionId) setClosedSession(activeSessionId)
         }}
-        onToggleSidebar={() => setCollapsed(prev => !prev)}
         onPrevSession={() => {
           const { sessions, activeSessionId, setActiveSession } = useSessionStore.getState()
           if (sessions.length > 1 && activeSessionId) {

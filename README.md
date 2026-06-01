@@ -9,6 +9,8 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
 [![Rust](https://img.shields.io/badge/Rust-000000?logo=rust)](https://www.rust-lang.org)
 
+> ⚠️ **注意**：由于功能尚未开发完善，暂时不开源代码，待功能开发完成后会开源全部代码。
+
 ---
 
 ## 简介

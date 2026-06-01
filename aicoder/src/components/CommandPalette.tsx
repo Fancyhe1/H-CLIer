@@ -10,12 +10,16 @@ import {
 import {
   SearchOutlined,
   ThunderboltOutlined,
-  StarOutlined,
-  MessageOutlined,
   BarChartOutlined,
+  CloseOutlined,
+  LeftOutlined,
+  RightOutlined,
+  SettingOutlined,
+  PushpinOutlined,
+  FontSizeOutlined,
 } from '@ant-design/icons'
-import { useSessionStore } from '../stores/sessionStore'
-import type { Session } from '../types/session'
+import { useKeybindingStore } from '../stores/keybindingStore'
+import { usePhraseStore } from '../stores/phraseStore'
 import '../styles/CommandPalette.css'
 
 const { Text } = Typography
@@ -25,7 +29,7 @@ interface CommandItem {
   title: string
   description: string
   icon: React.ReactNode
-  type: 'session' | 'action'
+  type: 'action' | 'phrase'
   action: () => void
   keywords: string[]
   shortcut?: string
@@ -34,62 +38,63 @@ interface CommandItem {
 interface CommandPaletteProps {
   visible: boolean
   onClose: () => void
-  onOpenSession?: (sessionId: string) => void
+  onNewSession?: () => void
+  onCloseSession?: () => void
+  onPrevSession?: () => void
+  onNextSession?: () => void
   onOpenStats?: () => void
+  onOpenSettings?: () => void
+  onTogglePin?: () => void
 }
 
 function CommandPalette({
   visible,
   onClose,
-  onOpenSession,
+  onNewSession,
+  onCloseSession,
+  onPrevSession,
+  onNextSession,
   onOpenStats,
+  onOpenSettings,
+  onTogglePin,
 }: CommandPaletteProps) {
   const [search, setSearch] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
 
-  const { sessions, setActiveSession } = useSessionStore()
+  const { getKeybinding, formatKey } = useKeybindingStore()
+  const { phrases, loadPhrases } = usePhraseStore()
 
-  // 构建命令列表
+  // 打开时加载常用语
+  useEffect(() => {
+    if (visible) {
+      loadPhrases()
+    }
+  }, [visible])
+
+  // 构建命令列表（常用语固定在最上方）
   const commands = useMemo<CommandItem[]>(() => {
     const items: CommandItem[] = []
 
-    // 最近会话
-    sessions.slice(0, 5).forEach((session: Session) => {
+    // 常用语命令（固定在最上方）
+    phrases.forEach(phrase => {
       items.push({
-        id: `session-${session.id}`,
-        title: session.title,
-        description: `打开会话 - ${session.projectPath}`,
-        icon: <MessageOutlined />,
-        type: 'session',
+        id: `phrase-${phrase.id}`,
+        title: phrase.label,
+        description: phrase.content.length > 50 ? phrase.content.slice(0, 50) + '...' : phrase.content,
+        icon: <FontSizeOutlined />,
+        type: 'phrase',
         action: () => {
-          setActiveSession(session.id)
-          onOpenSession?.(session.id)
+          // 触发自定义事件，通知终端追加文本
+          window.dispatchEvent(new CustomEvent('append-to-terminal', {
+            detail: { text: phrase.content }
+          }))
           onClose()
         },
-        keywords: [session.title, session.projectPath, '会话', 'session'],
+        keywords: [phrase.label, phrase.content, '常用语', 'phrase'],
       })
     })
 
-    // 收藏的会话
-    sessions
-      .filter(s => s.isFavorite)
-      .forEach((session: Session) => {
-        items.push({
-          id: `favorite-${session.id}`,
-          title: session.title,
-          description: `收藏会话 - ${session.projectPath}`,
-          icon: <StarOutlined style={{ color: '#faad14' }} />,
-          type: 'session',
-          action: () => {
-            setActiveSession(session.id)
-            onOpenSession?.(session.id)
-            onClose()
-          },
-          keywords: [session.title, '收藏', 'favorite'],
-        })
-      })
-
-    // 全局操作
+    // 操作命令
     items.push(
       {
         id: 'action-new-session',
@@ -98,13 +103,50 @@ function CommandPalette({
         icon: <ThunderboltOutlined />,
         type: 'action',
         action: () => {
-          // 触发新建会话
-          const btn = document.querySelector('[data-testid="new-session-btn"]') as HTMLButtonElement
-          btn?.click()
+          onNewSession?.()
           onClose()
         },
         keywords: ['新建', '创建', '会话', 'new', 'session'],
-        shortcut: 'Ctrl+N',
+        shortcut: formatKey(getKeybinding('new-session')),
+      },
+      {
+        id: 'action-close-session',
+        title: '关闭会话',
+        description: '关闭当前活跃的会话标签',
+        icon: <CloseOutlined />,
+        type: 'action',
+        action: () => {
+          onCloseSession?.()
+          onClose()
+        },
+        keywords: ['关闭', '会话', 'close', 'session'],
+        shortcut: formatKey(getKeybinding('close-session')),
+      },
+      {
+        id: 'action-prev-session',
+        title: '上一个标签',
+        description: '切换到左侧的会话标签',
+        icon: <LeftOutlined />,
+        type: 'action',
+        action: () => {
+          onPrevSession?.()
+          onClose()
+        },
+        keywords: ['上一个', '标签', '切换', 'prev', 'tab'],
+        shortcut: formatKey(getKeybinding('prev-session')),
+      },
+      {
+        id: 'action-next-session',
+        title: '下一个标签',
+        description: '切换到右侧的会话标签',
+        icon: <RightOutlined />,
+        type: 'action',
+        action: () => {
+          onNextSession?.()
+          onClose()
+        },
+        keywords: ['下一个', '标签', '切换', 'next', 'tab'],
+        shortcut: formatKey(getKeybinding('next-session')),
       },
       {
         id: 'action-stats',
@@ -117,12 +159,38 @@ function CommandPalette({
           onClose()
         },
         keywords: ['统计', 'token', '用量'],
-        shortcut: 'Ctrl+Shift+T',
-      }
+        shortcut: formatKey(getKeybinding('token-stats')),
+      },
+      {
+        id: 'action-settings',
+        title: '打开设置',
+        description: '打开应用设置面板',
+        icon: <SettingOutlined />,
+        type: 'action',
+        action: () => {
+          onOpenSettings?.()
+          onClose()
+        },
+        keywords: ['设置', '配置', 'settings'],
+        shortcut: formatKey(getKeybinding('open-settings')),
+      },
+      {
+        id: 'action-toggle-pin',
+        title: '窗口置顶',
+        description: '切换窗口置顶状态',
+        icon: <PushpinOutlined />,
+        type: 'action',
+        action: () => {
+          onTogglePin?.()
+          onClose()
+        },
+        keywords: ['置顶', '窗口', 'pin', 'always', 'top'],
+        shortcut: formatKey(getKeybinding('toggle-pin')),
+      },
     )
 
     return items
-  }, [sessions, onClose, onOpenSession, onOpenStats, setActiveSession])
+  }, [onClose, onNewSession, onCloseSession, onPrevSession, onNextSession, onOpenStats, onOpenSettings, onTogglePin, getKeybinding, formatKey, phrases])
 
   // 过滤命令
   const filteredCommands = useMemo(() => {
@@ -234,9 +302,6 @@ function CommandPalette({
                     </div>
                   </div>
                   <div className="command-item-meta">
-                    <Tag className={`command-type-${item.type}`}>
-                      {item.type === 'session' ? '会话' : '操作'}
-                    </Tag>
                     {item.shortcut && (
                       <kbd className="command-shortcut">{item.shortcut}</kbd>
                     )}

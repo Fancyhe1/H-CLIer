@@ -20,6 +20,14 @@ export interface GeneralConfig {
   terminal_font_size: number
   auto_start_claude: boolean
   default_export_path: string | null
+  keybindings?: Record<string, string>
+  phrases?: PhraseItem[]
+}
+
+export interface PhraseItem {
+  id: string
+  label: string
+  content: string
 }
 
 export interface AppConfig {
@@ -72,6 +80,8 @@ const defaultConfig: AppConfig = {
     terminal_font_size: 14,
     auto_start_claude: false,
     default_export_path: null,
+    keybindings: {},
+    phrases: [],
   },
 }
 

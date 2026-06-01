@@ -95,18 +95,6 @@
   margin-left: 12px;
 }
 
-.command-type-session {
-  background: #e6f7ff;
-  color: #1890ff;
-  border-color: #91d5ff;
-}
-
-.command-type-snippet {
-  background: #f6ffed;
-  color: #52c41a;
-  border-color: #b7eb8f;
-}
-
 .command-type-action {
   background: #fff7e6;
   color: #fa8c16;
@@ -114,18 +102,6 @@
 }
 
 /* 暗色主题下的标签样式 */
-.dark .command-type-session {
-  background: #1a3a5c;
-  color: #69b1ff;
-  border-color: #165d96;
-}
-
-.dark .command-type-snippet {
-  background: #1b3a1b;
-  color: #95de64;
-  border-color: #237b1a;
-}
-
 .dark .command-type-action {
   background: #3b2d1a;
   color: #ffc069;
