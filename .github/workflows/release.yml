@@ -164,27 +164,28 @@ jobs:
         run: |
           CURRENT_TAG="${{ github.ref_name }}"
 
-          echo "=== Debug: All tags ==="
-          git tag --sort=-version:refname | head -10
+          echo "Current tag: $CURRENT_TAG"
+
+          # 获取所有 tag 列表
+          ALL_TAGS=$(git tag -l "v*" | sort -V)
+          echo "=== All tags ==="
+          echo "$ALL_TAGS"
 
           # 获取上一个版本的 tag（排除当前 tag）
-          PREV_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -v "^${CURRENT_TAG}$" | head -1)
+          PREV_TAG=$(echo "$ALL_TAGS" | grep -v "^${CURRENT_TAG}$" | tail -1)
 
-          echo "Current tag: $CURRENT_TAG"
           echo "Previous tag: $PREV_TAG"
 
           # 生成 changelog
           CHANGELOG=""
 
-          if [ -z "$PREV_TAG" ]; then
+          if [ -z "$PREV_TAG" ] || [ "$PREV_TAG" = "$CURRENT_TAG" ]; then
             # 第一个版本，显示最近 30 条 commit
             echo "No previous tag found, showing last 30 commits"
             CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges -30)
           else
             # 获取两个 tag 之间的所有 commit
             echo "Getting commits between $PREV_TAG and $CURRENT_TAG"
-            COMMIT_COUNT=$(git rev-list --count "${PREV_TAG}..${CURRENT_TAG}")
-            echo "Found $COMMIT_COUNT commits"
             CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges "${PREV_TAG}..${CURRENT_TAG}")
           fi
 
@@ -202,9 +203,9 @@ jobs:
           OTHERS=""
 
           while IFS= read -r line; do
-            if echo "$line" | grep -qiE '^.*(feat|新[增加]|功能|add|implement).*'; then
+            if echo "$line" | grep -qiE "feat\|新[增加]\|功能\|add\|implement"; then
               FEATURES="${FEATURES}${line}\n"
-            elif echo "$line" | grep -qiE '^.*(fix|修[复正]|bug|hotfix).*'; then
+            elif echo "$line" | grep -qiE "fix\|修[复正]\|bug\|hotfix"; then
               FIXES="${FIXES}${line}\n"
             else
               OTHERS="${OTHERS}${line}\n"
@@ -228,7 +229,7 @@ jobs:
 
           NOTES="${NOTES}\n---\n**下载说明**: 下载 \`.exe\` 文件运行即可安装"
 
-          # 保存到文件（避免转义问题）
+          # 保存到文件
           echo -e "$NOTES" > release_notes.md
           echo "=== Release Notes ==="
           cat release_notes.md
