@@ -259,14 +259,23 @@ jobs:
           SIG_PATH="${EXE_PATH}.sig"
           EXE_NAME=$(basename "$EXE_PATH")
 
-          echo "Creating release and uploading $EXE_NAME..."
+          echo "Creating or updating release and uploading $EXE_NAME..."
 
-          # 使用生成的 release notes
-          gh release create "${{ github.ref_name }}" \
-            --repo Fancyhe1/H-CLIer \
-            --title "${{ github.ref_name }}" \
-            --notes-file release_notes.md \
-            --latest
+          # 检查 release 是否已存在
+          if gh release view "${{ github.ref_name }}" --repo Fancyhe1/H-CLIer > /dev/null 2>&1; then
+            echo "Release already exists, updating..."
+            gh release edit "${{ github.ref_name }}" \
+              --repo Fancyhe1/H-CLIer \
+              --title "${{ github.ref_name }}" \
+              --notes-file release_notes.md
+          else
+            echo "Creating new release..."
+            gh release create "${{ github.ref_name }}" \
+              --repo Fancyhe1/H-CLIer \
+              --title "${{ github.ref_name }}" \
+              --notes-file release_notes.md \
+              --latest
+          fi
 
           echo "Uploading exe..."
           gh release upload "${{ github.ref_name }}" "$EXE_PATH" --repo Fancyhe1/H-CLIer
