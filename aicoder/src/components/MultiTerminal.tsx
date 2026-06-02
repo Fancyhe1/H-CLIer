@@ -423,25 +423,27 @@ function MultiTerminal() {
     if (instance) {
       instance.shouldMarkUnread = false  // 当前显示的终端不标记未读
 
-      // 定义一个函数来 fit 并刷新终端
-      const fitAndRefresh = () => {
+      // 定义一个函数来强制重新渲染终端
+      const forceRerender = () => {
         try {
+          // 先 fit 获取正确的尺寸
           instance.fitAddon.fit()
-          // 强制重新渲染终端内容
-          instance.term.refresh(0, instance.term.rows - 1)
+
+          // 临时改变尺寸来触发完全重新渲染
+          const cols = instance.term.cols
+          const rows = instance.term.rows
+          instance.term.resize(cols + 1, rows)
+          instance.term.resize(cols, rows)
+
+          // 刷新显示
+          instance.term.refresh(0, rows - 1)
         } catch (e) {
           // 忽略
         }
       }
 
-      // 立即尝试 fit
-      fitAndRefresh()
-
-      // 使用 requestAnimationFrame 再次 fit
-      requestAnimationFrame(fitAndRefresh)
-
-      // 使用 setTimeout 作为后备方案
-      setTimeout(fitAndRefresh, 50)
+      // 使用 setTimeout 确保 DOM 已更新
+      setTimeout(forceRerender, 50)
     }
   }, [])
 
