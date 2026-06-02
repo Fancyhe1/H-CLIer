@@ -21,6 +21,7 @@ import {
   OrderedListOutlined,
   MacCommandOutlined,
   CloudOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { invoke as tauriInvoke } from '@tauri-apps/api/core'
@@ -33,6 +34,7 @@ import CommandPalette from './components/CommandPalette'
 import CheckpointModal from './components/CheckpointModal'
 import FileBrowserModal from './components/FileBrowserModal'
 import DashboardModal from './components/DashboardModal'
+import MarkdownPanel from './components/MarkdownPanel'
 import { useSettingsStore } from './stores/settingsStore'
 import { useSessionStore } from './stores/sessionStore'
 import { useKeybindingStore } from './stores/keybindingStore'
@@ -42,7 +44,7 @@ import './styles/App.css'
 const { Content, Sider } = Layout
 
 // 定义内容面板类型
-type PanelType = 'terminal' | 'stats'
+type PanelType = 'terminal' | 'stats' | 'markdown'
 
 // 主题模式类型
 type ThemeMode = 'light' | 'dark' | 'system'
@@ -422,6 +424,15 @@ function App() {
                     size="small"
                   />
                 </Tooltip>
+                <Tooltip title="Markdown视图">
+                  <Button
+                    type={activePanel === 'markdown' ? 'primary' : 'text'}
+                    icon={<FileTextOutlined />}
+                    onClick={() => setActivePanel('markdown')}
+                    className="toolbar-btn"
+                    size="small"
+                  />
+                </Tooltip>
                 <Tooltip title="Token统计">
                   <Button
                     type={activePanel === 'stats' ? 'primary' : 'text'}
@@ -505,6 +516,12 @@ function App() {
             </div>
             <div style={{ display: activePanel === 'stats' ? 'block' : 'none', width: '100%', height: '100%', overflow: 'auto' }}>
               <TokenStatsPanel />
+            </div>
+            <div style={{ display: activePanel === 'markdown' ? 'block' : 'none', width: '100%', height: '100%' }}>
+              <MarkdownPanel
+                sessionId={activeSession?.id}
+                projectPath={activeSession?.projectPath}
+              />
             </div>
           </Content>
           {/* 底部状态栏 */}
