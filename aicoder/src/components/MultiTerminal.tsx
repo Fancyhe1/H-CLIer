@@ -368,6 +368,17 @@ function MultiTerminal() {
 
   }, [activeSessionId]) // 只依赖 activeSessionId，不依赖 sessions
 
+  // 调整所有终端大小
+  const fitAllTerminals = useCallback(() => {
+    terminalsRef.current.forEach((instance) => {
+      try {
+        instance.fitAddon.fit()
+      } catch (e) {
+        // 忽略 fit 错误（可能终端还未完全初始化）
+      }
+    })
+  }, [])
+
   // 当字体大小配置变化时，更新所有已存在终端的字体大小
   useEffect(() => {
     const fontSize = config?.general?.terminal_font_size || 14
@@ -388,17 +399,6 @@ function MultiTerminal() {
     })
   }, [currentTheme])
 
-  // 调整所有终端大小
-  const fitAllTerminals = useCallback(() => {
-    terminalsRef.current.forEach((instance) => {
-      try {
-        instance.fitAddon.fit()
-      } catch (e) {
-        // 忽略 fit 错误（可能终端还未完全初始化）
-      }
-    })
-  }, [])
-
   // 显示指定终端，隐藏其他（纯 DOM 操作，不触发状态更新）
   const showTerminal = useCallback((sessionId: string) => {
     if (!containerRef.current) return
@@ -416,17 +416,35 @@ function MultiTerminal() {
       child.style.display = child.id === `terminal-${sessionId}` ? 'block' : 'none'
     }
 
-    // 调整大小 - 使用 requestAnimationFrame 确保容器已有正确尺寸
+    // 调整大小 - 使用多重延迟确保容器已有正确尺寸
     const instance = terminalsRef.current.get(sessionId)
     if (instance) {
       instance.shouldMarkUnread = false  // 当前显示的终端不标记未读
+
+      // 立即尝试 fit
+      try {
+        instance.fitAddon.fit()
+      } catch (e) {
+        // 忽略
+      }
+
+      // 使用 requestAnimationFrame 再次 fit
       requestAnimationFrame(() => {
         try {
           instance.fitAddon.fit()
         } catch (e) {
-          // 忽略 fit 错误
+          // 忽略
         }
       })
+
+      // 使用 setTimeout 作为后备方案
+      setTimeout(() => {
+        try {
+          instance.fitAddon.fit()
+        } catch (e) {
+          // 忽略
+        }
+      }, 50)
     }
   }, [])
 
@@ -449,17 +467,36 @@ function MultiTerminal() {
     const container = containerRef.current
     if (!container) return
 
-    const resizeObserver = new ResizeObserver(() => {
-      // 使用 requestAnimationFrame 避免频繁调用
-      requestAnimationFrame(() => {
-        fitAllTerminals()
-      })
+    let fitTimeout: ReturnType<typeof setTimeout> | null = null
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      // 检查容器是否有有效尺寸
+      const entry = entries[0]
+      if (entry && entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+        // 清除之前的延迟
+        if (fitTimeout) {
+          clearTimeout(fitTimeout)
+        }
+        // 使用延迟确保布局稳定
+        fitTimeout = setTimeout(() => {
+          fitAllTerminals()
+        }, 16) // 约一帧的时间
+      }
     })
 
     resizeObserver.observe(container)
 
+    // 初始 fit - 使用较长延迟确保组件完全挂载
+    const initialFitTimeout = setTimeout(() => {
+      fitAllTerminals()
+    }, 100)
+
     return () => {
       resizeObserver.disconnect()
+      if (fitTimeout) {
+        clearTimeout(fitTimeout)
+      }
+      clearTimeout(initialFitTimeout)
     }
   }, [fitAllTerminals])
 
