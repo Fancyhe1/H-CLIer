@@ -368,17 +368,30 @@ function MultiTerminal() {
 
   }, [activeSessionId]) // 只依赖 activeSessionId，不依赖 sessions
 
-  // 调整所有终端大小
-  const fitAllTerminals = useCallback(() => {
-    terminalsRef.current.forEach((instance) => {
+  // 调整所有终端大小并同步 PTY
+  const fitAllTerminals = useCallback(async () => {
+    for (const [sessionId, instance] of terminalsRef.current) {
       try {
         instance.fitAddon.fit()
-        // 强制重新渲染终端内容
-        instance.term.refresh(0, instance.term.rows - 1)
+
+        const cols = instance.term.cols
+        const rows = instance.term.rows
+
+        // 刷新显示
+        instance.term.refresh(0, rows - 1)
+
+        // 同步 PTY 尺寸
+        if (instance.ptyId) {
+          await invoke('resize_pty', {
+            ptyId: instance.ptyId,
+            cols: cols,
+            rows: rows
+          })
+        }
       } catch (e) {
         // 忽略 fit 错误（可能终端还未完全初始化）
       }
-    })
+    }
   }, [])
 
   // 当字体大小配置变化时，更新所有已存在终端的字体大小
@@ -423,27 +436,33 @@ function MultiTerminal() {
     if (instance) {
       instance.shouldMarkUnread = false  // 当前显示的终端不标记未读
 
-      // 定义一个函数来强制重新渲染终端
-      const forceRerender = () => {
+      // 定义一个函数来 fit 并同步 PTY 尺寸
+      const fitAndSync = async () => {
         try {
           // 先 fit 获取正确的尺寸
           instance.fitAddon.fit()
 
-          // 临时改变尺寸来触发完全重新渲染
           const cols = instance.term.cols
           const rows = instance.term.rows
-          instance.term.resize(cols + 1, rows)
-          instance.term.resize(cols, rows)
 
           // 刷新显示
           instance.term.refresh(0, rows - 1)
+
+          // 同步 PTY 尺寸
+          if (instance.ptyId) {
+            await invoke('resize_pty', {
+              ptyId: instance.ptyId,
+              cols: cols,
+              rows: rows
+            })
+          }
         } catch (e) {
-          // 忽略
+          console.error('Fit and sync error:', e)
         }
       }
 
       // 使用 setTimeout 确保 DOM 已更新
-      setTimeout(forceRerender, 50)
+      setTimeout(() => fitAndSync(), 50)
     }
   }, [])
 
