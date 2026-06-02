@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { invoke } from '@tauri-apps/api/core'
@@ -30,6 +30,43 @@ function stripAnsi(str: string): string {
     .replace(/\x1b[78]/g, '')                 // 保存/恢复光标
     .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '') // 控制字符（保留\n和\r）
     .trim()
+}
+
+// 检查剥离ANSI后的文本是否只是Claude Code的噪音输出（非真正的回复）
+// 返回 true 表示是噪音，应该忽略
+function isClaudeCodeNoise(text: string): boolean {
+  if (!text) return true
+
+  // 移除空白和换行后检查
+  const compact = text.replace(/[\s\r\n]+/g, ' ').trim()
+  if (!compact) return true
+
+  // 噪音模式列表
+  const noisePatterns = [
+    /[※✻✶✢·•○◦●]/,                          // 动画/状态字符
+    /recap/i,                                     // recap 摘要
+    /Compacting/i,                                // 压缩提示
+    /disable\s+recaps/i,                          // 配置提示
+    /Worked\s+for/i,                              // 时间提示
+    /Shimmying/i,                                 // 动画文字
+    /\(thinking\)/i,                              // thinking 标记
+    /esc\s*to\s*interrupt/i,                      // 中断提示
+    /\?\s*for\s*shortcuts/i,                      // 快捷键提示
+    /main-assistant/i,                            // 状态栏
+    /ClaudeCodev\d+/i,                            // 版本信息
+    /Claude\s*Code\s*v\d+/i,                      // 版本信息变体
+    /API\s*Usage/i,                               // API使用
+    /Loading|加载中/i,                             // 加载提示
+    /Please\s+wait|请稍候/i,                       // 等待提示
+    /^[\s─═╭╰│╮╯]+$/,                            // 纯边框字符
+    /^\s*[\$#>]\s*$/,                             // 只有提示符
+    /^\s*@\s*$/,                                  // 只有@符号
+    /^\s*exit\s*$/i,                              // exit 命令
+    /^\s*clear\s*$/i,                             // clear 命令
+    /\d+\/\d+\s*$/,                              // 进度显示
+  ]
+
+  return noisePatterns.some((pattern) => pattern.test(compact))
 }
 
 function MultiTerminal() {
@@ -189,6 +226,7 @@ function MultiTerminal() {
             // 剥离ANSI转义序列，检查是否包含有意义的可见文本
             const visibleContent = stripAnsi(event.payload)
             if (!visibleContent) return // 纯转义序列，忽略
+            if (isClaudeCodeNoise(visibleContent)) return // Claude Code噪音输出，忽略
 
             // 每次收到有意义的输出都重置定时器
             if (outputTimer) {
@@ -335,9 +373,9 @@ function MultiTerminal() {
     const fontSize = config?.general?.terminal_font_size || 14
     terminalsRef.current.forEach((instance) => {
       instance.term.options.fontSize = fontSize
-      instance.fitAddon.fit()
     })
-  }, [config?.general?.terminal_font_size])
+    fitAllTerminals()
+  }, [config?.general?.terminal_font_size, fitAllTerminals])
 
   // 当主题变化时，更新所有已存在终端的颜色
   useEffect(() => {
@@ -350,8 +388,19 @@ function MultiTerminal() {
     })
   }, [currentTheme])
 
+  // 调整所有终端大小
+  const fitAllTerminals = useCallback(() => {
+    terminalsRef.current.forEach((instance) => {
+      try {
+        instance.fitAddon.fit()
+      } catch (e) {
+        // 忽略 fit 错误（可能终端还未完全初始化）
+      }
+    })
+  }, [])
+
   // 显示指定终端，隐藏其他（纯 DOM 操作，不触发状态更新）
-  const showTerminal = (sessionId: string) => {
+  const showTerminal = useCallback((sessionId: string) => {
     if (!containerRef.current) return
 
     // 先把所有其他终端设置为"标记未读"模式（它们在后台运行）
@@ -367,13 +416,19 @@ function MultiTerminal() {
       child.style.display = child.id === `terminal-${sessionId}` ? 'block' : 'none'
     }
 
-    // 调整大小
+    // 调整大小 - 使用 requestAnimationFrame 确保容器已有正确尺寸
     const instance = terminalsRef.current.get(sessionId)
     if (instance) {
       instance.shouldMarkUnread = false  // 当前显示的终端不标记未读
-      instance.fitAddon.fit()
+      requestAnimationFrame(() => {
+        try {
+          instance.fitAddon.fit()
+        } catch (e) {
+          // 忽略 fit 错误
+        }
+      })
     }
-  }
+  }, [])
 
   // 清除未读标记（在 useEffect 外调用，避免循环）
   const clearUnread = (sessionId: string) => {
@@ -387,7 +442,26 @@ function MultiTerminal() {
       // 延迟清除未读，避免触发 sessions 更新导致循环
       setTimeout(() => clearUnread(activeSessionId), 0)
     }
-  }, [activeSessionId])
+  }, [activeSessionId, showTerminal])
+
+  // 监听容器尺寸变化，自动调整终端大小
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const resizeObserver = new ResizeObserver(() => {
+      // 使用 requestAnimationFrame 避免频繁调用
+      requestAnimationFrame(() => {
+        fitAllTerminals()
+      })
+    })
+
+    resizeObserver.observe(container)
+
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [fitAllTerminals])
 
   // 清理
   useEffect(() => {
