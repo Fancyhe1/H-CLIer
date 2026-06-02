@@ -7,13 +7,15 @@ mod license;
 mod history;
 mod token_usage;
 mod claude_config;
+mod web_server;
+mod tunnel;
 
 use session::{Session, SessionManager};
 use pty::PtyManager;
 use config::{AppConfig, ConfigManager, ClaudeConfig, GeneralConfig};
 use checkpoint::{Checkpoint, CheckpointDiff, CheckpointManager};
-use std::sync::Mutex;
-use tauri::Manager;
+use std::sync::{Arc, Mutex};
+use tauri::{Emitter, Manager};
 use serde::{Deserialize, Serialize};
 
 // Windows 平台隐藏终端窗口
@@ -46,17 +48,22 @@ struct GitHubAsset {
 }
 
 pub struct AppState {
-    session_manager: Mutex<SessionManager>,
-    pty_manager: Mutex<PtyManager>,
-    config_manager: Mutex<ConfigManager>,
-    checkpoint_manager: Mutex<CheckpointManager>,
-    license_manager: Mutex<license::LicenseManager>,
+    pub session_manager: Mutex<SessionManager>,
+    pub pty_manager: Mutex<PtyManager>,
+    pub config_manager: Mutex<ConfigManager>,
+    pub checkpoint_manager: Mutex<CheckpointManager>,
+    pub license_manager: Mutex<license::LicenseManager>,
+    pub tunnel_manager: tunnel::TunnelManager,
+    pub web_access_token: Mutex<String>,
 }
+
+/// Arc 包装的 AppState，供 Tauri 和 Web Server 共享
+pub type SharedAppState = Arc<AppState>;
 
 // 会话管理命令
 #[tauri::command]
 fn reorder_sessions(
-    state: tauri::State<AppState>,
+    state: tauri::State<SharedAppState>,
     session_ids: Vec<String>,
 ) -> Result<(), String> {
     let manager = state.session_manager.lock().map_err(|e| e.to_string())?;
@@ -66,7 +73,7 @@ fn reorder_sessions(
 
 #[tauri::command]
 fn create_session(
-    state: tauri::State<AppState>,
+    state: tauri::State<SharedAppState>,
     project_path: String,
     title: Option<String>,
     session_type: Option<String>,
@@ -77,7 +84,7 @@ fn create_session(
 }
 
 #[tauri::command]
-fn get_sessions(state: tauri::State<AppState>) -> Result<Vec<Session>, String> {
+fn get_sessions(state: tauri::State<SharedAppState>) -> Result<Vec<Session>, String> {
     let manager = state.session_manager.lock().map_err(|e| e.to_string())?;
     manager.get_sessions()
         .map_err(|e| e.to_string())
@@ -85,7 +92,7 @@ fn get_sessions(state: tauri::State<AppState>) -> Result<Vec<Session>, String> {
 
 #[tauri::command]
 fn update_session(
-    state: tauri::State<AppState>,
+    state: tauri::State<SharedAppState>,
     session: Session,
 ) -> Result<(), String> {
     let manager = state.session_manager.lock().map_err(|e| e.to_string())?;
@@ -95,7 +102,7 @@ fn update_session(
 
 #[tauri::command]
 fn delete_session(
-    state: tauri::State<AppState>,
+    state: tauri::State<SharedAppState>,
     session_id: String,
 ) -> Result<(), String> {
     let manager = state.session_manager.lock().map_err(|e| e.to_string())?;
@@ -105,7 +112,7 @@ fn delete_session(
 
 #[tauri::command]
 fn move_to_trash(
-    state: tauri::State<AppState>,
+    state: tauri::State<SharedAppState>,
     session_id: String,
 ) -> Result<(), String> {
     let manager = state.session_manager.lock().map_err(|e| e.to_string())?;
@@ -115,7 +122,7 @@ fn move_to_trash(
 
 // 回收站相关命令
 #[tauri::command]
-fn get_trash_sessions(state: tauri::State<AppState>) -> Result<Vec<Session>, String> {
+fn get_trash_sessions(state: tauri::State<SharedAppState>) -> Result<Vec<Session>, String> {
     let manager = state.session_manager.lock().map_err(|e| e.to_string())?;
     manager.get_trash_sessions()
         .map_err(|e| e.to_string())
@@ -123,7 +130,7 @@ fn get_trash_sessions(state: tauri::State<AppState>) -> Result<Vec<Session>, Str
 
 #[tauri::command]
 fn restore_from_trash(
-    state: tauri::State<AppState>,
+    state: tauri::State<SharedAppState>,
     session_id: String,
 ) -> Result<(), String> {
     let manager = state.session_manager.lock().map_err(|e| e.to_string())?;
@@ -133,7 +140,7 @@ fn restore_from_trash(
 
 #[tauri::command]
 fn permanently_delete(
-    state: tauri::State<AppState>,
+    state: tauri::State<SharedAppState>,
     session_id: String,
 ) -> Result<(), String> {
     let manager = state.session_manager.lock().map_err(|e| e.to_string())?;
@@ -142,7 +149,7 @@ fn permanently_delete(
 }
 
 #[tauri::command]
-fn empty_trash(state: tauri::State<AppState>) -> Result<usize, String> {
+fn empty_trash(state: tauri::State<SharedAppState>) -> Result<usize, String> {
     let manager = state.session_manager.lock().map_err(|e| e.to_string())?;
     manager.empty_trash()
         .map_err(|e| e.to_string())
@@ -186,7 +193,7 @@ fn get_session_total_usage(
 // PTY终端命令
 #[tauri::command]
 fn create_pty(
-    state: tauri::State<AppState>,
+    state: tauri::State<SharedAppState>,
     app_handle: tauri::AppHandle,
     session_id: String,
     cols: u16,
@@ -199,7 +206,7 @@ fn create_pty(
 
 #[tauri::command]
 fn read_terminal_history(
-    state: tauri::State<AppState>,
+    state: tauri::State<SharedAppState>,
     session_id: String,
 ) -> Result<String, String> {
     let manager = state.pty_manager.lock().map_err(|e| e.to_string())?;
@@ -209,7 +216,7 @@ fn read_terminal_history(
 
 #[tauri::command]
 fn was_running_claude(
-    state: tauri::State<AppState>,
+    state: tauri::State<SharedAppState>,
     session_id: String,
 ) -> Result<bool, String> {
     let manager = state.pty_manager.lock().map_err(|e| e.to_string())?;
@@ -219,7 +226,7 @@ fn was_running_claude(
 
 #[tauri::command]
 fn write_terminal_history(
-    state: tauri::State<AppState>,
+    state: tauri::State<SharedAppState>,
     session_id: String,
     content: String,
 ) -> Result<(), String> {
@@ -230,7 +237,7 @@ fn write_terminal_history(
 
 #[tauri::command]
 fn write_to_pty(
-    state: tauri::State<AppState>,
+    state: tauri::State<SharedAppState>,
     pty_id: String,
     data: String,
 ) -> Result<(), String> {
@@ -241,7 +248,7 @@ fn write_to_pty(
 
 #[tauri::command]
 fn resize_pty(
-    state: tauri::State<AppState>,
+    state: tauri::State<SharedAppState>,
     pty_id: String,
     cols: u16,
     rows: u16,
@@ -253,7 +260,7 @@ fn resize_pty(
 
 #[tauri::command]
 fn close_pty(
-    state: tauri::State<AppState>,
+    state: tauri::State<SharedAppState>,
     pty_id: String,
 ) -> Result<(), String> {
     let mut manager = state.pty_manager.lock().map_err(|e| e.to_string())?;
@@ -263,7 +270,7 @@ fn close_pty(
 
 #[tauri::command]
 fn spawn_command_in_pty(
-    state: tauri::State<AppState>,
+    state: tauri::State<SharedAppState>,
     pty_id: String,
     command: String,
     args: Vec<String>,
@@ -485,7 +492,7 @@ async fn open_file_in_system(path: String) -> Result<(), String> {
 // 删除指定项目路径下的所有会话
 #[tauri::command]
 fn delete_sessions_by_path(
-    state: tauri::State<AppState>,
+    state: tauri::State<SharedAppState>,
     project_path: String,
 ) -> Result<usize, String> {
     let manager = state.session_manager.lock().map_err(|e| e.to_string())?;
@@ -501,14 +508,14 @@ fn check_claude_installation() -> Result<bool, String> {
 
 // 配置管理命令
 #[tauri::command]
-fn get_config(state: tauri::State<AppState>) -> Result<AppConfig, String> {
+fn get_config(state: tauri::State<SharedAppState>) -> Result<AppConfig, String> {
     let manager = state.config_manager.lock().map_err(|e| e.to_string())?;
     manager.load().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 fn save_config(
-    state: tauri::State<AppState>,
+    state: tauri::State<SharedAppState>,
     config: AppConfig,
 ) -> Result<(), String> {
     let manager = state.config_manager.lock().map_err(|e| e.to_string())?;
@@ -517,7 +524,7 @@ fn save_config(
 
 #[tauri::command]
 fn update_claude_config(
-    state: tauri::State<AppState>,
+    state: tauri::State<SharedAppState>,
     config: ClaudeConfig,
 ) -> Result<(), String> {
     let manager = state.config_manager.lock().map_err(|e| e.to_string())?;
@@ -526,7 +533,7 @@ fn update_claude_config(
 
 #[tauri::command]
 fn update_general_config(
-    state: tauri::State<AppState>,
+    state: tauri::State<SharedAppState>,
     config: GeneralConfig,
 ) -> Result<(), String> {
     let manager = state.config_manager.lock().map_err(|e| e.to_string())?;
@@ -535,7 +542,7 @@ fn update_general_config(
 
 #[tauri::command]
 fn spawn_claude(
-    _state: tauri::State<AppState>,
+    _state: tauri::State<SharedAppState>,
     _pty_id: String,
     _project_path: String,
 ) -> Result<(), String> {
@@ -694,7 +701,7 @@ async fn install_update(file_path: String) -> Result<(), String> {
 // License 管理命令
 #[tauri::command]
 fn activate_license(
-    state: tauri::State<AppState>,
+    state: tauri::State<SharedAppState>,
     code: String,
 ) -> Result<license::LicenseState, String> {
     let manager = state.license_manager.lock().map_err(|e| e.to_string())?;
@@ -703,7 +710,7 @@ fn activate_license(
 
 #[tauri::command]
 fn get_license_status(
-    state: tauri::State<AppState>,
+    state: tauri::State<SharedAppState>,
 ) -> Result<license::LicenseStatus, String> {
     let manager = state.license_manager.lock().map_err(|e| e.to_string())?;
     manager.get_status()
@@ -711,7 +718,7 @@ fn get_license_status(
 
 #[tauri::command]
 fn get_machine_id(
-    state: tauri::State<AppState>,
+    state: tauri::State<SharedAppState>,
 ) -> Result<String, String> {
     let manager = state.license_manager.lock().map_err(|e| e.to_string())?;
     Ok(manager.get_machine_id())
@@ -720,7 +727,7 @@ fn get_machine_id(
 // 检查点管理命令
 #[tauri::command]
 fn create_checkpoint(
-    state: tauri::State<AppState>,
+    state: tauri::State<SharedAppState>,
     session_id: String,
     project_path: String,
     name: String,
@@ -732,7 +739,7 @@ fn create_checkpoint(
 
 #[tauri::command]
 fn list_checkpoints(
-    state: tauri::State<AppState>,
+    state: tauri::State<SharedAppState>,
     session_id: String,
 ) -> Result<Vec<Checkpoint>, String> {
     let manager = state.checkpoint_manager.lock().map_err(|e| e.to_string())?;
@@ -741,7 +748,7 @@ fn list_checkpoints(
 
 #[tauri::command]
 fn restore_checkpoint(
-    state: tauri::State<AppState>,
+    state: tauri::State<SharedAppState>,
     session_id: String,
     checkpoint_id: String,
     project_path: String,
@@ -752,7 +759,7 @@ fn restore_checkpoint(
 
 #[tauri::command]
 fn delete_checkpoint(
-    state: tauri::State<AppState>,
+    state: tauri::State<SharedAppState>,
     session_id: String,
     checkpoint_id: String,
 ) -> Result<(), String> {
@@ -762,13 +769,50 @@ fn delete_checkpoint(
 
 #[tauri::command]
 fn get_checkpoint_diff(
-    state: tauri::State<AppState>,
+    state: tauri::State<SharedAppState>,
     session_id: String,
     checkpoint_id: String,
     project_path: String,
 ) -> Result<Vec<CheckpointDiff>, String> {
     let manager = state.checkpoint_manager.lock().map_err(|e| e.to_string())?;
     manager.get_checkpoint_diff(&session_id, &checkpoint_id, &project_path)
+}
+
+// 获取 Web 访问令牌
+#[tauri::command]
+fn get_web_access_token(state: tauri::State<SharedAppState>) -> Result<String, String> {
+    let token = state.web_access_token.lock().map_err(|e| e.to_string())?;
+    Ok(token.clone())
+}
+
+// 通知桌面端切换到指定会话（从网页端调用）
+#[tauri::command]
+fn activate_session_on_desktop_ui(app: tauri::AppHandle, session_id: String) -> Result<(), String> {
+    app.emit("web-activate-session", &session_id).map_err(|e| e.to_string())
+}
+
+// 隧道控制命令
+#[tauri::command]
+async fn start_tunnel(
+    state: tauri::State<'_, SharedAppState>,
+    authtoken: String,
+) -> Result<String, String> {
+    state.tunnel_manager.start(authtoken, 9527).await
+}
+
+#[tauri::command]
+async fn stop_tunnel(
+    state: tauri::State<'_, SharedAppState>,
+) -> Result<(), String> {
+    state.tunnel_manager.stop().await;
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_tunnel_status(
+    state: tauri::State<'_, SharedAppState>,
+) -> Result<tunnel::TunnelStatus, String> {
+    Ok(state.tunnel_manager.status().await)
 }
 
 // 主函数
@@ -809,13 +853,36 @@ pub fn run() {
             let license_manager = license::LicenseManager::new(&db_path, &app_dir)
                 .expect("Failed to create license manager");
 
-            app.manage(AppState {
+            // 生成 Web Server 访问令牌
+            let access_token = web_server::generate_token();
+            let web_config = web_server::WebServerConfig {
+                access_token: access_token.clone(),
+                ..Default::default()
+            };
+
+            let app_state = Arc::new(AppState {
                 session_manager: Mutex::new(session_manager),
                 pty_manager: Mutex::new(pty_manager),
                 config_manager: Mutex::new(config_manager),
                 checkpoint_manager: Mutex::new(checkpoint_manager),
                 license_manager: Mutex::new(license_manager),
+                tunnel_manager: tunnel::TunnelManager::new(),
+                web_access_token: Mutex::new(access_token),
             });
+
+            // 启动 Web Server（远程访问，在独立线程中运行）
+            let web_state = Arc::clone(&app_state);
+            let web_app_handle = app.handle().clone();
+            std::thread::spawn(move || {
+                let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
+                rt.block_on(async move {
+                    if let Err(e) = web_server::start_web_server(web_state, web_config, web_app_handle).await {
+                        eprintln!("Web server error: {}", e);
+                    }
+                });
+            });
+
+            app.manage(app_state);
 
             Ok(())
         })
@@ -885,6 +952,12 @@ pub fn run() {
             activate_license,
             get_license_status,
             get_machine_id,
+            // 隧道控制
+            start_tunnel,
+            stop_tunnel,
+            get_tunnel_status,
+            get_web_access_token,
+            activate_session_on_desktop_ui,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

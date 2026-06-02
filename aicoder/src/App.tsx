@@ -25,6 +25,7 @@ import {
 } from '@ant-design/icons'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { invoke as tauriInvoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import Sidebar from './components/Sidebar'
 import TabBar from './components/TabBar'
 import MultiTerminal from './components/MultiTerminal'
@@ -196,6 +197,16 @@ function App() {
     checkClaudeInstallation()
     getClaudeVersion()
     getAppVersion()
+  }, [])
+
+  // 监听网页端发来的会话切换请求
+  useEffect(() => {
+    const unlistenPromise = listen<string>('web-activate-session', (event) => {
+      const sessionId = event.payload
+      console.log('[Web] Received activate session request:', sessionId)
+      useSessionStore.getState().setActiveSession(sessionId)
+    })
+    return () => { unlistenPromise.then(fn => fn()) }
   }, [])
 
   // 启动时自动检查更新（延迟 3 秒避免阻塞启动）

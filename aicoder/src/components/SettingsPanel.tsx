@@ -35,6 +35,8 @@ import {
   RocketOutlined,
   EditOutlined,
   UndoOutlined,
+  LinkOutlined,
+  CopyOutlined,
 } from '@ant-design/icons'
 import { invoke } from '@tauri-apps/api/core'
 import { useSessionStore } from '../stores/sessionStore'
@@ -84,6 +86,15 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
   // 快捷键编辑状态
   const [editingActionId, setEditingActionId] = useState<string | null>(null)
   const [recordingKey, setRecordingKey] = useState(false)
+
+  // 远程访问状态
+  const [tunnelRunning, setTunnelRunning] = useState(false)
+  const [tunnelUrl, setTunnelUrl] = useState<string | null>(null)
+  const [tunnelError, setTunnelError] = useState<string | null>(null)
+  const [ngrokToken, setNgrokToken] = useState('')
+  const [_remoteAccessEnabled, setRemoteAccessEnabled] = useState(false)
+  const [accessToken, setAccessToken] = useState('')
+  const [tunnelLoading, setTunnelLoading] = useState(false)
 
   // 开始录制快捷键
   const startRecording = (actionId: string) => {
@@ -266,6 +277,75 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
       })
     }
   }, [config])
+
+  // 远程访问：加载 access token
+  useEffect(() => {
+    if (visible) {
+      invoke<string>('get_web_access_token').then(setAccessToken).catch(() => {})
+    }
+  }, [visible])
+
+  // 远程访问：检查隧道状态
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const status = await invoke<{ running: boolean; url: string | null; error: string | null }>('get_tunnel_status')
+        setTunnelRunning(status.running)
+        setTunnelUrl(status.url)
+        setRemoteAccessEnabled(status.running)
+        if (status.error) setTunnelError(status.error)
+      } catch {}
+    }
+    if (visible) {
+      checkStatus()
+      const timer = setInterval(checkStatus, 3000)
+      return () => clearInterval(timer)
+    }
+  }, [visible])
+
+  // 远程访问：启动隧道
+  const handleStartTunnel = async () => {
+    if (!ngrokToken.trim()) {
+      message.warning('请输入 ngrok Authtoken')
+      return
+    }
+    setTunnelLoading(true)
+    setTunnelError(null)
+    try {
+      const url = await invoke<string>('start_tunnel', { authtoken: ngrokToken.trim() })
+      setTunnelRunning(true)
+      setTunnelUrl(url)
+      setRemoteAccessEnabled(true)
+      message.success('远程访问已开启')
+    } catch (e) {
+      setTunnelError(String(e))
+      message.error('启动失败: ' + String(e))
+    } finally {
+      setTunnelLoading(false)
+    }
+  }
+
+  // 远程访问：停止隧道
+  const handleStopTunnel = async () => {
+    setTunnelLoading(true)
+    try {
+      await invoke('stop_tunnel')
+      setTunnelRunning(false)
+      setTunnelUrl(null)
+      setRemoteAccessEnabled(false)
+      message.success('远程访问已关闭')
+    } catch (e) {
+      message.error('停止失败: ' + String(e))
+    } finally {
+      setTunnelLoading(false)
+    }
+  }
+
+  // 复制到剪贴板
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text)
+    message.success('已复制')
+  }
 
   // 保存 Claude 配置
   const handleSaveClaudeConfig = async (values: any) => {
@@ -978,6 +1058,153 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
               )}
             </Panel>
           </Collapse>
+        </TabPane>
+
+        {/* 远程访问 */}
+        <TabPane
+          tab={
+            <span>
+              <LinkOutlined />
+              远程访问
+            </span>
+          }
+          key="remote"
+        >
+          <div style={{ marginBottom: 16 }}>
+            <Title level={5}>远程访问</Title>
+            <Text type="secondary">
+              通过 ngrok 隧道，让手机或其他设备可以远程管理此电脑上的会话
+            </Text>
+          </div>
+
+          {tunnelRunning && tunnelUrl ? (
+            // 隧道运行中
+            <div>
+              <Alert
+                type="success"
+                showIcon
+                message="远程访问已开启"
+                style={{ marginBottom: 16 }}
+              />
+
+              <div style={{ marginBottom: 16 }}>
+                <Text strong>访问地址：</Text>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  marginTop: 8,
+                  padding: '8px 12px',
+                  background: 'var(--bg-tertiary)',
+                  borderRadius: 8,
+                }}>
+                  <Text copyable code style={{ flex: 1, fontSize: 14 }}>
+                    {tunnelUrl}
+                  </Text>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <Text strong>访问密码：</Text>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  marginTop: 8,
+                  padding: '8px 12px',
+                  background: 'var(--bg-tertiary)',
+                  borderRadius: 8,
+                }}>
+                  <Text code style={{ flex: 1, fontSize: 14 }}>
+                    {accessToken || '（见控制台输出）'}
+                  </Text>
+                  <Button
+                    size="small"
+                    icon={<CopyOutlined />}
+                    onClick={() => copyToClipboard(accessToken)}
+                  />
+                </div>
+              </div>
+
+              <Alert
+                type="info"
+                showIcon
+                message="使用方法"
+                description={
+                  <ol style={{ margin: 0, paddingLeft: 20 }}>
+                    <li>在手机浏览器输入上方地址</li>
+                    <li>输入访问密码登录</li>
+                    <li>即可管理会话、查看统计</li>
+                  </ol>
+                }
+                style={{ marginBottom: 16 }}
+              />
+
+              <Button
+                danger
+                block
+                icon={<CloseCircleOutlined />}
+                onClick={handleStopTunnel}
+                loading={tunnelLoading}
+              >
+                关闭远程访问
+              </Button>
+            </div>
+          ) : (
+            // 隧道未启动
+            <div>
+              <Alert
+                type="info"
+                showIcon
+                message="开启后，手机可通过公网地址访问此电脑上的 AICoder"
+                style={{ marginBottom: 16 }}
+              />
+
+              <Form layout="vertical">
+                <Form.Item
+                  label="ngrok Authtoken"
+                  required
+                  extra={
+                    <span>
+                      免费注册获取：
+                      <a href="https://ngrok.com" target="_blank" rel="noopener">
+                        ngrok.com
+                      </a>
+                    </span>
+                  }
+                >
+                  <Input.Password
+                    value={ngrokToken}
+                    onChange={(e) => setNgrokToken(e.target.value)}
+                    placeholder="输入 ngrok authtoken"
+                  />
+                </Form.Item>
+
+                {tunnelError && (
+                  <Alert
+                    type="error"
+                    showIcon
+                    message={tunnelError}
+                    closable
+                    onClose={() => setTunnelError(null)}
+                    style={{ marginBottom: 16 }}
+                  />
+                )}
+
+                <Button
+                  type="primary"
+                  block
+                  size="large"
+                  icon={<RocketOutlined />}
+                  onClick={handleStartTunnel}
+                  loading={tunnelLoading}
+                  disabled={!ngrokToken.trim()}
+                >
+                  开启远程访问
+                </Button>
+              </Form>
+            </div>
+          )}
         </TabPane>
 
         {/* 关于 */}

@@ -34,7 +34,7 @@ impl PtyManager {
     }
 
     /// 获取会话的日志文件路径
-    fn get_log_path(&self, session_id: &str) -> PathBuf {
+    pub fn get_log_path(&self, session_id: &str) -> PathBuf {
         self.log_dir.join(format!("{}.log", session_id))
     }
 
@@ -72,6 +72,11 @@ impl PtyManager {
                                  history.contains("╭") ||  // Claude 的边框字符
                                  history.contains("╯");
         Ok(has_claude_marker)
+    }
+
+    /// 检查 PTY 是否存在
+    pub fn has_pty(&self, session_id: &str) -> bool {
+        self.ptys.contains_key(session_id)
     }
 
     /// 清理旧日志文件（保留最近30天）
