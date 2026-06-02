@@ -373,6 +373,8 @@ function MultiTerminal() {
     terminalsRef.current.forEach((instance) => {
       try {
         instance.fitAddon.fit()
+        // 强制重新渲染终端内容
+        instance.term.refresh(0, instance.term.rows - 1)
       } catch (e) {
         // 忽略 fit 错误（可能终端还未完全初始化）
       }
@@ -421,30 +423,25 @@ function MultiTerminal() {
     if (instance) {
       instance.shouldMarkUnread = false  // 当前显示的终端不标记未读
 
-      // 立即尝试 fit
-      try {
-        instance.fitAddon.fit()
-      } catch (e) {
-        // 忽略
+      // 定义一个函数来 fit 并刷新终端
+      const fitAndRefresh = () => {
+        try {
+          instance.fitAddon.fit()
+          // 强制重新渲染终端内容
+          instance.term.refresh(0, instance.term.rows - 1)
+        } catch (e) {
+          // 忽略
+        }
       }
 
+      // 立即尝试 fit
+      fitAndRefresh()
+
       // 使用 requestAnimationFrame 再次 fit
-      requestAnimationFrame(() => {
-        try {
-          instance.fitAddon.fit()
-        } catch (e) {
-          // 忽略
-        }
-      })
+      requestAnimationFrame(fitAndRefresh)
 
       // 使用 setTimeout 作为后备方案
-      setTimeout(() => {
-        try {
-          instance.fitAddon.fit()
-        } catch (e) {
-          // 忽略
-        }
-      }, 50)
+      setTimeout(fitAndRefresh, 50)
     }
   }, [])
 
