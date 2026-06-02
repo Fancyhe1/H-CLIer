@@ -370,7 +370,7 @@ function MultiTerminal() {
 
   // 调整所有终端大小并同步 PTY
   const fitAllTerminals = useCallback(async () => {
-    for (const [sessionId, instance] of terminalsRef.current) {
+    for (const [, instance] of terminalsRef.current) {
       try {
         instance.fitAddon.fit()
 
