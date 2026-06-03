@@ -1073,38 +1073,46 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
           <div style={{ marginBottom: 16 }}>
             <Title level={5}>远程访问</Title>
             <Text type="secondary">
-              通过 ngrok 隧道，让手机或其他设备可以远程管理此电脑上的会话
+              让手机或其他设备远程管理此电脑上的会话
             </Text>
           </div>
 
-          {tunnelRunning && tunnelUrl ? (
-            // 隧道运行中
-            <div>
+          {/* 局域网 / Tailscale 访问 */}
+          <Collapse defaultActiveKey={['lan']} style={{ marginBottom: 16 }}>
+            <Panel header="📡 局域网 / Tailscale 访问" key="lan">
               <Alert
-                type="success"
+                type="info"
                 showIcon
-                message="远程访问已开启"
-                style={{ marginBottom: 16 }}
+                message="如果手机和电脑在同一 WiFi 下，或使用了 Tailscale，可直接访问"
+                style={{ marginBottom: 12 }}
               />
 
-              <div style={{ marginBottom: 16 }}>
+              <div style={{ marginBottom: 12 }}>
                 <Text strong>访问地址：</Text>
                 <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
                   marginTop: 8,
                   padding: '8px 12px',
                   background: 'var(--bg-tertiary)',
                   borderRadius: 8,
                 }}>
-                  <Text copyable code style={{ flex: 1, fontSize: 14 }}>
-                    {tunnelUrl}
+                  <Text code style={{ fontSize: 14 }}>
+                    http://电脑IP:9527
                   </Text>
                 </div>
+                <Text type="secondary" style={{ fontSize: 12, marginTop: 4, display: 'block' }}>
+                  将"电脑IP"替换为你电脑的局域网 IP（如 192.168.x.x）或 Tailscale IP（如 100.x.x.x）
+                </Text>
               </div>
 
-              <div style={{ marginBottom: 16 }}>
+              <div style={{ marginBottom: 12 }}>
+                <Text strong>查找电脑 IP：</Text>
+                <ul style={{ margin: '4px 0', paddingLeft: 20, fontSize: 13 }}>
+                  <li><Text code>Windows</Text>：终端运行 <Text code>ipconfig</Text>，查看 IPv4 地址</li>
+                  <li><Text code>Tailscale</Text>：运行 <Text code>tailscale ip -4</Text></li>
+                </ul>
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
                 <Text strong>访问密码：</Text>
                 <div style={{
                   display: 'flex',
@@ -1126,85 +1134,134 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
                 </div>
               </div>
 
+              <div>
+                <Text strong>操作步骤：</Text>
+                <ol style={{ margin: '4px 0', paddingLeft: 20, fontSize: 13 }}>
+                  <li>确保手机和电脑在同一网络</li>
+                  <li>手机浏览器输入 <Text code>http://电脑IP:9527</Text></li>
+                  <li>输入访问密码登录</li>
+                </ol>
+              </div>
+            </Panel>
+          </Collapse>
+
+          {/* ngrok 公网访问 */}
+          <Collapse style={{ marginBottom: 16 }}>
+            <Panel header="🌐 公网访问（ngrok）" key="ngrok">
               <Alert
-                type="info"
+                type="warning"
                 showIcon
-                message="使用方法"
-                description={
-                  <ol style={{ margin: 0, paddingLeft: 20 }}>
-                    <li>在手机浏览器输入上方地址</li>
-                    <li>输入访问密码登录</li>
-                    <li>即可管理会话、查看统计</li>
-                  </ol>
-                }
-                style={{ marginBottom: 16 }}
+                message="不在同一网络时，需要 ngrok 隧道将电脑暴露到公网"
+                style={{ marginBottom: 12 }}
               />
 
-              <Button
-                danger
-                block
-                icon={<CloseCircleOutlined />}
-                onClick={handleStopTunnel}
-                loading={tunnelLoading}
-              >
-                关闭远程访问
-              </Button>
-            </div>
-          ) : (
-            // 隧道未启动
-            <div>
-              <Alert
-                type="info"
-                showIcon
-                message="开启后，手机可通过公网地址访问此电脑上的 AICoder"
-                style={{ marginBottom: 16 }}
-              />
-
-              <Form layout="vertical">
-                <Form.Item
-                  label="ngrok Authtoken"
-                  required
-                  extra={
-                    <span>
-                      免费注册获取：
-                      <a href="https://ngrok.com" target="_blank" rel="noopener">
-                        ngrok.com
-                      </a>
-                    </span>
-                  }
-                >
-                  <Input.Password
-                    value={ngrokToken}
-                    onChange={(e) => setNgrokToken(e.target.value)}
-                    placeholder="输入 ngrok authtoken"
-                  />
-                </Form.Item>
-
-                {tunnelError && (
+              {tunnelRunning && tunnelUrl ? (
+                // 隧道运行中
+                <div>
                   <Alert
-                    type="error"
+                    type="success"
                     showIcon
-                    message={tunnelError}
-                    closable
-                    onClose={() => setTunnelError(null)}
-                    style={{ marginBottom: 16 }}
+                    message="ngrok 隧道已开启"
+                    style={{ marginBottom: 12 }}
                   />
-                )}
 
-                <Button
-                  type="primary"
-                  block
-                  size="large"
-                  icon={<RocketOutlined />}
-                  onClick={handleStartTunnel}
-                  loading={tunnelLoading}
-                  disabled={!ngrokToken.trim()}
-                >
-                  开启远程访问
-                </Button>
-              </Form>
-            </div>
-          )}
+                  <div style={{ marginBottom: 12 }}>
+                    <Text strong>公网访问地址：</Text>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      marginTop: 8,
+                      padding: '8px 12px',
+                      background: 'var(--bg-tertiary)',
+                      borderRadius: 8,
+                    }}>
+                      <Text copyable code style={{ flex: 1, fontSize: 14 }}>
+                        {tunnelUrl}
+                      </Text>
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: 12 }}>
+                    <Text strong>访问密码：</Text>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      marginTop: 8,
+                      padding: '8px 12px',
+                      background: 'var(--bg-tertiary)',
+                      borderRadius: 8,
+                    }}>
+                      <Text code style={{ flex: 1, fontSize: 14 }}>
+                        {accessToken || '（见控制台输出）'}
+                      </Text>
+                      <Button
+                        size="small"
+                        icon={<CopyOutlined />}
+                        onClick={() => copyToClipboard(accessToken)}
+                      />
+                    </div>
+                  </div>
+
+                  <Button
+                    danger
+                    block
+                    icon={<CloseCircleOutlined />}
+                    onClick={handleStopTunnel}
+                    loading={tunnelLoading}
+                  >
+                    关闭 ngrok 隧道
+                  </Button>
+                </div>
+              ) : (
+                // 隧道未启动
+                <div>
+                  <Form layout="vertical">
+                    <Form.Item
+                      label="ngrok Authtoken"
+                      extra={
+                        <span>
+                          免费注册获取：
+                          <a href="https://ngrok.com" target="_blank" rel="noopener">
+                            ngrok.com
+                          </a>
+                        </span>
+                      }
+                    >
+                      <Input.Password
+                        value={ngrokToken}
+                        onChange={(e) => setNgrokToken(e.target.value)}
+                        placeholder="输入 ngrok authtoken"
+                      />
+                    </Form.Item>
+
+                    {tunnelError && (
+                      <Alert
+                        type="error"
+                        showIcon
+                        message={tunnelError}
+                        closable
+                        onClose={() => setTunnelError(null)}
+                        style={{ marginBottom: 12 }}
+                      />
+                    )}
+
+                    <Button
+                      type="primary"
+                      block
+                      icon={<RocketOutlined />}
+                      onClick={handleStartTunnel}
+                      loading={tunnelLoading}
+                      disabled={!ngrokToken.trim()}
+                    >
+                      开启 ngrok 隧道
+                    </Button>
+                  </Form>
+                </div>
+              )}
+            </Panel>
+          </Collapse>
         </TabPane>
 
         {/* 关于 */}
