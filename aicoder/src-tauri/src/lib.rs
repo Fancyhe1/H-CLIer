@@ -785,6 +785,69 @@ fn get_web_access_token(state: tauri::State<SharedAppState>) -> Result<String, S
     Ok(token.clone())
 }
 
+// 获取本机 IP 地址（带类型标签）
+#[derive(serde::Serialize)]
+struct LocalIpInfo {
+    ip: String,
+    label: String,  // "局域网" 或 "Tailscale"
+}
+
+#[tauri::command]
+fn get_local_ips() -> Result<Vec<LocalIpInfo>, String> {
+    let mut result = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+
+    // 枚举所有网络接口
+    if let Ok(interfaces) = local_ip_address::list_afinet_netifas() {
+        for (_, ip) in interfaces {
+            if let std::net::IpAddr::V4(v4) = ip {
+                if v4.is_loopback() {
+                    continue;
+                }
+                let ip_str = ip.to_string();
+                if seen.contains(&ip_str) {
+                    continue;
+                }
+                seen.insert(ip_str.clone());
+
+                let octets = v4.octets();
+                let label = if octets[0] == 100 {
+                    "Tailscale".to_string()
+                } else {
+                    "局域网".to_string()
+                };
+
+                result.push(LocalIpInfo { ip: ip_str, label });
+            }
+        }
+    }
+
+    // 如果没找到，用 UDP 探测获取主 IP
+    if result.is_empty() {
+        if let Ok(socket) = std::net::UdpSocket::bind("0.0.0.0:0") {
+            if socket.connect("8.8.8.8:80").is_ok() {
+                if let Ok(addr) = socket.local_addr() {
+                    result.push(LocalIpInfo {
+                        ip: addr.ip().to_string(),
+                        label: "局域网".to_string(),
+                    });
+                }
+            }
+        }
+    }
+
+    // Tailscale IP 排在前面
+    result.sort_by(|a, b| {
+        if a.label == "Tailscale" && b.label != "Tailscale" {
+            std::cmp::Ordering::Less
+        } else {
+            std::cmp::Ordering::Greater
+        }
+    });
+
+    Ok(result)
+}
+
 // 通知桌面端切换到指定会话（从网页端调用）
 #[tauri::command]
 fn activate_session_on_desktop_ui(app: tauri::AppHandle, session_id: String) -> Result<(), String> {
@@ -957,6 +1020,7 @@ pub fn run() {
             stop_tunnel,
             get_tunnel_status,
             get_web_access_token,
+            get_local_ips,
             activate_session_on_desktop_ui,
         ])
         .run(tauri::generate_context!())

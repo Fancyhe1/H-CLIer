@@ -95,6 +95,7 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
   const [_remoteAccessEnabled, setRemoteAccessEnabled] = useState(false)
   const [accessToken, setAccessToken] = useState('')
   const [tunnelLoading, setTunnelLoading] = useState(false)
+  const [localIps, setLocalIps] = useState<{ ip: string; label: string }[]>([])
 
   // 开始录制快捷键
   const startRecording = (actionId: string) => {
@@ -278,10 +279,11 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
     }
   }, [config])
 
-  // 远程访问：加载 access token
+  // 远程访问：加载 access token 和本机 IP
   useEffect(() => {
     if (visible) {
       invoke<string>('get_web_access_token').then(setAccessToken).catch(() => {})
+      invoke<{ ip: string; label: string }[]>('get_local_ips').then(setLocalIps).catch(() => {})
     }
   }, [visible])
 
@@ -1089,27 +1091,38 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
 
               <div style={{ marginBottom: 12 }}>
                 <Text strong>访问地址：</Text>
-                <div style={{
-                  marginTop: 8,
-                  padding: '8px 12px',
-                  background: 'var(--bg-tertiary)',
-                  borderRadius: 8,
-                }}>
-                  <Text code style={{ fontSize: 14 }}>
-                    http://电脑IP:9527
-                  </Text>
-                </div>
+                {localIps.length > 0 ? (
+                  localIps.map((item, i) => (
+                    <div key={i} style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      marginTop: 8,
+                      padding: '8px 12px',
+                      background: 'var(--bg-tertiary)',
+                      borderRadius: 8,
+                    }}>
+                      <Tag color={item.label === 'Tailscale' ? 'blue' : 'green'} style={{ margin: 0 }}>
+                        {item.label}
+                      </Tag>
+                      <Text copyable code style={{ flex: 1, fontSize: 14 }}>
+                        {`http://${item.ip}:9527`}
+                      </Text>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{
+                    marginTop: 8,
+                    padding: '8px 12px',
+                    background: 'var(--bg-tertiary)',
+                    borderRadius: 8,
+                  }}>
+                    <Text code style={{ fontSize: 14 }}>http://电脑IP:9527</Text>
+                  </div>
+                )}
                 <Text type="secondary" style={{ fontSize: 12, marginTop: 4, display: 'block' }}>
-                  将"电脑IP"替换为你电脑的局域网 IP（如 192.168.x.x）或 Tailscale IP（如 100.x.x.x）
+                  手机浏览器输入上方地址即可访问（需在同一网络）
                 </Text>
-              </div>
-
-              <div style={{ marginBottom: 12 }}>
-                <Text strong>查找电脑 IP：</Text>
-                <ul style={{ margin: '4px 0', paddingLeft: 20, fontSize: 13 }}>
-                  <li><Text code>Windows</Text>：终端运行 <Text code>ipconfig</Text>，查看 IPv4 地址</li>
-                  <li><Text code>Tailscale</Text>：运行 <Text code>tailscale ip -4</Text></li>
-                </ul>
               </div>
 
               <div style={{ marginBottom: 12 }}>

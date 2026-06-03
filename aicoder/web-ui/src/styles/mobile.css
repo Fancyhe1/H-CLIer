@@ -16,6 +16,8 @@
   --bubble-assistant: #fff;
   --border: #e6e6e6;
   --danger: #fa5151;
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /* Dark theme */
@@ -804,3 +806,190 @@ body {
 }
 
 .empty-icon { font-size: 48px; margin-bottom: 12px; }
+
+/* ============================================================
+   Touch Feedback & Animations
+   ============================================================ */
+
+/* 触摸反馈 */
+.session-item,
+.tab-item,
+.btn-primary,
+.btn-danger,
+.btn-refresh,
+.btn-back,
+.btn-delete-sm,
+.chat-send-btn {
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.1s ease, opacity 0.1s ease;
+}
+
+.session-item:active,
+.tab-item:active,
+.btn-primary:active,
+.btn-danger:active {
+  transform: scale(0.97);
+  opacity: 0.8;
+}
+
+/* 页面切换动画 */
+.page-enter {
+  animation: slideInRight 0.25s ease-out;
+}
+
+.page-exit {
+  animation: slideOutLeft 0.25s ease-in;
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes slideOutLeft {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
+}
+
+/* 下拉刷新指示器 */
+.pull-to-refresh {
+  position: absolute;
+  top: -60px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  transition: top 0.2s ease;
+}
+
+.pull-to-refresh.visible {
+  top: 0;
+}
+
+/* 键盘弹出时的输入框适配 */
+@supports (height: 100dvh) {
+  .chat-view {
+    height: 100dvh;
+  }
+}
+
+/* 滚动条样式优化 */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--text-muted);
+  border-radius: 2px;
+}
+
+/* 手势返回提示 */
+.swipe-back-hint {
+  position: fixed;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 100px;
+  background: linear-gradient(to right, rgba(0,0,0,0.1), transparent);
+  z-index: 1000;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.swipe-back-hint.visible {
+  opacity: 1;
+}
+
+/* 加载动画 */
+.loading-spinner {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 消息发送动画 */
+.message-sent {
+  animation: messagePop 0.3s ease-out;
+}
+
+@keyframes messagePop {
+  0% { transform: scale(0.8); opacity: 0; }
+  50% { transform: scale(1.02); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* 长按菜单 */
+.long-press-menu {
+  position: fixed;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  padding: 8px 0;
+  z-index: 1000;
+  animation: fadeIn 0.15s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.long-press-menu-item {
+  padding: 10px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.long-press-menu-item:active {
+  background: var(--bg-primary);
+}
+
+/* 安全区域适配 */
+.safe-area-top {
+  padding-top: var(--safe-area-top);
+}
+
+.safe-area-bottom {
+  padding-bottom: var(--safe-area-bottom);
+}
+
+/* 横屏适配 */
+@media (orientation: landscape) {
+  .chat-messages {
+    max-width: 100%;
+  }
+
+  .chat-bubble-wrap {
+    max-width: 85%;
+  }
+}
+
+/* 折叠屏适配 */
+@media (min-width: 768px) {
+  .app-container {
+    max-width: 480px;
+    margin: 0 auto;
+    box-shadow: 0 0 20px rgba(0,0,0,0.1);
+  }
+
+  .chat-view {
+    max-width: 480px;
+    margin: 0 auto;
+  }
+}

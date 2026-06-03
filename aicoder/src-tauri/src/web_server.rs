@@ -791,7 +791,33 @@ fn create_router(state: SharedState) -> Router {
         .merge(terminal_routes);
 
     // 静态文件服务（移动端 Web UI）
-    let static_service = ServeDir::new("web-dist");
+    // 获取当前工作目录
+    let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+
+    // 尝试多个可能的路径
+    let web_dist_paths = vec![
+        cwd.join("src-tauri").join("web-dist"),
+        cwd.join("web-dist"),
+        cwd.join("..").join("src-tauri").join("web-dist"),
+        std::path::PathBuf::from("web-dist"),
+    ];
+
+    println!("[Web Server] 当前工作目录: {:?}", cwd);
+
+    let mut static_service = None;
+    for path in &web_dist_paths {
+        println!("[Web Server] 尝试路径: {:?}", path);
+        if path.exists() {
+            println!("[Web Server] ✓ 找到静态文件目录: {:?}", path);
+            static_service = Some(ServeDir::new(path));
+            break;
+        }
+    }
+
+    let static_service = static_service.unwrap_or_else(|| {
+        eprintln!("[Web Server] ✗ 警告: 未找到 web-dist 目录");
+        ServeDir::new("web-dist")
+    });
 
     Router::new()
         .merge(public_routes)

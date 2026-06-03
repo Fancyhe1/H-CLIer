@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { api, type Session, type ChatMessage } from '../api/client'
+import { SwipeBack } from '../components/SwipeBack'
+import { notificationManager } from '../utils/notifications'
 
 interface ChatViewProps {
   session: Session
@@ -95,14 +97,24 @@ export default function ChatView({ session, onBack }: ChatViewProps) {
 
   // 轮询新消息
   useEffect(() => {
+    let lastMessageCount = messages.length
     const timer = setInterval(async () => {
       try {
         const history = await api.getSessionHistory(session.id)
+        if (history.length > lastMessageCount) {
+          // 有新消息
+          const newMessages = history.slice(lastMessageCount)
+          const assistantMessages = newMessages.filter(m => m.role === 'assistant')
+          if (assistantMessages.length > 0) {
+            notificationManager.notifyNewMessage(session.title)
+          }
+          lastMessageCount = history.length
+        }
         setMessages(prev => history.length !== prev.length ? history : prev)
       } catch {}
     }, 3000)
     return () => clearInterval(timer)
-  }, [session.id])
+  }, [session.id, session.title])
 
   useEffect(() => { scrollToBottom() }, [messages, scrollToBottom])
 
@@ -135,6 +147,7 @@ export default function ChatView({ session, onBack }: ChatViewProps) {
   }
 
   return (
+    <SwipeBack onSwipeBack={onBack}>
     <div className="chat-view">
       <div className="chat-header">
         <button className="btn-back" onClick={onBack}>←</button>
@@ -180,5 +193,6 @@ export default function ChatView({ session, onBack }: ChatViewProps) {
         </button>
       </div>
     </div>
+    </SwipeBack>
   )
 }

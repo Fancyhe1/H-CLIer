@@ -1,7 +1,29 @@
-const BASE_URL = ''
+// 服务器地址配置
+function getBaseUrl(): string {
+  // 从 localStorage 获取配置的服务器地址
+  const serverUrl = localStorage.getItem('hcl_server_url')
+  if (serverUrl) {
+    return serverUrl.replace(/\/$/, '') // 移除末尾的斜杠
+  }
+  // 默认使用相对路径（网页版）
+  return ''
+}
 
 class ApiClient {
   private token: string | null = null
+
+  // 设置服务器地址
+  setServerUrl(url: string) {
+    localStorage.setItem('hcl_server_url', url.replace(/\/$/, ''))
+  }
+
+  getServerUrl(): string {
+    return localStorage.getItem('hcl_server_url') || ''
+  }
+
+  clearServerUrl() {
+    localStorage.removeItem('hcl_server_url')
+  }
 
   setToken(token: string) {
     this.token = token
@@ -20,7 +42,14 @@ class ApiClient {
     localStorage.removeItem('hcl_token')
   }
 
+  // 清除所有配置
+  clearAll() {
+    this.clearToken()
+    this.clearServerUrl()
+  }
+
   private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
+    const baseUrl = getBaseUrl()
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...(options.headers as Record<string, string>),
@@ -31,22 +60,32 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`
     }
 
-    const res = await fetch(`${BASE_URL}${path}`, {
-      ...options,
-      headers,
-    })
+    const url = `${baseUrl}${path}`
+    console.log(`[API] ${options.method || 'GET'} ${url}`)
 
-    if (res.status === 401) {
-      this.clearToken()
-      window.location.reload()
-      throw new Error('Unauthorized')
-    }
+    try {
+      const res = await fetch(url, {
+        ...options,
+        headers,
+      })
 
-    const data = await res.json()
-    if (!data.success) {
-      throw new Error(data.error || 'Request failed')
+      console.log(`[API] Response: ${res.status}`)
+
+      if (res.status === 401) {
+        this.clearToken()
+        window.location.reload()
+        throw new Error('Unauthorized')
+      }
+
+      const data = await res.json()
+      if (!data.success) {
+        throw new Error(data.error || 'Request failed')
+      }
+      return data.data
+    } catch (err) {
+      console.error(`[API] Error:`, err)
+      throw err
     }
-    return data.data
   }
 
   // Auth
@@ -101,8 +140,18 @@ class ApiClient {
 
   // WebSocket URL for terminal streaming
   getTerminalWsUrl(id: string): string {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const baseUrl = getBaseUrl()
     const token = this.getToken()
+
+    if (baseUrl) {
+      // 如果配置了服务器地址，使用配置的地址
+      const url = new URL(baseUrl)
+      const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+      return `${protocol}//${url.host}/api/ws/terminal/${id}?token=${token}`
+    }
+
+    // 否则使用当前页面地址
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     return `${protocol}//${window.location.host}/api/ws/terminal/${id}?token=${token}`
   }
 
