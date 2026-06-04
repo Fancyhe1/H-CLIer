@@ -418,13 +418,6 @@ function MultiTerminal() {
   const showTerminal = useCallback((sessionId: string) => {
     if (!containerRef.current) return
 
-    // 先把所有其他终端设置为"标记未读"模式（它们在后台运行）
-    terminalsRef.current.forEach((instance, id) => {
-      if (id !== sessionId) {
-        instance.shouldMarkUnread = true
-      }
-    })
-
     const children = containerRef.current.children
     for (let i = 0; i < children.length; i++) {
       const child = children[i] as HTMLElement
@@ -445,6 +438,9 @@ function MultiTerminal() {
           const cols = instance.term.cols
           const rows = instance.term.rows
 
+          // 强制重新调整尺寸（触发完全重新渲染）
+          instance.term.resize(cols, rows)
+
           // 刷新显示
           instance.term.refresh(0, rows - 1)
 
@@ -462,7 +458,7 @@ function MultiTerminal() {
       }
 
       // 使用 setTimeout 确保 DOM 已更新
-      setTimeout(() => fitAndSync(), 50)
+      setTimeout(() => fitAndSync(), 100)
     }
   }, [])
 
