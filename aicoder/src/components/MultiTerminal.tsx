@@ -186,14 +186,24 @@ function MultiTerminal() {
       fontFamily: 'Menlo, Monaco, "Courier New", monospace',
       theme: termTheme,
       rows: 30,
-      cols: 80,
+      cols: 120,  // 使用较大的默认尺寸，避免在隐藏状态下使用 80 列
       allowProposedApi: true,
     })
 
     const fitAddon = new FitAddon()
     term.loadAddon(fitAddon)
     term.open(terminalDiv)
-    fitAddon.fit()
+
+    // 延迟 fit，确保容器有正确的尺寸
+    // 如果容器是隐藏的（display: none），fitAddon 无法正确计算尺寸
+    // 使用 setTimeout 延迟 fit，等待容器变为可见
+    setTimeout(() => {
+      try {
+        fitAddon.fit()
+      } catch (e) {
+        // 忽略 fit 错误
+      }
+    }, 100)
 
     // 创建终端实例（先保存，后续填充ptyId和unlisten）
     // 新创建的终端默认应该追踪未读（只有当前会话不需要标记）
@@ -432,7 +442,18 @@ function MultiTerminal() {
       // 定义一个函数来 fit 并同步 PTY 尺寸
       const fitAndSync = async () => {
         try {
-          // 先 fit 获取正确的尺寸
+          // 先检查容器尺寸
+          const container = containerRef.current
+          if (!container) return
+          const containerRect = container.getBoundingClientRect()
+
+          // 如果容器尺寸为 0，延迟重试
+          if (containerRect.width === 0 || containerRect.height === 0) {
+            setTimeout(() => fitAndSync(), 200)
+            return
+          }
+
+          // fit 获取正确的尺寸
           instance.fitAddon.fit()
 
           const cols = instance.term.cols
@@ -444,6 +465,7 @@ function MultiTerminal() {
           // 刷新显示
           instance.term.refresh(0, rows - 1)
 
+
           // 同步 PTY 尺寸
           if (instance.ptyId) {
             await invoke('resize_pty', {
@@ -451,7 +473,27 @@ function MultiTerminal() {
               cols: cols,
               rows: rows
             })
+
+            // 从 PTY 读取原始历史记录
+            const history = await invoke<string>('read_terminal_history', {
+              sessionId: sessionId
+            })
+
+            if (history) {
+              // 清空终端
+              instance.term.clear()
+
+              // 重新写入原始历史记录
+              // 这样 xterm 会按照新的列数（129）来渲染
+              instance.term.write(history)
+
+              // 滚动到底部
+              instance.term.scrollToBottom()
+            }
           }
+
+          // 刷新显示
+          instance.term.refresh(0, rows - 1)
         } catch (e) {
           console.error('Fit and sync error:', e)
         }

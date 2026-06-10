@@ -52,6 +52,8 @@ class ApiClient {
     const baseUrl = getBaseUrl()
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      // ngrok 免费版需要这个头来绕过警告页面
+      'ngrok-skip-browser-warning': 'true',
       ...(options.headers as Record<string, string>),
     }
 
