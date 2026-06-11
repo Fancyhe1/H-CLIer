@@ -608,13 +608,22 @@ fn is_newer_version(current: &str, remote: &str) -> bool {
     false
 }
 
+// 创建 HTTP 客户端，支持系统代理和超时
+fn create_http_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .redirect(reqwest::redirect::Policy::limited(5))
+        .build()
+        .unwrap_or_default()
+}
+
 #[tauri::command]
 async fn check_github_update() -> Result<UpdateInfo, String> {
-    let client = reqwest::Client::new();
+    let client = create_http_client();
     let response = client
         .get("https://api.github.com/repos/Fancyhe1/H-CLIer/releases/latest")
         .header("Accept", "application/vnd.github.v3+json")
-        .header("User-Agent", "H-CLIer-App")
+        .header("User-Agent", "H-CLIer-App/1.0")
         .send()
         .await
         .map_err(|e| format!("网络请求失败: {}", e))?;
@@ -657,25 +666,48 @@ async fn download_update(url: String, app_handle: tauri::AppHandle) -> Result<St
     let file_name = url.split('/').last().unwrap_or("update.exe");
     let file_path = temp_dir.join(file_name);
 
-    let client = reqwest::Client::new();
-    let response = client
-        .get(&url)
-        .header("User-Agent", "H-CLIer-App")
-        .send()
-        .await
-        .map_err(|e| format!("下载失败: {}", e))?;
+    let client = create_http_client();
 
-    if !response.status().is_success() {
-        return Err(format!("下载失败: HTTP {}", response.status()));
+    // 重试机制，最多尝试 3 次
+    let mut last_err = String::new();
+    for attempt in 1..=3 {
+        if attempt > 1 {
+            // 等待 2 秒后重试
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        }
+
+        match client
+            .get(&url)
+            .header("User-Agent", "H-CLIer-App/1.0")
+            .send()
+            .await
+        {
+            Ok(response) => {
+                if !response.status().is_success() {
+                    last_err = format!("下载失败: HTTP {}", response.status());
+                    continue;
+                }
+
+                match response.bytes().await {
+                    Ok(bytes) => {
+                        std::fs::write(&file_path, &bytes)
+                            .map_err(|e| format!("保存文件失败: {}", e))?;
+                        return Ok(file_path.to_string_lossy().to_string());
+                    }
+                    Err(e) => {
+                        last_err = format!("读取下载内容失败: {}", e);
+                        continue;
+                    }
+                }
+            }
+            Err(e) => {
+                last_err = format!("下载失败: {}", e);
+                continue;
+            }
+        }
     }
 
-    let bytes = response.bytes().await
-        .map_err(|e| format!("读取下载内容失败: {}", e))?;
-
-    std::fs::write(&file_path, &bytes)
-        .map_err(|e| format!("保存文件失败: {}", e))?;
-
-    Ok(file_path.to_string_lossy().to_string())
+    Err(format!("下载失败（已重试3次）: {}", last_err))
 }
 
 #[tauri::command]
