@@ -186,3 +186,93 @@ pub fn get_hooks() -> Result<Vec<HookInfo>, Box<dyn std::error::Error>> {
 
     Ok(hooks)
 }
+
+// 设置 Claude Code hooks，自动配置通知脚本
+pub fn setup_claude_hooks(hook_script_path: &str) -> Result<(), String> {
+    let settings_path = get_claude_dir()
+        .map_err(|e| format!("无法获取 Claude 配置目录: {}", e))?
+        .join("settings.json");
+
+    // 读取现有配置或创建空配置
+    let mut settings: serde_json::Value = if settings_path.exists() {
+        let content = fs::read_to_string(&settings_path)
+            .map_err(|e| format!("无法读取 settings.json: {}", e))?;
+        serde_json::from_str(&content)
+            .map_err(|e| format!("无法解析 settings.json: {}", e))?
+    } else {
+        serde_json::json!({})
+    };
+
+    // 构建 hook 命令（跨平台）
+    let hook_cmd = if cfg!(target_os = "windows") {
+        format!("powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File \"{}\"", hook_script_path)
+    } else {
+        format!("bash \"{}\"", hook_script_path)
+    };
+
+    // 设置 Notification hooks
+    let notification_hooks = serde_json::json!([
+        {
+            "matcher": "permission_prompt|elicitation_dialog",
+            "hooks": [
+                {
+                    "type": "command",
+                    "command": hook_cmd
+                }
+            ]
+        }
+    ]);
+
+    // 合并到现有 hooks 配置中
+    if let Some(hooks) = settings.get_mut("hooks") {
+        hooks["Notification"] = notification_hooks;
+    } else {
+        settings["hooks"] = serde_json::json!({
+            "Notification": notification_hooks
+        });
+    }
+
+    // 写入配置文件
+    let pretty = serde_json::to_string_pretty(&settings)
+        .map_err(|e| format!("无法序列化配置: {}", e))?;
+    fs::write(&settings_path, pretty)
+        .map_err(|e| format!("无法写入 settings.json: {}", e))?;
+
+    Ok(())
+}
+
+// 获取 Claude Code hooks 配置的脚本路径
+pub fn get_hook_script_path() -> Result<String, String> {
+    let settings_path = get_claude_dir()
+        .map_err(|e| format!("无法获取 Claude 配置目录: {}", e))?
+        .join("settings.json");
+
+    if !settings_path.exists() {
+        return Err("settings.json 不存在".to_string());
+    }
+
+    let content = fs::read_to_string(&settings_path)
+        .map_err(|e| format!("无法读取 settings.json: {}", e))?;
+    let json: serde_json::Value = serde_json::from_str(&content)
+        .map_err(|e| format!("无法解析 settings.json: {}", e))?;
+
+    // 从 Notification hooks 中提取脚本路径
+    if let Some(notification) = json.get("hooks")
+        .and_then(|h| h.get("Notification"))
+        .and_then(|n| n.as_array())
+    {
+        for entry in notification {
+            if let Some(hooks) = entry.get("hooks").and_then(|h| h.as_array()) {
+                for hook in hooks {
+                    if let Some(cmd) = hook.get("command").and_then(|c| c.as_str()) {
+                        if cmd.contains("notify.ps1") || cmd.contains("notify.sh") {
+                            return Ok(cmd.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Err("未找到通知 hook 配置".to_string())
+}

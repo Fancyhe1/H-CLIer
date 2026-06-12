@@ -743,6 +743,44 @@ async fn auth_middleware(
 }
 
 // ============================================================
+// Claude Code Hooks 通知
+// ============================================================
+
+/// Claude Code hook 事件通知结构
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct HookNotification {
+    /// 事件类型: "Notification" | "Stop"
+    pub hook_event_name: String,
+    /// 匹配器: "permission_prompt" | "idle_prompt" | "elicitation_dialog"
+    #[serde(default)]
+    pub matcher: String,
+    /// 通知消息
+    #[serde(default)]
+    pub message: String,
+    /// Claude Code session ID
+    #[serde(default)]
+    pub session_id: String,
+}
+
+/// 接收 Claude Code hook 通知，转发为 Tauri 事件
+async fn handle_hook_notification(
+    State(state): State<SharedState>,
+    Json(payload): Json<HookNotification>,
+) -> StatusCode {
+    println!("[Hooks] 收到通知: event={}, matcher={}, session={}",
+        payload.hook_event_name, payload.matcher, payload.session_id);
+
+    // 向前端发送事件
+    match state.app_handle.emit("claude-hook-notification", &payload) {
+        Ok(_) => StatusCode::OK,
+        Err(e) => {
+            eprintln!("[Hooks] 发送事件失败: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
+    }
+}
+
+// ============================================================
 // 路由
 // ============================================================
 
@@ -782,13 +820,17 @@ fn create_router(state: SharedState) -> Router {
         .route("/api/sessions/{session_id}/terminal/activate", post(activate_session_on_desktop))
         .route("/api/ws/terminal/{session_id}", get(ws_terminal_handler));
 
+    let hook_routes = Router::new()
+        .route("/api/hooks/notification", post(handle_hook_notification));
+
     let protected_routes = Router::new()
         .merge(session_routes)
         .merge(trash_routes)
         .merge(checkpoint_routes)
         .merge(config_routes)
         .merge(tunnel_routes)
-        .merge(terminal_routes);
+        .merge(terminal_routes)
+        .merge(hook_routes);
 
     // 静态文件服务（移动端 Web UI）
     // 获取当前工作目录

@@ -253,12 +253,40 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
       loadMcpServers()
       loadSkills()
       loadHooks()
+      checkHooksConfigured()
       // 如果版本还未获取，重新检测
       if (claudeInstalled && !claudeVersion) {
         getClaudeVersion()
       }
     }
   }, [activeTab])
+
+  // Claude Code Hooks 配置状态
+  const [hooksConfigured, setHooksConfigured] = useState<boolean>(false)
+  const [hooksLoading, setHooksLoading] = useState<boolean>(false)
+
+  const checkHooksConfigured = async () => {
+    try {
+      const configured = await invoke<boolean>('is_claude_hooks_configured')
+      setHooksConfigured(configured)
+    } catch {
+      setHooksConfigured(false)
+    }
+  }
+
+  const handleSetupHooks = async () => {
+    setHooksLoading(true)
+    try {
+      await invoke('setup_claude_hooks')
+      message.success('Claude Code 通知钩子配置成功！')
+      setHooksConfigured(true)
+      loadHooks() // 刷新 hooks 列表
+    } catch (err) {
+      message.error('配置失败: ' + String(err))
+    } finally {
+      setHooksLoading(false)
+    }
+  }
 
   // 同步表单数据
   useEffect(() => {
@@ -1034,6 +1062,29 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
                 showIcon
                 style={{ marginBottom: 16 }}
               />
+
+              {/* Claude Code 通知钩子 */}
+              <div style={{ marginBottom: 16, padding: 12, background: '#1a1a2e', borderRadius: 8, border: '1px solid #333' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <div>
+                    <Text strong>📬 消息通知钩子</Text>
+                    {hooksConfigured && (
+                      <Tag color="green" style={{ marginLeft: 8 }}>已配置</Tag>
+                    )}
+                  </div>
+                  <Button
+                    type={hooksConfigured ? 'default' : 'primary'}
+                    size="small"
+                    loading={hooksLoading}
+                    onClick={handleSetupHooks}
+                  >
+                    {hooksConfigured ? '重新配置' : '启用'}
+                  </Button>
+                </div>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  当 Claude Code 在后台会话中需要用户操作（权限审批、选项选择）时，自动通知并高亮该会话。应用启动时自动配置。
+                </Text>
+              </div>
 
               {hooks.length === 0 ? (
                 <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>

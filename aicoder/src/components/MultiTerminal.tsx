@@ -34,6 +34,7 @@ function stripAnsi(str: string): string {
 
 // 检查剥离ANSI后的文本是否只是Claude Code的噪音输出（非真正的回复）
 // 返回 true 表示是噪音，应该忽略
+// 注意：只匹配独立出现的噪音，避免误判真实回复内容
 function isClaudeCodeNoise(text: string): boolean {
   if (!text) return true
 
@@ -41,14 +42,23 @@ function isClaudeCodeNoise(text: string): boolean {
   const compact = text.replace(/[\s\r\n]+/g, ' ').trim()
   if (!compact) return true
 
-  // 噪音模式列表
-  const noisePatterns = [
-    /[※✻✶✢·•○◦●]/,                          // 动画/状态字符
-    /recap/i,                                     // recap 摘要
-    /Compacting/i,                                // 压缩提示
+  // 纯噪音模式：整个内容只包含这些
+  const pureNoisePatterns = [
+    /^[\s─═╭╰│╮╯❯]+$/,                       // 纯边框/选择字符
+    /^\s*[\$#>]\s*$/,                             // 只有提示符
+    /^\s*@\s*$/,                                  // 只有@符号
+    /^[※✻✶✢·•○◦●\s]+$/,                         // 纯动画字符
+  ]
+
+  if (pureNoisePatterns.some((p) => p.test(compact))) return true
+
+  // 包含噪音关键词的模式（需要匹配完整关键词，避免误判）
+  const noiseKeywordPatterns = [
+    /\brecap\b/i,                                 // recap 摘要
+    /\bCompacting\b/i,                            // 压缩提示
     /disable\s+recaps/i,                          // 配置提示
-    /Worked\s+for/i,                              // 时间提示
-    /Shimmying/i,                                 // 动画文字
+    /Worked\s+for\s+\d/i,                         // 时间提示（如 "Worked for 5 min"）
+    /\bShimmying\b/i,                             // 动画文字
     /\(thinking\)/i,                              // thinking 标记
     /esc\s*to\s*interrupt/i,                      // 中断提示
     /\?\s*for\s*shortcuts/i,                      // 快捷键提示
@@ -56,17 +66,13 @@ function isClaudeCodeNoise(text: string): boolean {
     /ClaudeCodev\d+/i,                            // 版本信息
     /Claude\s*Code\s*v\d+/i,                      // 版本信息变体
     /API\s*Usage/i,                               // API使用
-    /Loading|加载中/i,                             // 加载提示
+    /\bLoading\b|加载中/i,                         // 加载提示
     /Please\s+wait|请稍候/i,                       // 等待提示
-    /^[\s─═╭╰│╮╯]+$/,                            // 纯边框字符
-    /^\s*[\$#>]\s*$/,                             // 只有提示符
-    /^\s*@\s*$/,                                  // 只有@符号
     /^\s*exit\s*$/i,                              // exit 命令
     /^\s*clear\s*$/i,                             // clear 命令
-    /\d+\/\d+\s*$/,                              // 进度显示
   ]
 
-  return noisePatterns.some((pattern) => pattern.test(compact))
+  return noiseKeywordPatterns.some((pattern) => pattern.test(compact))
 }
 
 function MultiTerminal() {
@@ -124,6 +130,48 @@ function MultiTerminal() {
     return () => window.removeEventListener('append-to-terminal', handleAppendToTerminal)
   }, [activeSessionId])
 
+  // 监听 Claude Code hook 通知（权限请求、选项选择等需要用户操作的场景）
+  useEffect(() => {
+    const unlisten = listen('claude-hook-notification', (event) => {
+      const payload = event.payload as {
+        hook_event_name?: string
+        matcher?: string
+        message?: string
+        session_id?: string
+      }
+
+      console.log('[Hook] 收到 Claude Code 通知:', payload)
+
+      // 只处理需要用户操作的事件
+      if (payload.matcher === 'permission_prompt' || payload.matcher === 'elicitation_dialog') {
+        // 如果有 session_id，标记对应会话为未读
+        if (payload.session_id) {
+          // 查找匹配的会话（通过 PTY 日志中的 session ID 匹配）
+          const sessions = useSessionStore.getState().sessions
+          const matchedSession = sessions.find(s =>
+            s.cliSessionId === payload.session_id ||
+            s.id === payload.session_id
+          )
+          if (matchedSession) {
+            useSessionStore.getState().setHasUnread(matchedSession.id, true)
+            return
+          }
+        }
+
+        // 如果无法匹配具体会话，标记所有后台会话为未读
+        // （用户需要手动检查哪个会话需要操作）
+        const terminals = terminalsRef.current
+        terminals.forEach((instance, sessionId) => {
+          if (instance.shouldMarkUnread) {
+            useSessionStore.getState().setHasUnread(sessionId, true)
+          }
+        })
+      }
+    })
+
+    return () => { unlisten.then(fn => fn()) }
+  }, [])
+
   // 当 activeSessionId 变为 null 时，确保没有终端显示
   useEffect(() => {
     if (!activeSessionId) {
@@ -137,6 +185,28 @@ function MultiTerminal() {
       }
     }
   }, [activeSessionId])
+
+  // 监听窗口焦点变化：失焦时所有终端标记为可检测未读，聚焦时清除当前终端未读
+  useEffect(() => {
+    const unlisten = listen<boolean>('tauri://focus-changed', (event) => {
+      const focused = event.payload
+      if (focused) {
+        // 窗口获得焦点：当前活跃终端不标记未读，并清除其未读状态
+        const current = useSessionStore.getState().activeSessionId
+        if (current) {
+          const instance = terminalsRef.current.get(current)
+          if (instance) instance.shouldMarkUnread = false
+          useSessionStore.getState().setHasUnread(current, false)
+        }
+      } else {
+        // 窗口失去焦点：所有终端都标记为可检测未读（包括当前活跃的）
+        terminalsRef.current.forEach((instance) => {
+          instance.shouldMarkUnread = true
+        })
+      }
+    })
+    return () => { unlisten.then(fn => fn()) }
+  }, [])
 
   // 创建终端
   useEffect(() => {
@@ -226,13 +296,16 @@ function MultiTerminal() {
         // 监听 PTY 输出 - 使用延迟标记策略
         // 原理：输出开始时不标记，等输出停止3秒后才标记未读
         // 只有包含可见文本内容（非纯ANSI转义序列）的输出才触发标记
+        // 注意：用 mySessionId 而非 activeSessionId，避免闭包捕获过时的值
+        const mySessionId = activeSessionId
         let outputTimer: ReturnType<typeof setTimeout> | null = null
         const unlisten = await listen<string>(`pty-output-${ptyId}`, (event) => {
           term.write(event.payload)
 
           // 如果这个终端需要标记未读（后台运行），且有新输出
-          const instance = terminalsRef.current.get(activeSessionId)
-          if (instance && instance.shouldMarkUnread && event.payload) {
+          const instance = terminalsRef.current.get(mySessionId)
+          if (!instance || !instance.shouldMarkUnread) return
+          if (event.payload) {
             // 剥离ANSI转义序列，检查是否包含有意义的可见文本
             const visibleContent = stripAnsi(event.payload)
             if (!visibleContent) return // 纯转义序列，忽略
@@ -244,9 +317,9 @@ function MultiTerminal() {
             }
             // 输出停止3秒后才标记未读
             outputTimer = setTimeout(() => {
-              const currentInstance = terminalsRef.current.get(activeSessionId)
+              const currentInstance = terminalsRef.current.get(mySessionId)
               if (currentInstance && currentInstance.shouldMarkUnread) {
-                useSessionStore.getState().setHasUnread(activeSessionId, true)
+                useSessionStore.getState().setHasUnread(mySessionId, true)
               }
             }, 3000)
           }
@@ -434,6 +507,13 @@ function MultiTerminal() {
   // 显示指定终端，隐藏其他（纯 DOM 操作，不触发状态更新）
   const showTerminal = useCallback((sessionId: string) => {
     if (!containerRef.current) return
+
+    // 把所有其他终端设置为"标记未读"模式（它们在后台运行）
+    terminalsRef.current.forEach((instance, id) => {
+      if (id !== sessionId) {
+        instance.shouldMarkUnread = true
+      }
+    })
 
     const children = containerRef.current.children
     for (let i = 0; i < children.length; i++) {

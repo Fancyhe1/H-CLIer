@@ -575,6 +575,48 @@ fn get_claude_hooks() -> Result<Vec<claude_config::HookInfo>, String> {
     claude_config::get_hooks().map_err(|e| e.to_string())
 }
 
+// 嵌入 hook 脚本到二进制文件
+const HOOK_SCRIPT_PS1: &str = include_str!("../resources/hooks/notify.ps1");
+const HOOK_SCRIPT_SH: &str = include_str!("../resources/hooks/notify.sh");
+
+/// 将 hook 脚本写入配置目录，返回脚本路径
+fn ensure_hook_scripts(config_dir: &std::path::Path) -> Result<String, String> {
+    std::fs::create_dir_all(config_dir).map_err(|e| format!("创建配置目录失败: {}", e))?;
+
+    if cfg!(target_os = "windows") {
+        let script_path = config_dir.join("notify.ps1");
+        std::fs::write(&script_path, HOOK_SCRIPT_PS1)
+            .map_err(|e| format!("写入 hook 脚本失败: {}", e))?;
+        Ok(script_path.to_string_lossy().to_string())
+    } else {
+        let script_path = config_dir.join("notify.sh");
+        std::fs::write(&script_path, HOOK_SCRIPT_SH)
+            .map_err(|e| format!("写入 hook 脚本失败: {}", e))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&script_path, std::fs::Permissions::from_mode(0o755));
+        }
+        Ok(script_path.to_string_lossy().to_string())
+    }
+}
+
+#[tauri::command]
+fn setup_claude_hooks(app: tauri::AppHandle) -> Result<(), String> {
+    let config_dir = app.path().app_config_dir()
+        .map_err(|e| format!("无法获取配置目录: {}", e))?;
+    let script_path = ensure_hook_scripts(&config_dir)?;
+    claude_config::setup_claude_hooks(&script_path)
+}
+
+#[tauri::command]
+fn is_claude_hooks_configured() -> Result<bool, String> {
+    match claude_config::get_hook_script_path() {
+        Ok(_) => Ok(true),
+        Err(_) => Ok(false),
+    }
+}
+
 #[tauri::command]
 fn get_app_version() -> String {
     // 优先从环境变量读取（CI/CD 构建时注入），否则从 Cargo.toml 读取
@@ -582,6 +624,44 @@ fn get_app_version() -> String {
         .unwrap_or(env!("CARGO_PKG_VERSION"));
     // 去掉可能的 v 前缀
     version.trim_start_matches('v').to_string()
+}
+
+/// 使用 Windows 原生 API FlashWindowEx 闪烁任务栏图标
+/// flash=true: 闪烁5次后停止；flash=false: 停止闪烁
+#[tauri::command]
+fn flash_taskbar(window: tauri::Window, flash: bool) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::Foundation::HWND;
+        use windows::Win32::UI::WindowsAndMessaging::{
+            FlashWindowEx, FLASHWINFO, FLASHW_ALL, FLASHW_TIMER, FLASHW_STOP,
+        };
+        use std::mem;
+
+        let hwnd = window.hwnd().map_err(|e| format!("获取窗口句柄失败: {}", e))?;
+
+        let (flags, count) = if flash {
+            (FLASHW_ALL | FLASHW_TIMER, 5)  // 闪烁5次
+        } else {
+            (FLASHW_STOP, 0)
+        };
+        let flash_info = FLASHWINFO {
+            cbSize: mem::size_of::<FLASHWINFO>() as u32,
+            hwnd: HWND(hwnd.0 as *mut _),
+            dwFlags: flags,
+            uCount: count,
+            dwTimeout: 0,
+        };
+        unsafe {
+            let _ = FlashWindowEx(&flash_info);
+        }
+        Ok(())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = (window, flash);
+        Err("仅支持 Windows".to_string())
+    }
 }
 
 // 版本比较函数：返回 true 如果 remote_version > current_version
@@ -962,8 +1042,25 @@ pub fn run() {
                 checkpoint_manager: Mutex::new(checkpoint_manager),
                 license_manager: Mutex::new(license_manager),
                 tunnel_manager: tunnel::TunnelManager::new(),
-                web_access_token: Mutex::new(access_token),
+                web_access_token: Mutex::new(access_token.clone()),
             });
+
+            // 保存 web_access_token 到配置目录，供 Claude Code hook 脚本读取
+            // 并自动配置 Claude Code hooks 通知（仅首次）
+            if let Ok(config_dir) = app_handle.path().app_config_dir() {
+                std::fs::create_dir_all(&config_dir).ok();
+                let token_path = config_dir.join("web_access_token");
+                let _ = std::fs::write(&token_path, &access_token);
+
+                // 自动配置 Claude Code hooks（默认启用，仅未配置时）
+                if claude_config::get_hook_script_path().is_err() {
+                    if let Ok(script_path) = ensure_hook_scripts(&config_dir) {
+                        if let Err(e) = claude_config::setup_claude_hooks(&script_path) {
+                            eprintln!("[Hooks] 自动配置失败: {}", e);
+                        }
+                    }
+                }
+            }
 
             // 启动 Web Server（远程访问，在独立线程中运行）
             let web_state = Arc::clone(&app_state);
@@ -1028,6 +1125,9 @@ pub fn run() {
             get_claude_mcp_servers,
             get_claude_skills,
             get_claude_hooks,
+            setup_claude_hooks,
+            flash_taskbar,
+            is_claude_hooks_configured,
             get_app_version,
             check_github_update,
             download_update,
