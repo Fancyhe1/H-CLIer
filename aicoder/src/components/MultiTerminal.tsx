@@ -378,10 +378,17 @@ function MultiTerminal() {
 
   }, [activeSessionId]) // 只依赖 activeSessionId，不依赖 sessions
 
-  // 调整所有终端大小并同步 PTY
+  // 调整所有终端大小并同步 PTY（跳过隐藏的终端，避免破坏 xterm 内部状态）
   const fitAllTerminals = useCallback(async () => {
-    for (const [, instance] of terminalsRef.current) {
+    for (const [sessionId, instance] of terminalsRef.current) {
       try {
+        // 检查终端容器是否真正可见（包括父容器的 display:none 情况）
+        // offsetWidth 在元素或父元素 display:none 时为 0
+        const termDiv = document.getElementById(`terminal-${sessionId}`)
+        if (!termDiv || termDiv.offsetWidth === 0) {
+          continue
+        }
+
         instance.fitAddon.fit()
 
         const cols = instance.term.cols
@@ -459,12 +466,8 @@ function MultiTerminal() {
           const cols = instance.term.cols
           const rows = instance.term.rows
 
-          // 强制重新调整尺寸（触发完全重新渲染）
-          instance.term.resize(cols, rows)
-
           // 刷新显示
           instance.term.refresh(0, rows - 1)
-
 
           // 同步 PTY 尺寸
           if (instance.ptyId) {
@@ -474,26 +477,9 @@ function MultiTerminal() {
               rows: rows
             })
 
-            // 从 PTY 读取原始历史记录
-            const history = await invoke<string>('read_terminal_history', {
-              sessionId: sessionId
-            })
-
-            if (history) {
-              // 清空终端
-              instance.term.clear()
-
-              // 重新写入原始历史记录
-              // 这样 xterm 会按照新的列数（129）来渲染
-              instance.term.write(history)
-
-              // 滚动到底部
-              instance.term.scrollToBottom()
-            }
+            // 滚动到底部
+            instance.term.scrollToBottom()
           }
-
-          // 刷新显示
-          instance.term.refresh(0, rows - 1)
         } catch (e) {
           console.error('Fit and sync error:', e)
         }
@@ -533,10 +519,10 @@ function MultiTerminal() {
         if (fitTimeout) {
           clearTimeout(fitTimeout)
         }
-        // 使用延迟确保布局稳定
+        // 使用延迟确保布局稳定（切换视图时需要足够时间让 DOM 更新完成）
         fitTimeout = setTimeout(() => {
           fitAllTerminals()
-        }, 16) // 约一帧的时间
+        }, 50)
       }
     })
 
