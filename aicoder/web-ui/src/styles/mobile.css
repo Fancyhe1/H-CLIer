@@ -609,7 +609,7 @@ body {
   margin-bottom: 32px;
 }
 
-.logo-icon { font-size: 48px; }
+.logo-icon { width: 48px; height: 48px; border-radius: 10px; object-fit: contain; }
 
 .login-logo h1 {
   font-size: 22px;

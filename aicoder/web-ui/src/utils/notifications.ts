@@ -55,13 +55,13 @@ class NotificationManager {
       if ('serviceWorker' in navigator) {
         const registration = await navigator.serviceWorker.ready
         await registration.showNotification(title, {
-          icon: '/icons/icon.svg',
-          badge: '/icons/icon.svg',
+          icon: '/icons/icon-192.png',
+          badge: '/icons/icon-192.png',
           ...options,
         } as any)
       } else {
         new Notification(title, {
-          icon: '/icons/icon.svg',
+          icon: '/icons/icon-192.png',
           ...options,
         })
       }

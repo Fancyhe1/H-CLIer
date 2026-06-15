@@ -166,7 +166,9 @@
 }
 
 .splash-logo {
-  font-size: 64px;
+  width: 96px;
+  height: 96px;
+  border-radius: 16px;
   animation: float 2s ease-in-out infinite;
 }
 

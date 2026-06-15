@@ -38,6 +38,10 @@ import {
   Empty,
   Tooltip,
   Checkbox,
+  Spin,
+  Descriptions,
+  Tag,
+  Divider,
 } from 'antd'
 import type { MenuProps } from 'antd'
 import { invoke } from '@tauri-apps/api/core'
@@ -47,8 +51,11 @@ import { useSettingsStore } from '../stores/settingsStore'
 import CreateSessionModal from './CreateSessionModal'
 import TrashModal from './TrashModal'
 import { handleExportSession } from '../utils/export'
+import { extractAIMemorySummary } from '../utils/summaryExtractor'
 import type { SessionType } from '../types/session'
 import type { ChatMessage } from '../types/history'
+import type { SessionTotalUsage } from '../types/token'
+import type { SessionSummaryData, AIMemorySummary } from '../types/summary'
 import ContextMenu from './ContextMenu'
 import '../styles/Sidebar.css'
 
@@ -101,7 +108,11 @@ function Sidebar(props: SidebarProps) {
   const [summaryModalVisible, setSummaryModalVisible] = useState(false)
   const [trashModalVisible, setTrashModalVisible] = useState(false)
   const [sessionIdModalVisible, setSessionIdModalVisible] = useState(false)
-  const [summaryData, setSummaryData] = useState<any>(null)
+  const [summaryData, setSummaryData] = useState<SessionSummaryData | null>(null)
+  const [summaryLoading, setSummaryLoading] = useState(false)
+  const [aiSummaryModalVisible, setAiSummaryModalVisible] = useState(false)
+  const [aiSummaryData, setAiSummaryData] = useState<AIMemorySummary | null>(null)
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false)
   const [expandedKeys, setExpandedKeys] = useState<string[]>([])
 
   // 拖拽相关状态
@@ -708,18 +719,62 @@ function Sidebar(props: SidebarProps) {
       key: 'summary',
       icon: <FileTextOutlined />,
       label: '查看摘要',
-      onClick: () => {
+      onClick: async () => {
         const session = sessions.find((s) => s.id === sessionId)
-        if (session) {
+        if (!session) return
+        setSummaryData(null)
+        setSummaryLoading(true)
+        setSummaryModalVisible(true)
+        try {
+          const [messages, tokenUsage] = await Promise.all([
+            invoke<ChatMessage[]>('read_session_history', { sessionId, projectPath }).catch(() => [] as ChatMessage[]),
+            invoke<SessionTotalUsage>('get_session_total_usage', { sessionId }).catch(() => null),
+          ])
+          // 统计对话数据
+          const userMsgs = messages.filter(m => m.role === 'user').length
+          const aiMsgs = messages.filter(m => m.role === 'assistant').length
+          const allToolCalls = messages.flatMap(m => m.content.filter(b => b.blockType === 'tool_use'))
+          const thinkingBlocks = messages.flatMap(m => m.content.filter(b => b.blockType === 'thinking'))
+          // 工具TOP5
+          const toolMap: Record<string, number> = {}
+          allToolCalls.forEach(b => {
+            const name = b.toolName || 'unknown'
+            toolMap[name] = (toolMap[name] || 0) + 1
+          })
+          const topTools = Object.entries(toolMap)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([name, count]) => ({ name, count }))
+          // 会话持续时长
+          const timestamps = messages.map(m => new Date(m.timestamp).getTime()).filter(t => !isNaN(t))
+          const duration = timestamps.length >= 2
+            ? (Math.max(...timestamps) - Math.min(...timestamps)) / 60000
+            : 0
+
           setSummaryData({
             title: session.title,
+            sessionType: session.sessionType,
             projectPath: session.projectPath,
             createdAt: session.createdAt,
             lastActivityAt: session.lastActivityAt,
-            messageCount: session.messageCount,
-            sessionType: session.sessionType,
+            userMessageCount: userMsgs,
+            assistantMessageCount: aiMsgs,
+            totalMessageCount: messages.length,
+            toolCallCount: allToolCalls.length,
+            thinkingBlockCount: thinkingBlocks.length,
+            durationMinutes: Math.round(duration),
+            inputTokens: tokenUsage?.inputTokens ?? 0,
+            outputTokens: tokenUsage?.outputTokens ?? 0,
+            cachedTokens: (tokenUsage?.cacheCreationTokens ?? 0) + (tokenUsage?.cacheReadTokens ?? 0),
+            totalCost: tokenUsage?.cost ?? 0,
+            model: tokenUsage?.model ?? '-',
+            topTools,
           })
-          setSummaryModalVisible(true)
+        } catch (err) {
+          message.error('加载摘要失败: ' + String(err))
+          setSummaryModalVisible(false)
+        } finally {
+          setSummaryLoading(false)
         }
       },
     },
@@ -727,7 +782,21 @@ function Sidebar(props: SidebarProps) {
       key: 'ai-summary',
       icon: <ExperimentOutlined />,
       label: 'AI记忆摘要',
-      onClick: () => message.info('AI记忆摘要功能开发中'),
+      onClick: async () => {
+        setAiSummaryData(null)
+        setAiSummaryLoading(true)
+        setAiSummaryModalVisible(true)
+        try {
+          const messages = await invoke<ChatMessage[]>('read_session_history', { sessionId, projectPath })
+          const summary = extractAIMemorySummary(messages || [])
+          setAiSummaryData(summary)
+        } catch (err) {
+          message.error('生成摘要失败: ' + String(err))
+          setAiSummaryModalVisible(false)
+        } finally {
+          setAiSummaryLoading(false)
+        }
+      },
     },
     {
       key: 'file-changes',
@@ -1048,7 +1117,7 @@ function Sidebar(props: SidebarProps) {
     <div className={`sidebar ${isDragging ? 'dragging-active' : ''}`}>
       <div className="sidebar-header">
         <span className="logo">
-          <span className="logo-icon">🚀</span>
+          <img className="logo-icon" src="/icon.png" alt="H CLIer" width="20" height="20" />
           <span>H CLIer</span>
         </span>
       </div>
@@ -1329,18 +1398,195 @@ function Sidebar(props: SidebarProps) {
         open={summaryModalVisible}
         onCancel={() => setSummaryModalVisible(false)}
         footer={null}
-        width={500}
+        width={650}
       >
-        {summaryData && (
-          <div style={{ lineHeight: 2 }}>
-            <p><strong>标题：</strong>{summaryData.title}</p>
-            <p><strong>类型：</strong>{summaryData.sessionType === 'claude' ? 'Claude Code' : '普通终端'}</p>
-            <p><strong>项目路径：</strong>{summaryData.projectPath}</p>
-            <p><strong>创建时间：</strong>{new Date(summaryData.createdAt).toLocaleString()}</p>
-            <p><strong>最后活动：</strong>{new Date(summaryData.lastActivityAt).toLocaleString()}</p>
-            <p><strong>消息数量：</strong>{summaryData.messageCount}</p>
+        {summaryLoading ? (
+          <div style={{ textAlign: 'center', padding: '40px 0' }}>
+            <Spin tip="正在加载会话数据..." />
           </div>
-        )}
+        ) : summaryData ? (
+          <div>
+            <Descriptions column={2} size="small" bordered labelStyle={{ width: 120 }}>
+              <Descriptions.Item label="标题" span={2}>{summaryData.title}</Descriptions.Item>
+              <Descriptions.Item label="类型">
+                <Tag color={summaryData.sessionType === 'claude' ? 'blue' : 'green'}>
+                  {summaryData.sessionType === 'claude' ? 'Claude Code' : '普通终端'}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="模型">{summaryData.model}</Descriptions.Item>
+              <Descriptions.Item label="项目路径" span={2} contentStyle={{ fontSize: 12, wordBreak: 'break-all' }}>
+                {summaryData.projectPath}
+              </Descriptions.Item>
+              <Descriptions.Item label="创建时间">{new Date(summaryData.createdAt).toLocaleString()}</Descriptions.Item>
+              <Descriptions.Item label="最后活动">{new Date(summaryData.lastActivityAt).toLocaleString()}</Descriptions.Item>
+            </Descriptions>
+
+            <Divider style={{ margin: '12px 0' }} />
+
+            <Descriptions column={3} size="small" bordered title="对话统计" labelStyle={{ width: 100 }}>
+              <Descriptions.Item label="总消息数">{summaryData.totalMessageCount}</Descriptions.Item>
+              <Descriptions.Item label="用户消息">{summaryData.userMessageCount}</Descriptions.Item>
+              <Descriptions.Item label="AI回复">{summaryData.assistantMessageCount}</Descriptions.Item>
+              <Descriptions.Item label="工具调用">{summaryData.toolCallCount} 次</Descriptions.Item>
+              <Descriptions.Item label="思考块">{summaryData.thinkingBlockCount} 个</Descriptions.Item>
+              <Descriptions.Item label="持续时长">
+                {summaryData.durationMinutes < 60
+                  ? `${summaryData.durationMinutes} 分钟`
+                  : `${Math.floor(summaryData.durationMinutes / 60)} 时 ${summaryData.durationMinutes % 60} 分`}
+              </Descriptions.Item>
+            </Descriptions>
+
+            {summaryData.sessionType === 'claude' && (
+              <>
+                <Divider style={{ margin: '12px 0' }} />
+                <Descriptions column={2} size="small" bordered title="Token 消耗" labelStyle={{ width: 100 }}>
+                  <Descriptions.Item label="Input">{summaryData.inputTokens.toLocaleString()}</Descriptions.Item>
+                  <Descriptions.Item label="Output">{summaryData.outputTokens.toLocaleString()}</Descriptions.Item>
+                  <Descriptions.Item label="Cached">{summaryData.cachedTokens.toLocaleString()}</Descriptions.Item>
+                  <Descriptions.Item label="预估费用">
+                    <span style={{ color: '#f5222d', fontWeight: 'bold' }}>
+                      ${summaryData.totalCost.toFixed(4)}
+                    </span>
+                  </Descriptions.Item>
+                </Descriptions>
+              </>
+            )}
+
+            {summaryData.topTools.length > 0 && (
+              <>
+                <Divider style={{ margin: '12px 0' }} />
+                <div>
+                  <strong style={{ fontSize: 13 }}>工具使用 TOP5：</strong>
+                  <div style={{ marginTop: 8 }}>
+                    {summaryData.topTools.map((t, i) => (
+                      <Tag key={i} color={['blue', 'green', 'orange', 'purple', 'cyan'][i]} style={{ marginBottom: 4 }}>
+                        {t.name}: {t.count}次
+                      </Tag>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        ) : null}
+      </Modal>
+
+      {/* AI记忆摘要Modal */}
+      <Modal
+        title={<span><ExperimentOutlined style={{ marginRight: 8 }} />AI 记忆摘要</span>}
+        open={aiSummaryModalVisible}
+        onCancel={() => setAiSummaryModalVisible(false)}
+        footer={null}
+        width={700}
+      >
+        {aiSummaryLoading ? (
+          <div style={{ textAlign: 'center', padding: '40px 0' }}>
+            <Spin tip="正在分析会话内容..." />
+          </div>
+        ) : aiSummaryData ? (
+          <div style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+            {/* 会话概述 */}
+            <div style={{ marginBottom: 16, padding: '12px 16px', background: theme === 'dark' ? '#1a2332' : '#f6f8fa', borderRadius: 8, borderLeft: '4px solid #1890ff' }}>
+              <div style={{ fontWeight: 'bold', marginBottom: 4, color: '#4096ff' }}>📋 会话概述</div>
+              <div style={{ color: theme === 'dark' ? '#ddd' : undefined }}>{aiSummaryData.overview}</div>
+            </div>
+
+            {/* 讨论要点 */}
+            {aiSummaryData.userTopics.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontWeight: 'bold', marginBottom: 8, color: theme === 'dark' ? '#ddd' : undefined }}>
+                  💬 讨论要点 <Tag color="purple">{aiSummaryData.userTopics.length}</Tag>
+                </div>
+                <div style={{ maxHeight: 300, overflowY: 'auto', padding: '8px 12px', background: theme === 'dark' ? '#241a2e' : '#f9f0ff', borderRadius: 6 }}>
+                  {aiSummaryData.userTopics.map((t, i) => (
+                    <div key={i} style={{ fontSize: 13, padding: '8px 0', borderBottom: i < aiSummaryData.userTopics.length - 1 ? `1px solid ${theme === 'dark' ? '#3a2a4a' : '#e8d8f8'}` : undefined, color: theme === 'dark' ? '#d3adf7' : undefined, whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.6 }}>
+                      <span style={{ fontWeight: 'bold', color: theme === 'dark' ? '#b37feb' : '#722ed1' }}>#{i + 1}</span> {t}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 文件操作 */}
+            {aiSummaryData.filesEdited.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontWeight: 'bold', marginBottom: 8, color: theme === 'dark' ? '#ddd' : undefined }}>
+                  📁 编辑的文件 <Tag color="red">{aiSummaryData.filesEdited.length}</Tag>
+                </div>
+                <div style={{ maxHeight: 150, overflowY: 'auto', padding: '8px 12px', background: theme === 'dark' ? '#2a1f1f' : '#fff1f0', borderRadius: 6 }}>
+                  {aiSummaryData.filesEdited.map((f, i) => (
+                    <div key={i} style={{ fontSize: 12, fontFamily: 'monospace', padding: '2px 0', wordBreak: 'break-all', color: theme === 'dark' ? '#e8a0a0' : undefined }}>
+                      ✏️ {f}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {aiSummaryData.filesRead.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontWeight: 'bold', marginBottom: 8, color: theme === 'dark' ? '#ddd' : undefined }}>
+                  📖 读取的文件 <Tag color="blue">{aiSummaryData.filesRead.length}</Tag>
+                </div>
+                <div style={{ maxHeight: 120, overflowY: 'auto', padding: '8px 12px', background: theme === 'dark' ? '#1a2332' : '#e6f7ff', borderRadius: 6 }}>
+                  {aiSummaryData.filesRead.map((f, i) => (
+                    <div key={i} style={{ fontSize: 12, fontFamily: 'monospace', padding: '2px 0', wordBreak: 'break-all', color: theme === 'dark' ? '#91caff' : undefined }}>
+                      📄 {f}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 执行的命令 */}
+            {aiSummaryData.commandsRun.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontWeight: 'bold', marginBottom: 8, color: theme === 'dark' ? '#ddd' : undefined }}>
+                  ⚡ 执行的命令 <Tag color="orange">{aiSummaryData.commandsRun.length}</Tag>
+                </div>
+                <div style={{ maxHeight: 120, overflowY: 'auto', padding: '8px 12px', background: theme === 'dark' ? '#2a2418' : '#fff7e6', borderRadius: 6 }}>
+                  {aiSummaryData.commandsRun.map((c, i) => (
+                    <div key={i} style={{ fontSize: 12, fontFamily: 'monospace', padding: '2px 0', color: theme === 'dark' ? '#ffc069' : undefined }}>
+                      $ {c}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 遇到的问题 */}
+            {aiSummaryData.errorsEncountered.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontWeight: 'bold', marginBottom: 8, color: theme === 'dark' ? '#ddd' : undefined }}>
+                  ⚠️ 遇到的问题 <Tag color="red">{aiSummaryData.errorsEncountered.length}</Tag>
+                </div>
+                <div style={{ padding: '8px 12px', background: theme === 'dark' ? '#2a1f1f' : '#fff1f0', borderRadius: 6 }}>
+                  {aiSummaryData.errorsEncountered.map((e, i) => (
+                    <div key={i} style={{ fontSize: 12, fontFamily: 'monospace', padding: '3px 0', color: theme === 'dark' ? '#ffa8a8' : '#cf1322' }}>
+                      ⚠ {e}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 工具使用统计 */}
+            {aiSummaryData.toolSummary.length > 0 && (
+              <div>
+                <div style={{ fontWeight: 'bold', marginBottom: 8, color: theme === 'dark' ? '#ddd' : undefined }}>
+                  🔧 工具使用统计
+                </div>
+                <div style={{ padding: '8px 12px', background: theme === 'dark' ? '#262626' : '#f6f6f6', borderRadius: 6 }}>
+                  {aiSummaryData.toolSummary.map((t, i) => (
+                    <Tag key={i} style={{ marginBottom: 4 }}>
+                      {t.description} ({t.tool}): {t.count}次
+                    </Tag>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : null}
       </Modal>
 
       {/* 回收站Modal */}

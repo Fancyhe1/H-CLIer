@@ -28,7 +28,7 @@ export default function Login() {
     <div className="login-page">
       <div className="login-card">
         <div className="login-logo">
-          <span className="logo-icon">⚡</span>
+          <img className="logo-icon" src="/icons/icon.png" alt="H CLIer" width="48" height="48" />
           <h1>H CLIer</h1>
           <p className="login-subtitle">Remote Access</p>
         </div>

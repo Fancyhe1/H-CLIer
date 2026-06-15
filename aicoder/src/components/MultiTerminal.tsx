@@ -652,7 +652,7 @@ function MultiTerminal() {
       <div ref={containerRef} className="terminals-container" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
       {showEmptyState && (
         <div className="terminal-empty-state">
-          <div className="terminal-empty-icon">🚀</div>
+          <img className="terminal-empty-icon" src="/icon.png" alt="H CLIer" width="64" height="64" />
           <div className="terminal-empty-title">H CLIer</div>
           <div className="terminal-empty-desc">AI-Powered CLI Coding Assistant</div>
           <div className="terminal-empty-hint" onClick={handleNewSession}>

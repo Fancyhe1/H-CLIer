@@ -58,7 +58,9 @@
 }
 
 .terminal-empty-icon {
-  font-size: 64px;
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
   margin-bottom: 20px;
   opacity: 0.8;
 }
