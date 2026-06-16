@@ -1,6 +1,6 @@
 # H CLIer
 
-**AI 编程助手管理平台** — 为 Claude Code CLI 打造的企业级桌面管理客户端。
+**Claude Code 会话管理与工作台** — 为 Claude Code CLI 打造的企业级桌面管理客户端。
 
 > 将 Claude Code 从裸终端带入多标签、可管理、可回滚的 IDE 级体验。
 

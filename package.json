@@ -1,7 +1,7 @@
 {
   "name": "hcl-ier",
   "version": "0.1.0",
-  "description": "H CLIer - AI编程助手管理平台",
+  "description": "H CLIer - Claude Code 会话管理与工作台",
   "type": "module",
   "scripts": {
     "dev": "vite",

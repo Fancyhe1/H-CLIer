@@ -654,7 +654,7 @@ function MultiTerminal() {
         <div className="terminal-empty-state">
           <img className="terminal-empty-icon" src="/icon.png" alt="H CLIer" width="64" height="64" />
           <div className="terminal-empty-title">H CLIer</div>
-          <div className="terminal-empty-desc">AI-Powered CLI Coding Assistant</div>
+          <div className="terminal-empty-desc">Claude Code Session Manager & Workbench</div>
           <div className="terminal-empty-hint" onClick={handleNewSession}>
             <span className="terminal-empty-hint-icon">+</span>
             <span className="terminal-empty-hint-text">新建会话</span>

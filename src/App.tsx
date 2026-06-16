@@ -313,7 +313,7 @@ function App() {
         <div className="splash-content">
           <div className="splash-logo">🚀</div>
           <div className="splash-title">H CLIer</div>
-          <div className="splash-subtitle">AI 驱动的智能编程助手</div>
+          <div className="splash-subtitle">Claude Code 会话管理与工作台</div>
           <Spin indicator={<LoadingOutlined style={{ fontSize: 24, color: currentTheme === 'dark' ? '#69b1ff' : '#1677ff' }} spin />} />
         </div>
       </div>

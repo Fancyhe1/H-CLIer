@@ -542,7 +542,7 @@ function SettingsPanel({ visible, onClose, theme, onThemeChange }: SettingsPanel
             <Title level={5}>H CLIer</Title>
             <Text type="secondary">版本: {appVersion || '加载中...'}</Text>
             <br />
-            <Text type="secondary">AI 驱动的命令行编程助手</Text>
+            <Text type="secondary">Claude Code 会话管理与工作台</Text>
           </div>
 
           <Divider />

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is **H CLler (hcl-ier)** - an AI编程助手管理平台 (AI Programming Assistant Management Platform) built with Tauri 2.x. It provides a desktop UI for managing Claude CLI sessions with terminal emulation, session management, and checkpoint capabilities.
+This is **H CLler (hcl-ier)** - a Claude Code Session Manager & Workbench built with Tauri 2.x. It provides a desktop UI for managing Claude CLI sessions with terminal emulation, session management, and checkpoint capabilities.
 
 **Note**: There are two parallel Rust/Tauri projects in this repository:
 - `aicoder/` - Current active version (0.1.9)

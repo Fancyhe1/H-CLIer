@@ -1,5 +1,5 @@
 {
-  "name": "H CLIer - AI编程助手",
+  "name": "H CLIer - Claude Code 会话管理",
   "short_name": "H CLIer",
   "description": "远程管理 Claude CLI 会话的移动应用",
   "theme_color": "#1a1a2e",
