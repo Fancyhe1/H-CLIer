@@ -1237,7 +1237,7 @@ function Sidebar(props: SidebarProps) {
         footer={null}
         width={1000}
         className={theme === 'dark' ? 'dark' : ''}
-        styles={{ body: { maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' } }}
+        styles={{ body: { maxHeight: 'calc(100vh - 200px)', display: 'flex', flexDirection: 'column' } }}
       >
         {historyMessages.length === 0 ? (
           <Empty description="暂无对话历史" />
@@ -1258,7 +1258,8 @@ function Sidebar(props: SidebarProps) {
                 <Checkbox checked={showToolResult} onChange={e => setShowToolResult(e.target.checked)}>工具结果</Checkbox>
               </div>
             </div>
-            <div className="history-chat-container">
+            <div className="history-scroll-area">
+              <div className="history-chat-container">
               {historyMessages
                 .filter(msg => {
                   if (!historySearchValue.trim()) return true
@@ -1387,6 +1388,7 @@ function Sidebar(props: SidebarProps) {
                   </div>
                 )
               })}
+            </div>
             </div>
           </>
         )}

@@ -479,9 +479,7 @@
   background: #fafafa;
   border-radius: 8px;
   border: 1px solid #f0f0f0;
-  position: sticky;
-  top: 0;
-  z-index: 10;
+  flex-shrink: 0;
 }
 
 .dark .history-toolbar {
@@ -499,6 +497,12 @@
 }
 
 /* 历史记录聊天气泡样式 */
+.history-scroll-area {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .history-chat-container {
   display: flex;
   flex-direction: column;
