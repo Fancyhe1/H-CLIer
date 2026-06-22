@@ -61,6 +61,38 @@ pub fn get_session_jsonl_path(session_id: &str, project_path: &str) -> Result<Pa
         .join(format!("{}.jsonl", session_id)))
 }
 
+/// 列出项目目录下所有 Claude 会话文件的 session ID
+/// 用于检测 /branch 创建的新会话
+pub fn list_session_files(project_path: &str) -> Result<Vec<String>, String> {
+    let encoded = encode_project_path(project_path);
+    let home = std::env::var("USERPROFILE")
+        .or_else(|_| std::env::var("HOME"))
+        .map_err(|e| format!("Failed to get home directory: {}", e))?;
+
+    let dir = PathBuf::from(home)
+        .join(".claude")
+        .join("projects")
+        .join(&encoded);
+
+    if !dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let entries = fs::read_dir(&dir)
+        .map_err(|e| format!("Failed to read directory: {}", e))?;
+
+    let mut session_ids = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().map_or(false, |ext| ext == "jsonl") {
+            if let Some(stem) = path.file_stem() {
+                session_ids.push(stem.to_string_lossy().to_string());
+            }
+        }
+    }
+    Ok(session_ids)
+}
+
 /// Parse a single JSONL line into a ChatMessage if it's a relevant event
 fn parse_line(line: &str) -> Option<ChatMessage> {
     let v: serde_json::Value = serde_json::from_str(line).ok()?;

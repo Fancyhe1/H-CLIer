@@ -211,6 +211,12 @@ fn check_claude_session_exists(session_id: String, project_path: String) -> Resu
     Ok(session_file.exists())
 }
 
+// 列出项目目录下所有 Claude 会话文件的 session ID
+#[tauri::command]
+fn list_session_files(project_path: String) -> Result<Vec<String>, String> {
+    history::list_session_files(&project_path)
+}
+
 // 读取会话历史（从 Claude Code 的 session JSONL 文件）
 #[tauri::command]
 fn read_session_history(
@@ -1149,6 +1155,7 @@ pub fn run() {
             unarchive_sessions_by_path,
             // Claude 会话检查
             check_claude_session_exists,
+            list_session_files,
             read_session_history,
             get_session_token_usage,
             get_session_total_usage,
