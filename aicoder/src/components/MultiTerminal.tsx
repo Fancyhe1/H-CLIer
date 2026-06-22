@@ -77,11 +77,52 @@ function isClaudeCodeNoise(text: string): boolean {
   return noiseKeywordPatterns.some((pattern) => pattern.test(compact))
 }
 
+// 检测 /branch 创建的新会话并自动导入
+async function detectBranchSession(projectPath: string, sessionTitle: string) {
+  try {
+    // 获取当前会话文件列表（快照）
+    const existingFiles = await invoke<string[]>('list_session_files', { projectPath })
+    console.log('[Branch] 当前会话文件:', existingFiles.length, '个')
+
+    // 轮询检测新文件（每 2 秒，最多 30 秒）
+    for (let i = 0; i < 15; i++) {
+      await new Promise(r => setTimeout(r, 2000))
+      const currentFiles = await invoke<string[]>('list_session_files', { projectPath })
+      const newFiles = currentFiles.filter(id => !existingFiles.includes(id))
+
+      if (newFiles.length > 0) {
+        const newSessionId = newFiles[newFiles.length - 1]
+        console.log('[Branch] 发现新会话:', newSessionId)
+
+        // 自动创建会话并切换
+        const { createSession } = useSessionStore.getState()
+        const newSession = await createSession({
+          projectPath,
+          title: `分支: ${sessionTitle}`,
+          sessionType: 'claude',
+          cliSessionId: newSessionId,
+        })
+
+        if (newSession) {
+          console.log('[Branch] 已自动导入分支会话:', newSession.id)
+        }
+        return
+      }
+    }
+
+    console.log('[Branch] 未检测到新会话文件（超时）')
+  } catch (err) {
+    console.error('[Branch] 检测失败:', err)
+  }
+}
+
 function MultiTerminal() {
   const containerRef = useRef<HTMLDivElement>(null)
   const terminalsRef = useRef<Map<string, TerminalInstance>>(new Map())
   // 用于记录创建终端时的配置，避免配置变化时重新创建
   const createdSessionIdsRef = useRef<Set<string>>(new Set())
+  // 分支检测：每个会话独立的输入缓冲区
+  const branchInputBuffersRef = useRef<Map<string, string>>(new Map())
 
   const { sessions, activeSessionId, closedSessionId, setClosedSession } = useSessionStore()
   const { config, currentTheme } = useSettingsStore()
@@ -374,15 +415,41 @@ function MultiTerminal() {
           cwd: session.projectPath,
         })
 
-        // 处理用户输入
+        // 处理用户输入（含 /branch 检测）
         term.onData((data) => {
           invoke('write_to_pty', { ptyId, data }).catch(console.error)
+
+          // /branch 检测：缓冲用户输入，Enter 时检查
+          const buffer = branchInputBuffersRef.current.get(session.id) || ''
+          if (data === '\r' || data === '\n') {
+            // Enter 按下，检查缓冲区
+            const trimmed = buffer.trim()
+            if (trimmed === '/branch' || trimmed.startsWith('/branch ')) {
+              console.log('[Branch] 检测到 /branch 命令，开始监控新会话文件')
+              detectBranchSession(session.projectPath, session.title)
+            }
+            branchInputBuffersRef.current.set(session.id, '')
+          } else if (data === '\x7f' || data === '\b') {
+            // Backspace
+            branchInputBuffersRef.current.set(session.id, buffer.slice(0, -1))
+          } else if (data.length === 1 && data >= ' ') {
+            // 普通可打印字符
+            branchInputBuffersRef.current.set(session.id, buffer + data)
+          }
         })
 
         // 键盘快捷键拦截
         // 使用 attachCustomKeyEventHandler 在 xterm 处理之前拦截按键
         let lastPasteTime = 0
         term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
+          // Shift+Enter: 发送换行符（\n）而非回车符（\r），支持多行输入
+          if (e.key === 'Enter' && e.shiftKey) {
+            e.preventDefault()
+            e.stopPropagation()
+            invoke('write_to_pty', { ptyId, data: '\n' }).catch(console.error)
+            return false // 阻止 xterm 处理（不发送 \r）
+          }
+
           // Ctrl+C 复制选中内容，无选中时发送中断信号
           if (e.ctrlKey && e.key === 'c') {
             const selection = term.getSelection()
@@ -496,6 +563,12 @@ function MultiTerminal() {
           continue
         }
 
+        // 先检查尺寸是否真的变了，没变则跳过 fit 避免 reflow 破坏缓冲区内容
+        const proposedDims = instance.fitAddon.proposeDimensions()
+        if (proposedDims && proposedDims.cols === instance.term.cols && proposedDims.rows === instance.term.rows) {
+          continue  // 尺寸没变，跳过
+        }
+
         instance.fitAddon.fit()
 
         const cols = instance.term.cols
@@ -571,6 +644,14 @@ function MultiTerminal() {
           // 如果容器尺寸为 0，延迟重试
           if (containerRect.width === 0 || containerRect.height === 0) {
             setTimeout(() => fitAndSync(), 200)
+            return
+          }
+
+          // 先检查尺寸是否真的变了，没变则跳过 fit 避免 reflow 破坏缓冲区内容
+          const proposedDims = instance.fitAddon.proposeDimensions()
+          if (proposedDims && proposedDims.cols === instance.term.cols && proposedDims.rows === instance.term.rows) {
+            // 尺寸没变，只需滚动到底部
+            instance.term.scrollToBottom()
             return
           }
 
