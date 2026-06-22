@@ -209,13 +209,24 @@ function App() {
     return () => { unlistenPromise.then(fn => fn()) }
   }, [])
 
-  // 启动时自动检查更新（延迟 3 秒避免阻塞启动）
+  // 启动时自动检查更新（延迟 3 秒避免阻塞启动）+ 每天自动检查
   useEffect(() => {
-    const timer = setTimeout(() => {
-      const { checkForUpdates } = useSettingsStore.getState()
+    const { checkForUpdates } = useSettingsStore.getState()
+
+    // 启动时检查
+    const startupTimer = setTimeout(() => {
       checkForUpdates()
     }, 3000)
-    return () => clearTimeout(timer)
+
+    // 每 24 小时检查一次
+    const dailyTimer = setInterval(() => {
+      checkForUpdates()
+    }, 24 * 60 * 60 * 1000)
+
+    return () => {
+      clearTimeout(startupTimer)
+      clearInterval(dailyTimer)
+    }
   }, [])
 
   // 根据主题模式获取实际主题
