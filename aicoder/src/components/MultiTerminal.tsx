@@ -441,9 +441,13 @@ function MultiTerminal() {
         // 键盘快捷键拦截
         // 使用 attachCustomKeyEventHandler 在 xterm 处理之前拦截按键
         let lastPasteTime = 0
+        let lastShiftEnterTime = 0
         term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
           // Shift+Enter: 发送换行符（\n）而非回车符（\r），支持多行输入
           if (e.key === 'Enter' && e.shiftKey) {
+            const now = Date.now()
+            if (now - lastShiftEnterTime < 300) return false // 防抖：300ms 内不重复触发
+            lastShiftEnterTime = now
             e.preventDefault()
             e.stopPropagation()
             invoke('write_to_pty', { ptyId, data: '\n' }).catch(console.error)
