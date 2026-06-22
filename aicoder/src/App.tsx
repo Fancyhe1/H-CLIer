@@ -22,6 +22,7 @@ import {
   MacCommandOutlined,
   CloudOutlined,
   FileTextOutlined,
+  CodeOutlined,
 } from '@ant-design/icons'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { invoke as tauriInvoke } from '@tauri-apps/api/core'
@@ -32,6 +33,7 @@ import MultiTerminal from './components/MultiTerminal'
 import SettingsPanel from './components/SettingsPanel'
 import TokenStatsPanel from './components/TokenStatsPanel'
 import CommandPalette from './components/CommandPalette'
+import ClaudeCommandsPanel from './components/ClaudeCommandsPanel'
 import CheckpointModal from './components/CheckpointModal'
 import FileBrowserModal from './components/FileBrowserModal'
 import DashboardModal from './components/DashboardModal'
@@ -56,6 +58,7 @@ function App() {
   const [currentTheme, setCurrentThemeLocal] = useState<'light' | 'dark'>('dark')
   const [settingsVisible, setSettingsVisible] = useState(false)
   const [commandPaletteVisible, setCommandPaletteVisible] = useState(false)
+  const [claudeCommandsVisible, setClaudeCommandsVisible] = useState(false)
   const [activePanel, setActivePanel] = useState<PanelType>('terminal')
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -572,6 +575,18 @@ function App() {
                   CLAUDE.md
                 </Button>
               </Tooltip>
+              <div className="status-divider" />
+              <Tooltip title="Claude Code 内置指令">
+                <Button
+                  type="text"
+                  icon={<CodeOutlined />}
+                  onClick={() => setClaudeCommandsVisible(true)}
+                  className="status-btn"
+                  size="small"
+                >
+                  Claude指令
+                </Button>
+              </Tooltip>
             </div>
             <div className="status-right">
               <Tooltip title="快捷指令 (Ctrl+K)">
@@ -582,7 +597,7 @@ function App() {
                   className="status-btn"
                   size="small"
                 >
-                  指令
+                  快捷键
                 </Button>
               </Tooltip>
               <Tooltip title="任务队列">
@@ -693,6 +708,11 @@ function App() {
         onOpenStats={() => setActivePanel('stats')}
         onOpenSettings={() => setSettingsVisible(true)}
         onTogglePin={toggleAlwaysOnTop}
+      />
+
+      <ClaudeCommandsPanel
+        visible={claudeCommandsVisible}
+        onClose={() => setClaudeCommandsVisible(false)}
       />
 
       <CheckpointModal
