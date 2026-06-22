@@ -124,6 +124,7 @@ impl SessionManager {
         project_path: &str,
         title: Option<&str>,
         session_type: Option<&str>,
+        cli_session_id: Option<&str>,
     ) -> Result<Session, rusqlite::Error> {
         let id = uuid::Uuid::new_v4().to_string();
         let session_type = session_type.unwrap_or("claude").to_string();
@@ -163,7 +164,7 @@ impl SessionManager {
                 now,
                 None::<DateTime<Utc>>,
                 0i64,
-                None::<&str>,
+                cli_session_id,
                 None::<&str>,
                 sort_order,
             ],
@@ -181,7 +182,7 @@ impl SessionManager {
             last_activity_at: now,
             deleted_at: None,
             message_count: 0,
-            cli_session_id: None,
+            cli_session_id: cli_session_id.map(|s| s.to_string()),
             description: None,
             sort_order,
         })

@@ -22,6 +22,7 @@ export interface CreateSessionParams {
   projectPath: string
   title?: string
   sessionType?: SessionType  // 新增：会话类型
+  cliSessionId?: string  // 导入时指定的 Claude CLI 会话编号
 }
 
 export interface UpdateSessionParams {

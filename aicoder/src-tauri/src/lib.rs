@@ -77,9 +77,10 @@ fn create_session(
     project_path: String,
     title: Option<String>,
     session_type: Option<String>,
+    cli_session_id: Option<String>,
 ) -> Result<Session, String> {
     let manager = state.session_manager.lock().map_err(|e| e.to_string())?;
-    manager.create_session(&project_path, title.as_deref(), session_type.as_deref())
+    manager.create_session(&project_path, title.as_deref(), session_type.as_deref(), cli_session_id.as_deref())
         .map_err(|e| e.to_string())
 }
 

@@ -80,6 +80,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         projectPath: params.projectPath,
         title: params.title,
         sessionType: params.sessionType || 'claude',
+        cliSessionId: params.cliSessionId,
       })
       set((state) => ({
         sessions: [session, ...state.sessions],

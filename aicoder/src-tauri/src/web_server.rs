@@ -151,7 +151,7 @@ async fn create_session(
     Json(req): Json<CreateSessionRequest>,
 ) -> impl IntoResponse {
     let manager = state.app_state.session_manager.lock().map_err(|_| lock_err())?;
-    match manager.create_session(&req.project_path, req.title.as_deref(), req.session_type.as_deref()) {
+    match manager.create_session(&req.project_path, req.title.as_deref(), req.session_type.as_deref(), None) {
         Ok(session) => Ok((StatusCode::CREATED, Json(ApiResponse::ok(session)))),
         Err(e) => Err(db_err(e)),
     }

@@ -49,6 +49,7 @@ import ReactMarkdown from 'react-markdown'
 import { useSessionStore } from '../stores/sessionStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import CreateSessionModal from './CreateSessionModal'
+import ImportSessionByIdModal from './ImportSessionByIdModal'
 import TrashModal from './TrashModal'
 import { handleExportSession } from '../utils/export'
 import { extractAIMemorySummary } from '../utils/summaryExtractor'
@@ -108,6 +109,8 @@ function Sidebar(props: SidebarProps) {
   const [summaryModalVisible, setSummaryModalVisible] = useState(false)
   const [trashModalVisible, setTrashModalVisible] = useState(false)
   const [sessionIdModalVisible, setSessionIdModalVisible] = useState(false)
+  const [importByIdModalVisible, setImportByIdModalVisible] = useState(false)
+  const [importByIdProjectPath, setImportByIdProjectPath] = useState('')
   const [summaryData, setSummaryData] = useState<SessionSummaryData | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [aiSummaryModalVisible, setAiSummaryModalVisible] = useState(false)
@@ -459,6 +462,12 @@ function Sidebar(props: SidebarProps) {
     }
   }
 
+  // 通过编号导入会话
+  const handleImportById = (projectPath: string) => {
+    setImportByIdProjectPath(projectPath)
+    setImportByIdModalVisible(true)
+  }
+
   // 批量导出会话（一个一个弹出）
   const handleBatchExport = async (
     projectPath: string,
@@ -546,6 +555,12 @@ function Sidebar(props: SidebarProps) {
         icon: <ImportOutlined />,
         label: '导入会话',
         onClick: () => handleImportSession(projectPath),
+      },
+      {
+        key: 'import-session-by-id',
+        icon: <ImportOutlined />,
+        label: '通过编号导入',
+        onClick: () => handleImportById(projectPath),
       },
       { type: 'divider', key: 'g1' },
 
@@ -1208,6 +1223,12 @@ function Sidebar(props: SidebarProps) {
         }}
         sessionType={activeTab}
         defaultProjectPath={defaultProjectPath}
+      />
+
+      <ImportSessionByIdModal
+        visible={importByIdModalVisible}
+        onClose={() => setImportByIdModalVisible(false)}
+        projectPath={importByIdProjectPath}
       />
 
       <Modal
