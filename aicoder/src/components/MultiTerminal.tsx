@@ -34,7 +34,6 @@ function stripAnsi(str: string): string {
 
 // 检查剥离ANSI后的文本是否只是Claude Code的噪音输出（非真正的回复）
 // 返回 true 表示是噪音，应该忽略
-// 注意：只匹配独立出现的噪音，避免误判真实回复内容
 function isClaudeCodeNoise(text: string): boolean {
   if (!text) return true
 
@@ -42,12 +41,15 @@ function isClaudeCodeNoise(text: string): boolean {
   const compact = text.replace(/[\s\r\n]+/g, ' ').trim()
   if (!compact) return true
 
+  // 含有 Claude Code TUI 专用状态字符（※ recap、✻ thinking 等）
+  // 这些字符永远不会出现在真实回复内容中，只要有就过滤
+  if (/[※✻✶✢]/.test(compact)) return true
+
   // 纯噪音模式：整个内容只包含这些
   const pureNoisePatterns = [
-    /^[\s─═╭╰│╮╯❯]+$/,                       // 纯边框/选择字符
+    /^[\s─═╭╰│╮╯❯·•○◦●]+$/,                    // 纯边框/选择/动画字符
     /^\s*[\$#>]\s*$/,                             // 只有提示符
     /^\s*@\s*$/,                                  // 只有@符号
-    /^[※✻✶✢·•○◦●\s]+$/,                         // 纯动画字符
   ]
 
   if (pureNoisePatterns.some((p) => p.test(compact))) return true
@@ -186,26 +188,58 @@ function MultiTerminal() {
     }
   }, [activeSessionId])
 
-  // 监听窗口焦点变化：失焦时所有终端标记为可检测未读，聚焦时清除当前终端未读
+  // 辅助函数：标记所有终端为可检测未读
+  const markAllTerminalsMarkable = () => {
+    terminalsRef.current.forEach((instance) => {
+      instance.shouldMarkUnread = true
+    })
+  }
+
+  // 辅助函数：清除当前活跃终端的未读
+  const clearActiveTerminalUnread = () => {
+    const current = useSessionStore.getState().activeSessionId
+    if (current) {
+      const instance = terminalsRef.current.get(current)
+      if (instance) instance.shouldMarkUnread = false
+      useSessionStore.getState().setHasUnread(current, false)
+    }
+  }
+
+  // 监听窗口焦点变化（Tauri 原生事件）
   useEffect(() => {
     const unlisten = listen<boolean>('tauri://focus-changed', (event) => {
-      const focused = event.payload
-      if (focused) {
-        // 窗口获得焦点：当前活跃终端不标记未读，并清除其未读状态
-        const current = useSessionStore.getState().activeSessionId
-        if (current) {
-          const instance = terminalsRef.current.get(current)
-          if (instance) instance.shouldMarkUnread = false
-          useSessionStore.getState().setHasUnread(current, false)
-        }
+      if (event.payload) {
+        clearActiveTerminalUnread()
       } else {
-        // 窗口失去焦点：所有终端都标记为可检测未读（包括当前活跃的）
-        terminalsRef.current.forEach((instance) => {
-          instance.shouldMarkUnread = true
-        })
+        markAllTerminalsMarkable()
       }
     })
     return () => { unlisten.then(fn => fn()) }
+  }, [])
+
+  // 监听页面可见性变化（补充：最小化、被遮挡等场景）
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        markAllTerminalsMarkable()
+      } else {
+        clearActiveTerminalUnread()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [])
+
+  // 监听窗口 blur/focus 事件（浏览器原生，额外保障）
+  useEffect(() => {
+    const handleBlur = () => markAllTerminalsMarkable()
+    const handleFocus = () => clearActiveTerminalUnread()
+    window.addEventListener('blur', handleBlur)
+    window.addEventListener('focus', handleFocus)
+    return () => {
+      window.removeEventListener('blur', handleBlur)
+      window.removeEventListener('focus', handleFocus)
+    }
   }, [])
 
   // 创建终端
