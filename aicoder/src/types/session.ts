@@ -9,8 +9,10 @@ export interface Session {
   color?: string
   isFavorite: boolean
   isActive: boolean
+  isArchived: boolean  // 是否归档
   createdAt: string
   lastActivityAt: string
+  archivedAt?: string  // 归档时间
   messageCount: number
   cliSessionId?: string
   description?: string

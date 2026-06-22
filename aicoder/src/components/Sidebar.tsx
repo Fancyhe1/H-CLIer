@@ -28,6 +28,8 @@ import {
   CodeFilled,
   IdcardOutlined,
   RightOutlined,
+  InboxOutlined,
+  UndoOutlined,
 } from '@ant-design/icons'
 import {
   Button,
@@ -53,7 +55,7 @@ import ImportSessionByIdModal from './ImportSessionByIdModal'
 import TrashModal from './TrashModal'
 import { handleExportSession } from '../utils/export'
 import { extractAIMemorySummary } from '../utils/summaryExtractor'
-import type { SessionType } from '../types/session'
+import type { SessionType, Session } from '../types/session'
 import type { ChatMessage } from '../types/history'
 import type { SessionTotalUsage } from '../types/token'
 import type { SessionSummaryData, AIMemorySummary } from '../types/summary'
@@ -96,6 +98,7 @@ function Sidebar(props: SidebarProps) {
   const { theme = 'dark' } = props
   const [searchValue, setSearchValue] = useState('')
   const [activeTab, setActiveTab] = useState<SessionType>('claude')
+  const [showArchived, setShowArchived] = useState(false)  // 是否显示归档视图
   const [createModalVisible, setCreateModalVisible] = useState(false)
   const [defaultProjectPath, setDefaultProjectPath] = useState<string | undefined>(undefined)
   const [editingSession, setEditingSession] = useState<string | null>(null)
@@ -146,9 +149,11 @@ function Sidebar(props: SidebarProps) {
 
   const {
     sessions,
+    archivedSessions,
     activeSessionId,
     runningSessionIds,
     fetchSessions,
+    fetchArchivedSessions,
     setActiveSession,
     toggleFavorite,
     setSessionColor,
@@ -156,6 +161,8 @@ function Sidebar(props: SidebarProps) {
     createSession,
     claudeSessions,
     terminalSessions,
+    claudeArchivedSessions,
+    terminalArchivedSessions,
     workspaceOrder,
     reorderSessions,
     reorderWorkspaceFolders,
@@ -163,7 +170,8 @@ function Sidebar(props: SidebarProps) {
 
   useEffect(() => {
     fetchSessions()
-  }, [fetchSessions])
+    fetchArchivedSessions()
+  }, [fetchSessions, fetchArchivedSessions])
 
   // 初始化展开状态
   useEffect(() => {
@@ -524,6 +532,78 @@ function Sidebar(props: SidebarProps) {
     })
   }
 
+  // 归档会话
+  const handleArchiveSession = (sessionId: string) => {
+    Modal.confirm({
+      title: '确认归档',
+      content: '确定要归档这个会话吗？归档后可在归档会话栏中查看和恢复。',
+      okText: '归档',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await useSessionStore.getState().archiveSession(sessionId)
+          message.success('会话已归档')
+        } catch (err) {
+          message.error('归档失败: ' + String(err))
+        }
+      },
+    })
+  }
+
+  // 归档整个目录
+  const handleArchiveDirectory = (projectPath: string, sessionCount: number) => {
+    Modal.confirm({
+      title: '确认归档目录',
+      content: `确定要归档此目录下的所有会话吗？将归档 ${sessionCount} 个会话。`,
+      okText: '归档',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await useSessionStore.getState().archiveSessionsByPath(projectPath)
+          message.success(`已归档 ${sessionCount} 个会话`)
+        } catch (err) {
+          message.error('归档失败: ' + String(err))
+        }
+      },
+    })
+  }
+
+  // 恢复归档会话
+  const handleUnarchiveSession = (sessionId: string) => {
+    Modal.confirm({
+      title: '确认恢复',
+      content: '确定要恢复这个归档会话吗？',
+      okText: '恢复',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await useSessionStore.getState().unarchiveSession(sessionId)
+          message.success('会话已恢复')
+        } catch (err) {
+          message.error('恢复失败: ' + String(err))
+        }
+      },
+    })
+  }
+
+  // 恢复整个目录的归档会话
+  const handleUnarchiveDirectory = (projectPath: string, sessionCount: number) => {
+    Modal.confirm({
+      title: '确认恢复目录',
+      content: `确定要恢复此目录下的所有归档会话吗？将恢复 ${sessionCount} 个会话。`,
+      okText: '恢复',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await useSessionStore.getState().unarchiveSessionsByPath(projectPath)
+          message.success(`已恢复 ${sessionCount} 个会话`)
+        } catch (err) {
+          message.error('恢复失败: ' + String(err))
+        }
+      },
+    })
+  }
+
   // 创建分组文件夹的右键菜单
   const createGroupMenuItems = (
     projectPath: string,
@@ -612,7 +692,14 @@ function Sidebar(props: SidebarProps) {
       },
       { type: 'divider', key: 'g3' },
 
-      // 第四组：删除
+      // 第四组：归档和删除
+      {
+        key: 'archive-directory',
+        icon: <InboxOutlined />,
+        label: `归档整个目录 (${sessionCount})`,
+        onClick: () => handleArchiveDirectory(projectPath, sessionCount),
+      },
+      { type: 'divider', key: 'g4' },
       {
         key: 'remove-directory',
         icon: <DeleteOutlined />,
@@ -890,6 +977,15 @@ function Sidebar(props: SidebarProps) {
     },
     { type: 'divider', key: 'd5' },
 
+    // 归档
+    {
+      key: 'archive',
+      icon: <InboxOutlined />,
+      label: '归档会话',
+      onClick: () => handleArchiveSession(sessionId),
+    },
+    { type: 'divider', key: 'd6' },
+
     // 删除
     {
       key: 'delete',
@@ -1100,6 +1196,141 @@ function Sidebar(props: SidebarProps) {
     return treeData
   }
 
+  // 创建归档会话的右键菜单
+  const createArchivedMenuItems = (sessionId: string): MenuProps['items'] => [
+    {
+      key: 'unarchive',
+      icon: <UndoOutlined />,
+      label: '恢复会话',
+      onClick: () => handleUnarchiveSession(sessionId),
+    },
+    { type: 'divider', key: 'ad1' },
+    {
+      key: 'delete',
+      icon: <DeleteOutlined />,
+      label: '永久删除',
+      danger: true,
+      onClick: () => {
+        Modal.confirm({
+          title: '确认删除',
+          content: '确定要永久删除这个归档会话吗？此操作不可恢复。',
+          okText: '删除',
+          cancelText: '取消',
+          okButtonProps: { danger: true },
+          onOk: async () => {
+            try {
+              await invoke('permanently_delete', { sessionId })
+              message.success('会话已删除')
+              fetchArchivedSessions()
+            } catch (err) {
+              message.error('删除失败: ' + String(err))
+            }
+          },
+        })
+      },
+    },
+  ]
+
+  // 创建归档分组的右键菜单
+  const createArchivedGroupMenuItems = (projectPath: string, sessionCount: number): MenuProps['items'] => [
+    {
+      key: 'unarchive-all',
+      icon: <UndoOutlined />,
+      label: `恢复全部 (${sessionCount})`,
+      onClick: () => handleUnarchiveDirectory(projectPath, sessionCount),
+    },
+    { type: 'divider', key: 'ag1' },
+    {
+      key: 'delete-all',
+      icon: <DeleteOutlined />,
+      label: `永久删除全部 (${sessionCount})`,
+      danger: true,
+      onClick: () => {
+        Modal.confirm({
+          title: '确认删除',
+          content: `确定要永久删除此目录下的 ${sessionCount} 个归档会话吗？此操作不可恢复。`,
+          okText: '删除',
+          cancelText: '取消',
+          okButtonProps: { danger: true },
+          onOk: async () => {
+            try {
+              const sessionsToDelete = archivedSessions.filter(s => s.projectPath === projectPath)
+              for (const session of sessionsToDelete) {
+                await invoke('permanently_delete', { sessionId: session.id })
+              }
+              message.success(`已删除 ${sessionCount} 个会话`)
+              fetchArchivedSessions()
+            } catch (err) {
+              message.error('删除失败: ' + String(err))
+            }
+          },
+        })
+      },
+    },
+  ]
+
+  // 渲染归档会话项
+  const renderArchivedSessionItem = (session: Session) => {
+    return (
+      <ContextMenu items={createArchivedMenuItems(session.id)}>
+        <div className="session-item archived">
+          <div className="session-info">
+            <div className="color-tag" style={{ backgroundColor: '#888888', opacity: 0.5 }} />
+            <span className="session-title" style={{ color: '#888888' }}>
+              {session.title}
+            </span>
+          </div>
+          <div className="session-meta">
+            <span className="session-time">
+              {session.archivedAt ? formatTimeAgo(session.archivedAt) : ''}
+            </span>
+          </div>
+        </div>
+      </ContextMenu>
+    )
+  }
+
+  // 构建归档会话列表树
+  const buildArchivedTreeData = (sessionList: Session[]) => {
+    const groupedSessions = sessionList.reduce(
+      (acc, session) => {
+        const path = session.projectPath
+        if (!acc[path]) acc[path] = []
+        acc[path].push(session)
+        return acc
+      },
+      {} as Record<string, Session[]>
+    )
+
+    const treeData: any[] = []
+
+    Object.entries(groupedSessions).forEach(([path, pathSessions]) => {
+      treeData.push({
+        title: (
+          <ContextMenu items={createArchivedGroupMenuItems(path, pathSessions.length)}>
+            <div
+              className="group-title-wrapper"
+              onClick={(e) => toggleExpand(path, e)}
+            >
+              <span className="group-title">
+                <FolderOutlined /> {path.split('/').pop()}
+              </span>
+              <span className="group-count">{pathSessions.length}</span>
+            </div>
+          </ContextMenu>
+        ),
+        key: path,
+        children: pathSessions.map((session) => ({
+          title: renderArchivedSessionItem(session),
+          key: session.id,
+          isLeaf: true,
+        })),
+      })
+    })
+
+    return treeData
+  }
+
   const handleRename = () => {
     if (!editingSession || !newTitle.trim()) return
     const session = sessions.find((s) => s.id === editingSession)
@@ -1127,6 +1358,9 @@ function Sidebar(props: SidebarProps) {
 
   // 当前 Tab 的会话列表
   const currentSessionList = activeTab === 'claude' ? claudeSessionList : terminalSessionList
+
+  // 归档会话列表
+  const archivedSessionList = activeTab === 'claude' ? claudeArchivedSessions() : terminalArchivedSessions()
 
   return (
     <div className={`sidebar ${isDragging ? 'dragging-active' : ''}`}>
@@ -1188,22 +1422,50 @@ function Sidebar(props: SidebarProps) {
       </div>
 
       <div className="sidebar-content" ref={sidebarContentRef}>
-        {currentSessionList.length === 0 ? (
-          <div className="empty-state">
-            <p>暂无{activeTab === 'claude' ? ' Claude' : '终端'}会话</p>
-            <p className="empty-hint">点击上方按钮创建新会话</p>
-          </div>
+        {showArchived ? (
+          // 归档会话视图
+          archivedSessionList.length === 0 ? (
+            <div className="empty-state">
+              <p>暂无归档会话</p>
+              <p className="empty-hint">右键会话可选择归档</p>
+            </div>
+          ) : (
+            <Tree
+              treeData={buildArchivedTreeData(archivedSessionList)}
+              expandedKeys={expandedKeys}
+              onExpand={(keys) => setExpandedKeys(keys as string[])}
+              className="session-tree"
+              selectable={false}
+            />
+          )
         ) : (
-          <Tree
-            treeData={buildTreeData(currentSessionList)}
-            expandedKeys={expandedKeys}
-            onExpand={(keys) => setExpandedKeys(keys as string[])}
-            className="session-tree"
-            selectable={false}
-          />
+          // 正常会话视图
+          currentSessionList.length === 0 ? (
+            <div className="empty-state">
+              <p>暂无{activeTab === 'claude' ? ' Claude' : '终端'}会话</p>
+              <p className="empty-hint">点击上方按钮创建新会话</p>
+            </div>
+          ) : (
+            <Tree
+              treeData={buildTreeData(currentSessionList)}
+              expandedKeys={expandedKeys}
+              onExpand={(keys) => setExpandedKeys(keys as string[])}
+              className="session-tree"
+              selectable={false}
+            />
+          )
         )}
       </div>
       <div className="sidebar-footer">
+        <Button
+          type="text"
+          icon={<InboxOutlined />}
+          onClick={() => setShowArchived(!showArchived)}
+          className={`archive-btn ${showArchived ? 'active' : ''}`}
+          title="归档会话"
+        >
+          归档{archivedSessions.length > 0 && `(${archivedSessions.length})`}
+        </Button>
         <Button
           type="text"
           icon={<DeleteOutlined />}

@@ -4,6 +4,7 @@ import type { Session, CreateSessionParams } from '../types/session'
 
 interface SessionState {
   sessions: Session[]
+  archivedSessions: Session[]  // 归档会话列表
   activeSessionId: string | null
   closedSessionId: string | null  // 用于通知终端销毁
   runningSessionIds: Set<string>  // 正在运行的会话ID（终端已打开）
@@ -14,9 +15,12 @@ interface SessionState {
   // Computed
   claudeSessions: () => Session[]
   terminalSessions: () => Session[]
+  claudeArchivedSessions: () => Session[]
+  terminalArchivedSessions: () => Session[]
 
   // Actions
   fetchSessions: () => Promise<void>
+  fetchArchivedSessions: () => Promise<void>
   createSession: (params: CreateSessionParams) => Promise<Session | null>
   updateSession: (session: Session) => Promise<void>
   deleteSession: (sessionId: string) => Promise<void>
@@ -29,6 +33,10 @@ interface SessionState {
   setHasUnread: (sessionId: string, hasUnread: boolean) => Promise<void>  // 设置未读状态
   reorderSessions: (sessionIds: string[]) => Promise<void>
   reorderWorkspaceFolders: (sessionType: string, paths: string[]) => void
+  archiveSession: (sessionId: string) => Promise<void>
+  unarchiveSession: (sessionId: string) => Promise<void>
+  archiveSessionsByPath: (projectPath: string) => Promise<void>
+  unarchiveSessionsByPath: (projectPath: string) => Promise<void>
 }
 
 // 从 localStorage 加载工作区顺序
@@ -46,6 +54,7 @@ function loadWorkspaceOrder(): Record<string, string[]> {
 
 export const useSessionStore = create<SessionState>((set, get) => ({
   sessions: [],
+  archivedSessions: [],
   activeSessionId: null,
   closedSessionId: null,
   runningSessionIds: new Set<string>(),
@@ -63,6 +72,16 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     return get().sessions.filter(s => s.sessionType === 'terminal')
   },
 
+  // 获取 Claude 归档会话
+  claudeArchivedSessions: () => {
+    return get().archivedSessions.filter(s => s.sessionType === 'claude')
+  },
+
+  // 获取普通终端归档会话
+  terminalArchivedSessions: () => {
+    return get().archivedSessions.filter(s => s.sessionType === 'terminal')
+  },
+
   fetchSessions: async () => {
     set({ isLoading: true, error: null })
     try {
@@ -70,6 +89,15 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       set({ sessions, isLoading: false })
     } catch (err) {
       set({ error: String(err), isLoading: false })
+    }
+  },
+
+  fetchArchivedSessions: async () => {
+    try {
+      const archivedSessions = await invoke<Session[]>('get_archived_sessions')
+      set({ archivedSessions })
+    } catch (err) {
+      set({ error: String(err) })
     }
   },
 
@@ -211,5 +239,72 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set((state) => ({
       workspaceOrder: { ...state.workspaceOrder, [sessionType]: paths }
     }))
+  },
+
+  archiveSession: async (sessionId: string) => {
+    try {
+      await invoke('archive_session', { sessionId })
+      set((state) => {
+        const session = state.sessions.find(s => s.id === sessionId)
+        if (!session) return state
+        return {
+          sessions: state.sessions.filter(s => s.id !== sessionId),
+          archivedSessions: [{ ...session, isArchived: true, archivedAt: new Date().toISOString() }, ...state.archivedSessions],
+          activeSessionId: state.activeSessionId === sessionId ? null : state.activeSessionId,
+        }
+      })
+    } catch (err) {
+      set({ error: String(err) })
+    }
+  },
+
+  unarchiveSession: async (sessionId: string) => {
+    try {
+      await invoke('unarchive_session', { sessionId })
+      set((state) => {
+        const session = state.archivedSessions.find(s => s.id === sessionId)
+        if (!session) return state
+        return {
+          archivedSessions: state.archivedSessions.filter(s => s.id !== sessionId),
+          sessions: [{ ...session, isArchived: false, archivedAt: undefined }, ...state.sessions],
+        }
+      })
+    } catch (err) {
+      set({ error: String(err) })
+    }
+  },
+
+  archiveSessionsByPath: async (projectPath: string) => {
+    try {
+      await invoke('archive_sessions_by_path', { projectPath })
+      set((state) => {
+        const sessionsToArchive = state.sessions.filter(s => s.projectPath === projectPath)
+        const now = new Date().toISOString()
+        const archived = sessionsToArchive.map(s => ({ ...s, isArchived: true, archivedAt: now }))
+        return {
+          sessions: state.sessions.filter(s => s.projectPath !== projectPath),
+          archivedSessions: [...archived, ...state.archivedSessions],
+          activeSessionId: sessionsToArchive.some(s => s.id === state.activeSessionId) ? null : state.activeSessionId,
+        }
+      })
+    } catch (err) {
+      set({ error: String(err) })
+    }
+  },
+
+  unarchiveSessionsByPath: async (projectPath: string) => {
+    try {
+      await invoke('unarchive_sessions_by_path', { projectPath })
+      set((state) => {
+        const sessionsToUnarchive = state.archivedSessions.filter(s => s.projectPath === projectPath)
+        const unarchived = sessionsToUnarchive.map(s => ({ ...s, isArchived: false, archivedAt: undefined }))
+        return {
+          archivedSessions: state.archivedSessions.filter(s => s.projectPath !== projectPath),
+          sessions: [...unarchived, ...state.sessions],
+        }
+      })
+    } catch (err) {
+      set({ error: String(err) })
+    }
   },
 }))

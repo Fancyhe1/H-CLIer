@@ -129,6 +129,54 @@ fn get_trash_sessions(state: tauri::State<SharedAppState>) -> Result<Vec<Session
         .map_err(|e| e.to_string())
 }
 
+// 归档相关命令
+#[tauri::command]
+fn get_archived_sessions(state: tauri::State<SharedAppState>) -> Result<Vec<Session>, String> {
+    let manager = state.session_manager.lock().map_err(|e| e.to_string())?;
+    manager.get_archived_sessions()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn archive_session(
+    state: tauri::State<SharedAppState>,
+    session_id: String,
+) -> Result<(), String> {
+    let manager = state.session_manager.lock().map_err(|e| e.to_string())?;
+    manager.archive_session(&session_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn unarchive_session(
+    state: tauri::State<SharedAppState>,
+    session_id: String,
+) -> Result<(), String> {
+    let manager = state.session_manager.lock().map_err(|e| e.to_string())?;
+    manager.unarchive_session(&session_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn archive_sessions_by_path(
+    state: tauri::State<SharedAppState>,
+    project_path: String,
+) -> Result<usize, String> {
+    let manager = state.session_manager.lock().map_err(|e| e.to_string())?;
+    manager.archive_sessions_by_path(&project_path)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn unarchive_sessions_by_path(
+    state: tauri::State<SharedAppState>,
+    project_path: String,
+) -> Result<usize, String> {
+    let manager = state.session_manager.lock().map_err(|e| e.to_string())?;
+    manager.unarchive_sessions_by_path(&project_path)
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn restore_from_trash(
     state: tauri::State<SharedAppState>,
@@ -1093,6 +1141,12 @@ pub fn run() {
             restore_from_trash,
             permanently_delete,
             empty_trash,
+            // 归档
+            get_archived_sessions,
+            archive_session,
+            unarchive_session,
+            archive_sessions_by_path,
+            unarchive_sessions_by_path,
             // Claude 会话检查
             check_claude_session_exists,
             read_session_history,

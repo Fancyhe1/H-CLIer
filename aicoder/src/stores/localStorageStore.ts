@@ -33,6 +33,7 @@ class LocalStorageSessionManager {
       color: undefined,
       isFavorite: false,
       isActive: true,
+      isArchived: false,
       createdAt: now,
       lastActivityAt: now,
       messageCount: 0,

@@ -46,9 +46,11 @@ pub struct Session {
     pub color: Option<String>,
     pub is_favorite: bool,
     pub is_active: bool,
+    pub is_archived: bool,  // 是否归档
     pub created_at: DateTime<Utc>,
     pub last_activity_at: DateTime<Utc>,
     pub deleted_at: Option<DateTime<Utc>>,  // 删除时间，用于回收站
+    pub archived_at: Option<DateTime<Utc>>,  // 归档时间
     pub message_count: i64,
     pub cli_session_id: Option<String>,
     pub description: Option<String>,
@@ -103,6 +105,18 @@ impl SessionManager {
             [],
         );
 
+        // 迁移：添加 is_archived 列（如果不存在）
+        let _ = conn.execute(
+            "ALTER TABLE sessions ADD COLUMN is_archived INTEGER DEFAULT 0",
+            [],
+        );
+
+        // 迁移：添加 archived_at 列（如果不存在）
+        let _ = conn.execute(
+            "ALTER TABLE sessions ADD COLUMN archived_at TIMESTAMP",
+            [],
+        );
+
         // 创建索引
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_project_path ON sessions(project_path)",
@@ -148,9 +162,9 @@ impl SessionManager {
 
         self.conn.execute(
             r#"
-            INSERT INTO sessions (id, project_path, title, session_type, color, is_favorite, is_active,
-                created_at, last_activity_at, deleted_at, message_count, cli_session_id, description, sort_order)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+            INSERT INTO sessions (id, project_path, title, session_type, color, is_favorite, is_active, is_archived,
+                created_at, last_activity_at, deleted_at, archived_at, message_count, cli_session_id, description, sort_order)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
             "#,
             params![
                 &id,
@@ -160,8 +174,10 @@ impl SessionManager {
                 None::<&str>,
                 0i32,
                 1i32,
+                0i32,
                 now,
                 now,
+                None::<DateTime<Utc>>,
                 None::<DateTime<Utc>>,
                 0i64,
                 cli_session_id,
@@ -178,9 +194,11 @@ impl SessionManager {
             color: None,
             is_favorite: false,
             is_active: true,
+            is_archived: false,
             created_at: now,
             last_activity_at: now,
             deleted_at: None,
+            archived_at: None,
             message_count: 0,
             cli_session_id: cli_session_id.map(|s| s.to_string()),
             description: None,
@@ -191,10 +209,10 @@ impl SessionManager {
     pub fn get_sessions(&self) -> Result<Vec<Session>, rusqlite::Error> {
         let mut stmt = self.conn.prepare(
             r#"
-            SELECT id, project_path, title, session_type, color, is_favorite, is_active,
-                created_at, last_activity_at, deleted_at, message_count, cli_session_id, description, sort_order
+            SELECT id, project_path, title, session_type, color, is_favorite, is_active, is_archived,
+                created_at, last_activity_at, deleted_at, archived_at, message_count, cli_session_id, description, sort_order
             FROM sessions
-            WHERE is_active = 1
+            WHERE is_active = 1 AND (is_archived = 0 OR is_archived IS NULL)
             ORDER BY sort_order ASC, last_activity_at DESC
             "#
         )?;
@@ -208,13 +226,50 @@ impl SessionManager {
                 color: row.get(4)?,
                 is_favorite: row.get::<_, i32>(5)? != 0,
                 is_active: row.get::<_, i32>(6)? != 0,
-                created_at: row.get(7)?,
-                last_activity_at: row.get(8)?,
-                deleted_at: row.get(9)?,
-                message_count: row.get(10)?,
-                cli_session_id: row.get(11)?,
-                description: row.get(12)?,
-                sort_order: row.get(13)?,
+                is_archived: row.get::<_, i32>(7)? != 0,
+                created_at: row.get(8)?,
+                last_activity_at: row.get(9)?,
+                deleted_at: row.get(10)?,
+                archived_at: row.get(11)?,
+                message_count: row.get(12)?,
+                cli_session_id: row.get(13)?,
+                description: row.get(14)?,
+                sort_order: row.get(15)?,
+            })
+        })?.collect::<Result<Vec<_>, _>>()?;
+
+        Ok(sessions)
+    }
+
+    pub fn get_archived_sessions(&self) -> Result<Vec<Session>, rusqlite::Error> {
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT id, project_path, title, session_type, color, is_favorite, is_active, is_archived,
+                created_at, last_activity_at, deleted_at, archived_at, message_count, cli_session_id, description, sort_order
+            FROM sessions
+            WHERE is_active = 1 AND is_archived = 1
+            ORDER BY archived_at DESC
+            "#
+        )?;
+
+        let sessions = stmt.query_map([], |row| {
+            Ok(Session {
+                id: row.get(0)?,
+                project_path: row.get(1)?,
+                title: row.get(2)?,
+                session_type: row.get(3)?,
+                color: row.get(4)?,
+                is_favorite: row.get::<_, i32>(5)? != 0,
+                is_active: row.get::<_, i32>(6)? != 0,
+                is_archived: row.get::<_, i32>(7)? != 0,
+                created_at: row.get(8)?,
+                last_activity_at: row.get(9)?,
+                deleted_at: row.get(10)?,
+                archived_at: row.get(11)?,
+                message_count: row.get(12)?,
+                cli_session_id: row.get(13)?,
+                description: row.get(14)?,
+                sort_order: row.get(15)?,
             })
         })?.collect::<Result<Vec<_>, _>>()?;
 
@@ -224,8 +279,8 @@ impl SessionManager {
     pub fn get_trash_sessions(&self) -> Result<Vec<Session>, rusqlite::Error> {
         let mut stmt = self.conn.prepare(
             r#"
-            SELECT id, project_path, title, session_type, color, is_favorite, is_active,
-                created_at, last_activity_at, deleted_at, message_count, cli_session_id, description, sort_order
+            SELECT id, project_path, title, session_type, color, is_favorite, is_active, is_archived,
+                created_at, last_activity_at, deleted_at, archived_at, message_count, cli_session_id, description, sort_order
             FROM sessions
             WHERE is_active = 0
             ORDER BY deleted_at DESC
@@ -241,13 +296,15 @@ impl SessionManager {
                 color: row.get(4)?,
                 is_favorite: row.get::<_, i32>(5)? != 0,
                 is_active: row.get::<_, i32>(6)? != 0,
-                created_at: row.get(7)?,
-                last_activity_at: row.get(8)?,
-                deleted_at: row.get(9)?,
-                message_count: row.get(10)?,
-                cli_session_id: row.get(11)?,
-                description: row.get(12)?,
-                sort_order: row.get(13)?,
+                is_archived: row.get::<_, i32>(7)? != 0,
+                created_at: row.get(8)?,
+                last_activity_at: row.get(9)?,
+                deleted_at: row.get(10)?,
+                archived_at: row.get(11)?,
+                message_count: row.get(12)?,
+                cli_session_id: row.get(13)?,
+                description: row.get(14)?,
+                sort_order: row.get(15)?,
             })
         })?.collect::<Result<Vec<_>, _>>()?;
 
@@ -357,6 +414,44 @@ impl SessionManager {
             params![now, project_path],
         )?;
 
+        Ok(rows_affected)
+    }
+
+    // 归档会话
+    pub fn archive_session(&self, session_id: &str) -> Result<(), rusqlite::Error> {
+        let now = Utc::now();
+        self.conn.execute(
+            "UPDATE sessions SET is_archived = 1, archived_at = ?1 WHERE id = ?2",
+            params![now, session_id],
+        )?;
+        Ok(())
+    }
+
+    // 取消归档（恢复会话）
+    pub fn unarchive_session(&self, session_id: &str) -> Result<(), rusqlite::Error> {
+        self.conn.execute(
+            "UPDATE sessions SET is_archived = 0, archived_at = NULL WHERE id = ?1",
+            params![session_id],
+        )?;
+        Ok(())
+    }
+
+    // 按路径归档整个工作空间的会话
+    pub fn archive_sessions_by_path(&self, project_path: &str) -> Result<usize, rusqlite::Error> {
+        let now = Utc::now();
+        let rows_affected = self.conn.execute(
+            "UPDATE sessions SET is_archived = 1, archived_at = ?1 WHERE project_path = ?2 AND is_active = 1",
+            params![now, project_path],
+        )?;
+        Ok(rows_affected)
+    }
+
+    // 按路径取消归档整个工作空间的会话
+    pub fn unarchive_sessions_by_path(&self, project_path: &str) -> Result<usize, rusqlite::Error> {
+        let rows_affected = self.conn.execute(
+            "UPDATE sessions SET is_archived = 0, archived_at = NULL WHERE project_path = ?2 AND is_active = 1",
+            params![project_path],
+        )?;
         Ok(rows_affected)
     }
 }
