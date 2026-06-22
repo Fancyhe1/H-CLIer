@@ -544,7 +544,7 @@ function App() {
             </div>
             <div style={{ display: activePanel === 'markdown' ? 'block' : 'none', width: '100%', height: '100%' }}>
               <MarkdownPanel
-                sessionId={activeSession?.id}
+                sessionId={activeSession?.cliSessionId || activeSession?.id}
                 projectPath={activeSession?.projectPath}
               />
             </div>

@@ -713,7 +713,9 @@ function Sidebar(props: SidebarProps) {
   // 查看历史
   const handleViewHistory = async (sessionId: string, projectPath: string) => {
     try {
-      const messages = await invoke<ChatMessage[]>('read_session_history', { sessionId, projectPath })
+      const session = sessions.find(s => s.id === sessionId)
+      const historySessionId = session?.cliSessionId || sessionId
+      const messages = await invoke<ChatMessage[]>('read_session_history', { sessionId: historySessionId, projectPath })
       setHistoryMessages(messages || [])
       setHistorySearchValue('')
       setShowThinking(false)
@@ -828,9 +830,10 @@ function Sidebar(props: SidebarProps) {
         setSummaryLoading(true)
         setSummaryModalVisible(true)
         try {
+          const historySessionId = session?.cliSessionId || sessionId
           const [messages, tokenUsage] = await Promise.all([
-            invoke<ChatMessage[]>('read_session_history', { sessionId, projectPath }).catch(() => [] as ChatMessage[]),
-            invoke<SessionTotalUsage>('get_session_total_usage', { sessionId }).catch(() => null),
+            invoke<ChatMessage[]>('read_session_history', { sessionId: historySessionId, projectPath }).catch(() => [] as ChatMessage[]),
+            invoke<SessionTotalUsage>('get_session_total_usage', { sessionId: historySessionId }).catch(() => null),
           ])
           // 统计对话数据
           const userMsgs = messages.filter(m => m.role === 'user').length
@@ -889,7 +892,9 @@ function Sidebar(props: SidebarProps) {
         setAiSummaryLoading(true)
         setAiSummaryModalVisible(true)
         try {
-          const messages = await invoke<ChatMessage[]>('read_session_history', { sessionId, projectPath })
+          const session = sessions.find(s => s.id === sessionId)
+          const historySessionId = session?.cliSessionId || sessionId
+          const messages = await invoke<ChatMessage[]>('read_session_history', { sessionId: historySessionId, projectPath })
           const summary = extractAIMemorySummary(messages || [])
           setAiSummaryData(summary)
         } catch (err) {

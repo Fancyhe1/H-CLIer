@@ -224,7 +224,7 @@ export async function handleExportSession(
   let messages: ChatMessage[] = []
   try {
     messages = await invoke<ChatMessage[]>('read_session_history', {
-      sessionId: session.id,
+      sessionId: session.cliSessionId || session.id,
       projectPath: session.projectPath,
     }) || []
   } catch (err) {
