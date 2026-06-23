@@ -112,6 +112,98 @@
   width: 100%;
 }
 
+/* ========== 批量操作栏 ========== */
+.batch-actions-bar {
+  padding: 6px 12px;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.batch-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.batch-toggle-btn {
+  flex-shrink: 0;
+}
+
+.batch-select-dropdown-btn {
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.batch-action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  justify-content: space-evenly;
+}
+
+.batch-action-buttons .ant-btn {
+  flex: 1;
+}
+
+.selected-count {
+  font-size: 12px;
+  color: #1677ff;
+  white-space: nowrap;
+  margin-left: auto;
+}
+
+.color-popover-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.color-popover-swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.color-popover-swatch:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
+}
+
+.session-item.batch-selected {
+  background: rgba(22, 119, 255, 0.08);
+}
+
+.batch-checkbox {
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+
+.dark .batch-actions-bar {
+  border-color: #2a2a2a;
+}
+
+.dark .selected-count {
+  color: #4096ff;
+}
+
+.dark .session-item.batch-selected {
+  background: rgba(64, 150, 255, 0.12);
+}
+
+.light .batch-actions-bar {
+  border-color: #f0f0f0;
+}
+
+.light .session-item.batch-selected {
+  background: rgba(22, 119, 255, 0.06);
+}
+
 .sidebar-content {
   flex: 1;
   overflow-y: auto;

@@ -30,6 +30,9 @@ import {
   RightOutlined,
   InboxOutlined,
   UndoOutlined,
+  CheckSquareOutlined,
+  MinusSquareOutlined,
+  BgColorsOutlined,
 } from '@ant-design/icons'
 import {
   Button,
@@ -44,6 +47,8 @@ import {
   Descriptions,
   Tag,
   Divider,
+  Dropdown,
+  Popover,
 } from 'antd'
 import type { MenuProps } from 'antd'
 import { invoke } from '@tauri-apps/api/core'
@@ -121,6 +126,11 @@ function Sidebar(props: SidebarProps) {
   const [aiSummaryLoading, setAiSummaryLoading] = useState(false)
   const [expandedKeys, setExpandedKeys] = useState<string[]>([])
 
+  // 批量操作相关状态
+  const [batchMode, setBatchMode] = useState(false)
+  const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set())
+  const [colorPopoverVisible, setColorPopoverVisible] = useState(false)
+
   // 拖拽相关状态
   const sidebarContentRef = useRef<HTMLDivElement>(null)
   const sessionDragRef = useRef<{
@@ -159,6 +169,7 @@ function Sidebar(props: SidebarProps) {
     setSessionColor,
     deleteSession,
     createSession,
+    archiveSession,
     claudeSessions,
     terminalSessions,
     claudeArchivedSessions,
@@ -511,6 +522,123 @@ function Sidebar(props: SidebarProps) {
     message.destroy('batch-export')
     message.success(`已导出 ${sessionsToExport.length} 个会话`)
   }
+
+  // ========== 批量操作函数 ==========
+
+  const toggleSessionSelection = useCallback((id: string) => {
+    setSelectedSessionIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  const selectAll = useCallback(() => {
+    const list = activeTab === 'claude' ? claudeSessions() : terminalSessions()
+    const filtered = searchValue
+      ? list.filter(s => s.title.toLowerCase().includes(searchValue.toLowerCase()) || s.projectPath.toLowerCase().includes(searchValue.toLowerCase()))
+      : list
+    setSelectedSessionIds(new Set(filtered.map(s => s.id)))
+  }, [activeTab, searchValue, claudeSessions, terminalSessions])
+
+  const deselectAll = useCallback(() => {
+    setSelectedSessionIds(new Set())
+  }, [])
+
+  const invertSelection = useCallback(() => {
+    const list = activeTab === 'claude' ? claudeSessions() : terminalSessions()
+    const filtered = searchValue
+      ? list.filter(s => s.title.toLowerCase().includes(searchValue.toLowerCase()) || s.projectPath.toLowerCase().includes(searchValue.toLowerCase()))
+      : list
+    setSelectedSessionIds(prev => {
+      const next = new Set<string>()
+      filtered.forEach(s => { if (!prev.has(s.id)) next.add(s.id) })
+      return next
+    })
+  }, [activeTab, searchValue, claudeSessions, terminalSessions])
+
+  const toggleBatchMode = useCallback(() => {
+    setBatchMode(prev => {
+      if (prev) {
+        setSelectedSessionIds(new Set())
+        setColorPopoverVisible(false)
+      }
+      return !prev
+    })
+  }, [])
+
+  useEffect(() => {
+    setBatchMode(false)
+    setSelectedSessionIds(new Set())
+    setColorPopoverVisible(false)
+  }, [activeTab, showArchived])
+
+  const handleBatchDelete = useCallback(() => {
+    if (selectedSessionIds.size === 0) return
+    Modal.confirm({
+      title: '批量删除',
+      content: `确定要将选中的 ${selectedSessionIds.size} 个会话移入回收站吗？`,
+      okText: '删除',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        let successCount = 0
+        for (const id of selectedSessionIds) {
+          try { await deleteSession(id); successCount++ } catch (err) { console.error(`删除会话 ${id} 失败:`, err) }
+        }
+        message.success(`已删除 ${successCount} 个会话`)
+        setSelectedSessionIds(new Set())
+        setBatchMode(false)
+      },
+    })
+  }, [selectedSessionIds, deleteSession])
+
+  const handleBatchArchive = useCallback(async () => {
+    if (selectedSessionIds.size === 0) return
+    let successCount = 0
+    for (const id of selectedSessionIds) {
+      try { await archiveSession(id); successCount++ } catch (err) { console.error(`归档会话 ${id} 失败:`, err) }
+    }
+    message.success(`已归档 ${successCount} 个会话`)
+    setSelectedSessionIds(new Set())
+    setBatchMode(false)
+  }, [selectedSessionIds, archiveSession])
+
+  const handleBatchExportSelected = useCallback(async (format: 'md' | 'html' | 'json') => {
+    if (selectedSessionIds.size === 0) return
+    const selectedSessions = sessions.filter(s => selectedSessionIds.has(s.id))
+    for (let i = 0; i < selectedSessions.length; i++) {
+      const session = selectedSessions[i]
+      message.loading({ content: `正在导出 (${i + 1}/${selectedSessions.length}): ${session.title}`, key: 'batch-export-selected', duration: 0 })
+      try { await handleExportSession(session, format) } catch (err) { console.error(`导出 ${session.title} 失败:`, err) }
+      if (i < selectedSessions.length - 1) await new Promise(resolve => setTimeout(resolve, 300))
+    }
+    message.destroy('batch-export-selected')
+    message.success(`已导出 ${selectedSessions.length} 个会话`)
+  }, [selectedSessionIds, sessions])
+
+  const handleBatchSetColor = useCallback(async (color: string | undefined) => {
+    if (selectedSessionIds.size === 0) return
+    for (const id of selectedSessionIds) {
+      try { await setSessionColor(id, color || '') } catch (err) { console.error(`设置颜色 ${id} 失败:`, err) }
+    }
+    message.success(`已标记 ${selectedSessionIds.size} 个会话`)
+    setColorPopoverVisible(false)
+  }, [selectedSessionIds, setSessionColor])
+
+  const handleBatchToggleFavorite = useCallback(async () => {
+    if (selectedSessionIds.size === 0) return
+    const selectedSessions = sessions.filter(s => selectedSessionIds.has(s.id))
+    const hasUnfavorited = selectedSessions.some(s => !s.isFavorite)
+    for (const id of selectedSessionIds) {
+      const session = sessions.find(s => s.id === id)
+      if (session && session.isFavorite !== hasUnfavorited) {
+        try { await toggleFavorite(id) } catch (err) { console.error(`切换收藏 ${id} 失败:`, err) }
+      }
+    }
+    message.success(hasUnfavorited ? `已收藏 ${selectedSessionIds.size} 个会话` : `已取消收藏 ${selectedSessionIds.size} 个会话`)
+  }, [selectedSessionIds, sessions, toggleFavorite])
 
   // 移除整个目录
   const handleRemoveDirectory = (projectPath: string, sessionCount: number) => {
@@ -1049,11 +1177,12 @@ function Sidebar(props: SidebarProps) {
       .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
     const idxInGroup = groupSessions.findIndex(s => s.id === session.id)
     const showDropBar = isInDropGroup && sessionDropInsertIndex === idxInGroup && !isDraggingThis
+    const isSelected = selectedSessionIds.has(session.id)
 
     return (
       <ContextMenu items={createMenuItems(session.id, session.isFavorite, session.projectPath)}>
         <div
-          className={`session-item ${session.id === activeSessionId ? 'active' : ''} ${hasUnread ? 'has-unread' : ''} ${isDraggingThis ? 'dragging' : ''} ${showDropBar ? 'drop-bar-above' : ''}`}
+          className={`session-item ${session.id === activeSessionId ? 'active' : ''} ${hasUnread ? 'has-unread' : ''} ${isDraggingThis ? 'dragging' : ''} ${showDropBar ? 'drop-bar-above' : ''} ${batchMode && isSelected ? 'batch-selected' : ''}`}
           data-session-id={session.id}
           data-workspace-path={session.projectPath}
           onMouseDown={(e) => handleSessionMouseDown(session.id, session.projectPath, e)}
@@ -1065,6 +1194,16 @@ function Sidebar(props: SidebarProps) {
             setActiveSession(session.id)
           }}
         >
+          {batchMode && (
+            <Checkbox
+              checked={isSelected}
+              onClick={(e) => {
+                e.stopPropagation()
+                toggleSessionSelection(session.id)
+              }}
+              className="batch-checkbox"
+            />
+          )}
           <div className="session-info">
             <div
               className="color-tag"
@@ -1425,6 +1564,93 @@ function Sidebar(props: SidebarProps) {
           新建{activeTab === 'claude' ? ' Claude' : '终端'}会话
         </Button>
       </div>
+
+      {!showArchived && currentSessionList.length > 0 && (
+        <div className="batch-actions-bar">
+          <div className="batch-actions-row">
+            <Button
+              type={batchMode ? 'primary' : 'default'}
+              icon={batchMode ? <CheckSquareOutlined /> : <MinusSquareOutlined />}
+              size="small"
+              onClick={toggleBatchMode}
+              className="batch-toggle-btn"
+            >
+              {batchMode ? '退出多选' : '多选'}
+            </Button>
+            {batchMode && (
+              <>
+                <Dropdown
+                  menu={{
+                    items: [
+                      { key: 'all', label: '全选', onClick: selectAll },
+                      { key: 'none', label: '全不选', onClick: deselectAll },
+                      { key: 'invert', label: '反选', onClick: invertSelection },
+                    ],
+                  }}
+                  trigger={['click']}
+                >
+                  <Button size="small" className="batch-select-dropdown-btn">
+                    选择 ▾
+                  </Button>
+                </Dropdown>
+                {selectedSessionIds.size > 0 && (
+                  <span className="selected-count">已选 {selectedSessionIds.size} 项</span>
+                )}
+              </>
+            )}
+          </div>
+          {batchMode && (
+            <div className="batch-action-buttons">
+              <Tooltip title="删除">
+                <Button size="small" icon={<DeleteOutlined />} danger disabled={selectedSessionIds.size === 0} onClick={handleBatchDelete} />
+              </Tooltip>
+              <Tooltip title="归档">
+                <Button size="small" icon={<InboxOutlined />} disabled={selectedSessionIds.size === 0} onClick={handleBatchArchive} />
+              </Tooltip>
+              <Dropdown
+                menu={{
+                  items: [
+                    { key: 'md', label: 'Markdown', icon: <FileTextOutlined />, onClick: () => handleBatchExportSelected('md') },
+                    { key: 'html', label: 'HTML', icon: <CloudDownloadOutlined />, onClick: () => handleBatchExportSelected('html') },
+                    { key: 'json', label: 'JSON', icon: <CodeOutlined />, onClick: () => handleBatchExportSelected('json') },
+                  ],
+                }}
+                trigger={['click']}
+              >
+                <Tooltip title="导出">
+                  <Button size="small" icon={<ExportOutlined />} disabled={selectedSessionIds.size === 0} />
+                </Tooltip>
+              </Dropdown>
+              <Popover
+                content={
+                  <div className="color-popover-grid">
+                    {COLORS.map((c) => (
+                      <div
+                        key={c.name}
+                        className="color-popover-swatch"
+                        style={{ backgroundColor: c.value || 'transparent', border: c.value ? 'none' : '1px dashed #999' }}
+                        title={c.name}
+                        onClick={() => handleBatchSetColor(c.value)}
+                      />
+                    ))}
+                  </div>
+                }
+                title="选择颜色"
+                trigger="click"
+                open={colorPopoverVisible}
+                onOpenChange={setColorPopoverVisible}
+              >
+                <Tooltip title="颜色">
+                  <Button size="small" icon={<BgColorsOutlined />} disabled={selectedSessionIds.size === 0} />
+                </Tooltip>
+              </Popover>
+              <Tooltip title="收藏">
+                <Button size="small" icon={<StarOutlined />} disabled={selectedSessionIds.size === 0} onClick={handleBatchToggleFavorite} />
+              </Tooltip>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="sidebar-content" ref={sidebarContentRef}>
         {showArchived ? (
