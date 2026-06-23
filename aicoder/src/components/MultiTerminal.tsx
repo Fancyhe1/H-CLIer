@@ -485,9 +485,11 @@ function MultiTerminal() {
         // 先设置事件监听器（在 PTY 创建之前）
         // 使用延迟标记策略
         // 原理：输出开始时不标记，等输出停止3秒后才标记未读
-        // 只有包含可见文本内容（非纯ANSI转义序列）的输出才触发标记
+        // 需要累积足够的可见文本（>30字符）才算真实回复，过滤 TUI 重绘噪音
         const mySessionId = activeSessionId
         let outputTimer: ReturnType<typeof setTimeout> | null = null
+        let visibleTextLength = 0  // 累积可见文本长度
+        const MIN_VISIBLE_LENGTH = 30  // 最少需要30个可见字符才算真实回复
         const unlisten = await listen<string>(`pty-output-${ptyId}`, (event) => {
           // 解码 hex 编码的数据
           let data = event.payload
@@ -525,6 +527,9 @@ function MultiTerminal() {
             if (!visibleContent) return // 纯转义序列，忽略
             if (isClaudeCodeNoise(visibleContent)) return // Claude Code噪音输出，忽略
 
+            // 累积可见文本长度
+            visibleTextLength += visibleContent.length
+
             // 每次收到有意义的输出都重置定时器
             if (outputTimer) {
               clearTimeout(outputTimer)
@@ -532,9 +537,10 @@ function MultiTerminal() {
             // 输出停止3秒后才标记未读
             outputTimer = setTimeout(() => {
               const currentInstance = terminalsRef.current.get(mySessionId)
-              if (currentInstance && currentInstance.shouldMarkUnread) {
+              if (currentInstance && currentInstance.shouldMarkUnread && visibleTextLength >= MIN_VISIBLE_LENGTH) {
                 useSessionStore.getState().setHasUnread(mySessionId, true)
               }
+              visibleTextLength = 0  // 重置累积器
             }, 3000)
           }
         })
