@@ -16,6 +16,10 @@ interface TerminalInstance {
   sessionId: string
   // 用于标记此终端是否应该在收到输出时标记未读
   shouldMarkUnread: boolean
+  // 初始化状态：pending=等待中, initializing=初始化中, ready=就绪, error=错误, destroying=销毁中
+  initializationState: 'pending' | 'initializing' | 'ready' | 'error' | 'destroying'
+  // 初始化超时定时器
+  initTimeout?: ReturnType<typeof setTimeout>
 }
 
 // 剥离ANSI转义序列，检查是否包含有意义的可见文本
@@ -130,29 +134,68 @@ function MultiTerminal() {
   // 销毁指定会话的终端（真正关闭会话时调用）
   const destroyTerminal = async (sessionId: string) => {
     const instance = terminalsRef.current.get(sessionId)
-    if (instance) {
-      instance.unlisten()
-      if (instance.ptyId) {
-        await invoke('close_pty', { ptyId: instance.ptyId }).catch(console.error)
-      }
-      instance.term.dispose()
+    if (!instance) return
 
-      // 移除 DOM 元素
-      const terminalDiv = document.getElementById(`terminal-${sessionId}`)
-      if (terminalDiv && terminalDiv.parentNode) {
-        terminalDiv.parentNode.removeChild(terminalDiv)
-      }
+    // 标记为销毁中，防止重复销毁
+    if (instance.initializationState === 'destroying') return
+    instance.initializationState = 'destroying'
 
-      terminalsRef.current.delete(sessionId)
-      createdSessionIdsRef.current.delete(sessionId)
+    // 清除初始化超时定时器
+    if (instance.initTimeout) {
+      clearTimeout(instance.initTimeout)
+      instance.initTimeout = undefined
     }
+
+    // 先取消事件监听，防止新的事件处理
+    try {
+      instance.unlisten()
+    } catch (e) {
+      console.warn('取消事件监听失败:', e)
+    }
+
+    // 关闭 PTY（带超时保护，避免卡死）
+    if (instance.ptyId) {
+      try {
+        // 使用 Promise.race 添加超时保护
+        await Promise.race([
+          invoke('close_pty', { ptyId: instance.ptyId }),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('关闭 PTY 超时')), 3000)
+          )
+        ])
+      } catch (err) {
+        console.warn('关闭 PTY 失败或超时:', err)
+      }
+    }
+
+    // 销毁 xterm 实例
+    try {
+      instance.term.dispose()
+    } catch (e) {
+      console.warn('销毁终端实例失败:', e)
+    }
+
+    // 移除 DOM 元素
+    const terminalDiv = document.getElementById(`terminal-${sessionId}`)
+    if (terminalDiv && terminalDiv.parentNode) {
+      terminalDiv.parentNode.removeChild(terminalDiv)
+    }
+
+    // 从 Map 中移除
+    terminalsRef.current.delete(sessionId)
+    createdSessionIdsRef.current.delete(sessionId)
   }
 
   // 监听关闭会话事件（真正销毁）
   useEffect(() => {
     if (closedSessionId) {
-      destroyTerminal(closedSessionId)
-      setClosedSession(null)  // 清除关闭标记
+      // 异步销毁终端，但不阻塞 UI
+      destroyTerminal(closedSessionId).catch(err => {
+        console.error('销毁终端失败:', err)
+      }).finally(() => {
+        // 无论成功失败，都清除关闭标记
+        setClosedSession(null)
+      })
     }
   }, [closedSessionId])
 
@@ -283,6 +326,21 @@ function MultiTerminal() {
     }
   }, [])
 
+  // 等待容器有正确尺寸的辅助函数
+  const waitForContainerReady = useCallback(async (container: HTMLDivElement, maxWait = 10000): Promise<boolean> => {
+    const startTime = Date.now()
+    while (Date.now() - startTime < maxWait) {
+      const rect = container.getBoundingClientRect()
+      if (rect.width > 0 && rect.height > 0) {
+        // 额外等待一帧，确保布局稳定
+        await new Promise(resolve => setTimeout(resolve, 100))
+        return true
+      }
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    return false
+  }, [])
+
   // 创建终端
   useEffect(() => {
     if (!activeSessionId || !containerRef.current) return
@@ -292,20 +350,43 @@ function MultiTerminal() {
     const session = currentSessions.find(s => s.id === activeSessionId)
     if (!session) return
 
-    // 如果已有终端实例，直接显示
+    // 如果已有终端实例且状态正常，直接显示
     const existingInstance = terminalsRef.current.get(activeSessionId)
     if (existingInstance) {
-      showTerminal(activeSessionId)
-      return
+      // 如果正在销毁中，不处理
+      if (existingInstance.initializationState === 'destroying') return
+      // 如果已就绪或初始化中，直接显示
+      if (existingInstance.initializationState === 'ready' || existingInstance.initializationState === 'initializing') {
+        showTerminal(activeSessionId)
+        return
+      }
+      // 如果是错误状态，强制清理后重新创建
+      if (existingInstance.initializationState === 'error') {
+        // 同步清理资源（不等待异步完成）
+        if (existingInstance.initTimeout) {
+          clearTimeout(existingInstance.initTimeout)
+        }
+        try {
+          existingInstance.unlisten()
+        } catch (e) { /* ignore */ }
+        if (existingInstance.ptyId) {
+          invoke('close_pty', { ptyId: existingInstance.ptyId }).catch(console.error)
+        }
+        try {
+          existingInstance.term.dispose()
+        } catch (e) { /* ignore */ }
+        // 移除 DOM 元素
+        const terminalDiv = document.getElementById(`terminal-${activeSessionId}`)
+        if (terminalDiv && terminalDiv.parentNode) {
+          terminalDiv.parentNode.removeChild(terminalDiv)
+        }
+        terminalsRef.current.delete(activeSessionId)
+        createdSessionIdsRef.current.delete(activeSessionId)
+      }
     }
 
-    // 如果终端存在且没有被销毁，不再重复创建
-    if (terminalsRef.current.has(activeSessionId)) {
-      showTerminal(activeSessionId)
-      return
-    }
-
-    // 标记为已创建
+    // 标记为已创建（防止重复创建）
+    if (createdSessionIdsRef.current.has(activeSessionId)) return
     createdSessionIdsRef.current.add(activeSessionId)
 
     // 从 store 获取当前配置（只在创建时读取一次）
@@ -337,52 +418,110 @@ function MultiTerminal() {
 
     const fitAddon = new FitAddon()
     term.loadAddon(fitAddon)
-    term.open(terminalDiv)
-
-    // 延迟 fit，确保容器有正确的尺寸
-    // 如果容器是隐藏的（display: none），fitAddon 无法正确计算尺寸
-    // 使用 setTimeout 延迟 fit，等待容器变为可见
-    setTimeout(() => {
-      try {
-        fitAddon.fit()
-      } catch (e) {
-        // 忽略 fit 错误
-      }
-    }, 100)
 
     // 创建终端实例（先保存，后续填充ptyId和unlisten）
     // 新创建的终端默认应该追踪未读（只有当前会话不需要标记）
-    terminalsRef.current.set(activeSessionId, { term, fitAddon, ptyId: '', unlisten: () => {}, sessionId: activeSessionId, shouldMarkUnread: true })
+    const instance: TerminalInstance = {
+      term,
+      fitAddon,
+      ptyId: '',
+      unlisten: () => {},
+      sessionId: activeSessionId,
+      shouldMarkUnread: true,
+      initializationState: 'pending',
+    }
+    terminalsRef.current.set(activeSessionId, instance)
+
+    // 设置初始化超时（15秒）
+    const initTimeout = setTimeout(() => {
+      const currentInstance = terminalsRef.current.get(activeSessionId)
+      if (currentInstance && currentInstance.initializationState !== 'ready') {
+        console.error('终端初始化超时:', activeSessionId)
+        currentInstance.initializationState = 'error'
+        term.writeln('\x1b[1;31m错误: 终端初始化超时\x1b[0m')
+      }
+    }, 15000)
+    instance.initTimeout = initTimeout
 
     // 标记会话为运行状态
     useSessionStore.getState().setSessionRunning(activeSessionId, true)
 
-    // 异步初始化PTY
+    // 异步初始化终端
     ;(async () => {
       try {
-        // 创建 PTY
-        const dims = fitAddon.proposeDimensions()
-        const ptyId = await invoke<string>('create_pty', {
-          sessionId: activeSessionId,
-          cols: dims?.cols || 80,
-          rows: dims?.rows || 30,
-        })
+        // 标记为初始化中
+        instance.initializationState = 'initializing'
 
-        // 监听 PTY 输出 - 使用延迟标记策略
+        // 等待容器有正确尺寸
+        const containerReady = await waitForContainerReady(containerRef.current!)
+        if (!containerReady) {
+          instance.initializationState = 'error'
+          term.writeln('\x1b[1;31m错误: 容器尺寸未就绪，请关闭会话后重试\x1b[0m')
+          return
+        }
+
+        // 检查是否已被销毁（在等待过程中可能被关闭）
+        const currentState = terminalsRef.current.get(activeSessionId)
+        if (!currentState || currentState.initializationState === 'destroying') {
+          return
+        }
+
+        // 打开终端到容器
+        term.open(terminalDiv)
+
+        // 等待 DOM 更新稳定
+        await new Promise(resolve => setTimeout(resolve, 100))
+
+        // 尝试 fit（可能失败，但不阻塞）
+        try {
+          fitAddon.fit()
+        } catch (e) {
+          // 忽略 fit 错误
+        }
+
+        // 生成 PTY ID（使用 session ID）
+        const ptyId = activeSessionId
+
+        // 先设置事件监听器（在 PTY 创建之前）
+        // 使用延迟标记策略
         // 原理：输出开始时不标记，等输出停止3秒后才标记未读
         // 只有包含可见文本内容（非纯ANSI转义序列）的输出才触发标记
-        // 注意：用 mySessionId 而非 activeSessionId，避免闭包捕获过时的值
         const mySessionId = activeSessionId
         let outputTimer: ReturnType<typeof setTimeout> | null = null
         const unlisten = await listen<string>(`pty-output-${ptyId}`, (event) => {
-          term.write(event.payload)
+          // 解码 hex 编码的数据
+          let data = event.payload
+          if (data && data.startsWith('hex:')) {
+            try {
+              const hexStr = data.substring(4)
+              const bytes: number[] = []
+              for (let i = 0; i < hexStr.length; i += 2) {
+                const hexByte = hexStr.substring(i, i + 2)
+                const byte = parseInt(hexByte, 16)
+                if (!isNaN(byte)) {
+                  bytes.push(byte)
+                }
+              }
+              if (bytes.length > 0) {
+                data = new TextDecoder('utf-8').decode(new Uint8Array(bytes))
+              } else {
+                return
+              }
+            } catch (e) {
+              return
+            }
+          }
+
+          if (!data) return
+
+          term.write(data)
 
           // 如果这个终端需要标记未读（后台运行），且有新输出
           const instance = terminalsRef.current.get(mySessionId)
           if (!instance || !instance.shouldMarkUnread) return
-          if (event.payload) {
+          if (data) {
             // 剥离ANSI转义序列，检查是否包含有意义的可见文本
-            const visibleContent = stripAnsi(event.payload)
+            const visibleContent = stripAnsi(data)
             if (!visibleContent) return // 纯转义序列，忽略
             if (isClaudeCodeNoise(visibleContent)) return // Claude Code噪音输出，忽略
 
@@ -400,24 +539,52 @@ function MultiTerminal() {
           }
         })
 
-        // 更新实例
-        const instance = terminalsRef.current.get(activeSessionId)
-        if (instance) {
-          instance.ptyId = ptyId
-          instance.unlisten = unlisten
+        // 更新实例的 unlisten
+        instance.unlisten = unlisten
+
+        // 检查是否已被销毁
+        const currentInstance = terminalsRef.current.get(activeSessionId)
+        if (!currentInstance || currentInstance.initializationState === 'destroying') {
+          unlisten()
+          return
         }
 
-        // 启动 PowerShell
-        await invoke('spawn_command_in_pty', {
-          ptyId,
-          command: 'powershell.exe',
-          args: [],
-          cwd: session.projectPath,
+        // 创建 PTY
+        const dims = fitAddon.proposeDimensions()
+        const actualPtyId = await invoke<string>('create_pty', {
+          sessionId: activeSessionId,
+          cols: dims?.cols || 80,
+          rows: dims?.rows || 30,
         })
+
+        // 再次检查是否已被销毁
+        const instanceAfterPty = terminalsRef.current.get(activeSessionId)
+        if (!instanceAfterPty || instanceAfterPty.initializationState === 'destroying') {
+          unlisten()
+          await invoke('close_pty', { ptyId: actualPtyId }).catch(console.error)
+          return
+        }
+
+        // 更新实例的 ptyId
+        instanceAfterPty.ptyId = actualPtyId
+
+        // 启动 PowerShell
+        try {
+          await invoke('spawn_command_in_pty', {
+            ptyId: actualPtyId,
+            command: 'powershell.exe',
+            args: [],
+            cwd: session.projectPath,
+          })
+        } catch (spawnErr) {
+          term.writeln(`\x1b[1;31m错误: PowerShell 启动失败 - ${spawnErr}\x1b[0m`)
+          instance.initializationState = 'error'
+          return
+        }
 
         // 处理用户输入（含 /branch 检测）
         term.onData((data) => {
-          invoke('write_to_pty', { ptyId, data }).catch(console.error)
+          invoke('write_to_pty', { ptyId: actualPtyId, data }).catch(console.error)
 
           // /branch 检测：缓冲用户输入，Enter 时检查
           const buffer = branchInputBuffersRef.current.get(session.id) || ''
@@ -517,14 +684,25 @@ function MultiTerminal() {
             useSessionStore.getState().updateSession({ ...session, cliSessionId })
           }
 
-          // 等待 PowerShell 启动
+          // 等待 PowerShell 完全启动
           await new Promise(r => setTimeout(r, 500))
 
+          // 检查是否已被销毁
+          const checkInstance = terminalsRef.current.get(activeSessionId)
+          if (!checkInstance || checkInstance.initializationState === 'destroying') {
+            return
+          }
+
           // 检查 Claude 会话是否存在
-          const sessionExists = await invoke<boolean>('check_claude_session_exists', {
-            sessionId: cliSessionId,
-            projectPath: session.projectPath,
-          })
+          let sessionExists = false
+          try {
+            sessionExists = await invoke<boolean>('check_claude_session_exists', {
+              sessionId: cliSessionId,
+              projectPath: session.projectPath,
+            })
+          } catch (checkErr) {
+            // 忽略错误
+          }
 
           // 从当前配置获取 Claude 路径和参数
           const claudeCmd = currentConfig?.claude?.cli_path || 'claude'
@@ -544,12 +722,26 @@ function MultiTerminal() {
               : `${claudeCmd} --session-id "${cliSessionId}"\r`
           }
 
-          await invoke('write_to_pty', { ptyId, data: cmd })
+          await invoke('write_to_pty', { ptyId: actualPtyId, data: cmd })
+        }
+
+        // 标记为就绪
+        instance.initializationState = 'ready'
+        // 清除超时定时器
+        if (instance.initTimeout) {
+          clearTimeout(instance.initTimeout)
+          instance.initTimeout = undefined
         }
 
         showTerminal(activeSessionId)
       } catch (err) {
         console.error('Terminal init error:', err)
+        instance.initializationState = 'error'
+        // 清除超时定时器
+        if (instance.initTimeout) {
+          clearTimeout(instance.initTimeout)
+          instance.initTimeout = undefined
+        }
         term.writeln(`\x1b[1;31m错误: ${err}\x1b[0m`)
       }
     })()
@@ -560,6 +752,11 @@ function MultiTerminal() {
   const fitAllTerminals = useCallback(async () => {
     for (const [sessionId, instance] of terminalsRef.current) {
       try {
+        // 跳过未就绪的终端
+        if (instance.initializationState !== 'ready') {
+          continue
+        }
+
         // 检查终端容器是否真正可见（包括父容器的 display:none 情况）
         // offsetWidth 在元素或父元素 display:none 时为 0
         const termDiv = document.getElementById(`terminal-${sessionId}`)
@@ -634,7 +831,7 @@ function MultiTerminal() {
 
     // 调整大小 - 使用多重延迟确保容器已有正确尺寸
     const instance = terminalsRef.current.get(sessionId)
-    if (instance) {
+    if (instance && instance.initializationState === 'ready') {
       instance.shouldMarkUnread = false  // 当前显示的终端不标记未读
 
       // 定义一个函数来 fit 并同步 PTY 尺寸
@@ -645,9 +842,10 @@ function MultiTerminal() {
           if (!container) return
           const containerRect = container.getBoundingClientRect()
 
-          // 如果容器尺寸为 0，延迟重试
+          // 如果容器尺寸为 0，延迟重试（最多重试3次）
           if (containerRect.width === 0 || containerRect.height === 0) {
-            setTimeout(() => fitAndSync(), 200)
+            // 使用指数退避策略，避免频繁重试
+            setTimeout(() => fitAndSync(), 300)
             return
           }
 
@@ -745,13 +943,29 @@ function MultiTerminal() {
   useEffect(() => {
     return () => {
       terminalsRef.current.forEach((instance) => {
-        instance.unlisten()
+        // 清除初始化超时定时器
+        if (instance.initTimeout) {
+          clearTimeout(instance.initTimeout)
+        }
+        // 取消事件监听
+        try {
+          instance.unlisten()
+        } catch (e) {
+          console.warn('清理时取消事件监听失败:', e)
+        }
+        // 关闭 PTY
         if (instance.ptyId) {
           invoke('close_pty', { ptyId: instance.ptyId }).catch(console.error)
         }
-        instance.term.dispose()
+        // 销毁终端
+        try {
+          instance.term.dispose()
+        } catch (e) {
+          console.warn('清理时销毁终端失败:', e)
+        }
       })
       terminalsRef.current.clear()
+      createdSessionIdsRef.current.clear()
     }
   }, [])
 

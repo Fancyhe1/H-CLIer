@@ -154,14 +154,17 @@ impl PtyManager {
                             let _ = file.flush();
                         }
 
+                        // 将数据编码为 hex 以避免特殊字符问题
+                        let encoded = data.bytes().map(|b| format!("{:02x}", b)).collect::<String>();
+                        let event_data = format!("hex:{}", encoded);
+
                         // 发送事件到前端
                         let event_name = format!("pty-output-{}", session_id_clone);
-                        if app_handle_clone.emit(&event_name, data).is_err() {
+                        if app_handle_clone.emit(&event_name, &event_data).is_err() {
                             break;
                         }
                     }
-                    Err(e) => {
-                        eprintln!("PTY read error: {}", e);
+                    Err(_) => {
                         break;
                     }
                 }
@@ -215,9 +218,23 @@ impl PtyManager {
         if let Some(mut pty) = self.ptys.remove(pty_id) {
             // 关闭PTY会导致读取线程退出
             drop(pty.pair);
-            // 等待读取线程结束
+
+            // 等待读取线程结束（带超时，避免死锁）
             if let Some(handle) = pty._reader_thread.take() {
-                let _ = handle.join();
+                // 使用线程来实现超时等待
+                let join_handle = std::thread::spawn(move || {
+                    let _ = handle.join();
+                });
+
+                // 等待最多 2 秒
+                let start = std::time::Instant::now();
+                while start.elapsed() < Duration::from_secs(2) {
+                    if join_handle.is_finished() {
+                        break;
+                    }
+                    thread::sleep(Duration::from_millis(50));
+                }
+                // 如果超时，线程会在后台继续运行直到退出
             }
         }
         Ok(())
