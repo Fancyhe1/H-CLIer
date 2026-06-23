@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Layout, Button, Space, ConfigProvider, Spin, Tooltip, Modal, Input, message, Badge } from 'antd'
+import { useState, useEffect, lazy, Suspense } from 'react'
+import { Layout, Button, Space, ConfigProvider, Tooltip, Modal, Input, message, Badge, Spin } from 'antd'
 import { theme } from 'antd'
 import {
   SettingOutlined,
@@ -9,7 +9,6 @@ import {
   ThunderboltOutlined,
   PushpinOutlined,
   DesktopOutlined,
-  LoadingOutlined,
   SaveOutlined,
   MinusOutlined,
   ExpandOutlined,
@@ -27,17 +26,19 @@ import {
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { invoke as tauriInvoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+// 关键组件：启动后立即需要
 import Sidebar from './components/Sidebar'
 import TabBar from './components/TabBar'
 import MultiTerminal from './components/MultiTerminal'
-import SettingsPanel from './components/SettingsPanel'
-import TokenStatsPanel from './components/TokenStatsPanel'
-import CommandPalette from './components/CommandPalette'
-import ClaudeCommandsPanel from './components/ClaudeCommandsPanel'
-import CheckpointModal from './components/CheckpointModal'
-import FileBrowserModal from './components/FileBrowserModal'
-import DashboardModal from './components/DashboardModal'
-import MarkdownPanel from './components/MarkdownPanel'
+// 非关键组件：懒加载
+const SettingsPanel = lazy(() => import('./components/SettingsPanel'))
+const TokenStatsPanel = lazy(() => import('./components/TokenStatsPanel'))
+const CommandPalette = lazy(() => import('./components/CommandPalette'))
+const ClaudeCommandsPanel = lazy(() => import('./components/ClaudeCommandsPanel'))
+const CheckpointModal = lazy(() => import('./components/CheckpointModal'))
+const FileBrowserModal = lazy(() => import('./components/FileBrowserModal'))
+const DashboardModal = lazy(() => import('./components/DashboardModal'))
+const MarkdownPanel = lazy(() => import('./components/MarkdownPanel'))
 import { useSettingsStore } from './stores/settingsStore'
 import { useSessionStore } from './stores/sessionStore'
 import { useKeybindingStore } from './stores/keybindingStore'
@@ -179,27 +180,34 @@ function App() {
 
   const antTheme = currentTheme === 'dark' ? theme.darkAlgorithm : theme.defaultAlgorithm
 
-  // 应用启动时加载配置
+  // 应用启动时：并行加载配置 + 检测 Claude 安装状态
   useEffect(() => {
-    loadConfig().then(() => {
-      // 从配置读取主题设置
+    const { checkClaudeInstallation, getClaudeVersion } = useSettingsStore.getState()
+
+    // 并行发起所有启动任务
+    const configPromise = loadConfig().then(() => {
       const savedConfig = useSettingsStore.getState().config
       if (savedConfig?.general?.theme) {
         setThemeMode(savedConfig.general.theme as ThemeMode)
       }
-      // 加载完成后延迟一点显示主界面，避免闪烁
-      setTimeout(() => setIsLoading(false), 100)
+    })
+
+    // Claude 检测不阻塞 UI，fire-and-forget
+    Promise.all([
+      checkClaudeInstallation(),
+      getClaudeVersion(),
+      getAppVersion(),
+    ])
+
+    // 配置加载完成后立即显示主界面
+    configPromise.then(() => {
+      setIsLoading(false)
+      // 移除 index.html 中的内联 splash
+      ;(window as any).__removeSplash?.()
     }).catch(() => {
       setIsLoading(false)
+      ;(window as any).__removeSplash?.()
     })
-  }, [loadConfig])
-
-  // 启动时检测 Claude 安装状态（异步，不阻塞 UI）
-  useEffect(() => {
-    const { checkClaudeInstallation, getClaudeVersion } = useSettingsStore.getState()
-    checkClaudeInstallation()
-    getClaudeVersion()
-    getAppVersion()
   }, [])
 
   // 监听网页端发来的会话切换请求
@@ -397,18 +405,9 @@ function App() {
 
   // 面板始终挂载，用 CSS display 切换可见性，避免卸载导致会话丢失
 
-  // 启动画面
+  // 加载期间返回 null，由 index.html 内联 splash 负责显示
   if (isLoading) {
-    return (
-      <div className={`app-splash ${currentTheme}`}>
-        <div className="splash-content">
-          <img className="splash-logo" src="/icon.png" alt="H CLIer" width="96" height="96" />
-          <div className="splash-title">H CLIer</div>
-          <div className="splash-subtitle">Claude Code 会话管理与工作台</div>
-          <Spin indicator={<LoadingOutlined style={{ fontSize: 24, color: currentTheme === 'dark' ? '#69b1ff' : '#1677ff' }} spin />} />
-        </div>
-      </div>
-    )
+    return null
   }
 
   return (
@@ -540,13 +539,17 @@ function App() {
               <MultiTerminal />
             </div>
             <div style={{ display: activePanel === 'stats' ? 'block' : 'none', width: '100%', height: '100%', overflow: 'auto' }}>
-              <TokenStatsPanel />
+              <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}><Spin /></div>}>
+                <TokenStatsPanel />
+              </Suspense>
             </div>
             <div style={{ display: activePanel === 'markdown' ? 'block' : 'none', width: '100%', height: '100%' }}>
-              <MarkdownPanel
-                sessionId={activeSession?.cliSessionId || activeSession?.id}
-                projectPath={activeSession?.projectPath}
-              />
+              <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}><Spin /></div>}>
+                <MarkdownPanel
+                  sessionId={activeSession?.cliSessionId || activeSession?.id}
+                  projectPath={activeSession?.projectPath}
+                />
+              </Suspense>
             </div>
           </Content>
           {/* 底部状态栏 */}
@@ -666,73 +669,85 @@ function App() {
         />
       </Modal>
 
-      <SettingsPanel
-        visible={settingsVisible}
-        onClose={() => setSettingsVisible(false)}
-        theme={currentTheme}
-        onThemeChange={(t) => {
-          setThemeMode(t as ThemeMode)
-          // 保存到配置
-          const { config, updateGeneralConfig } = useSettingsStore.getState()
-          updateGeneralConfig({ ...config.general, theme: t as string })
-        }}
-      />
+      <Suspense fallback={null}>
+        <SettingsPanel
+          visible={settingsVisible}
+          onClose={() => setSettingsVisible(false)}
+          theme={currentTheme}
+          onThemeChange={(t) => {
+            setThemeMode(t as ThemeMode)
+            // 保存到配置
+            const { config, updateGeneralConfig } = useSettingsStore.getState()
+            updateGeneralConfig({ ...config.general, theme: t as string })
+          }}
+        />
+      </Suspense>
 
-      <CommandPalette
-        visible={commandPaletteVisible}
-        onClose={() => setCommandPaletteVisible(false)}
-        onNewSession={() => {
-          const btn = document.querySelector('[data-testid="new-session-btn"]') as HTMLButtonElement
-          btn?.click()
-        }}
-        onCloseSession={() => {
-          const { activeSessionId, setClosedSession } = useSessionStore.getState()
-          if (activeSessionId) setClosedSession(activeSessionId)
-        }}
-        onPrevSession={() => {
-          const { sessions, activeSessionId, setActiveSession } = useSessionStore.getState()
-          if (sessions.length > 1 && activeSessionId) {
-            const idx = sessions.findIndex(s => s.id === activeSessionId)
-            const prevIdx = idx > 0 ? idx - 1 : sessions.length - 1
-            setActiveSession(sessions[prevIdx].id)
-          }
-        }}
-        onNextSession={() => {
-          const { sessions, activeSessionId, setActiveSession } = useSessionStore.getState()
-          if (sessions.length > 1 && activeSessionId) {
-            const idx = sessions.findIndex(s => s.id === activeSessionId)
-            const nextIdx = idx < sessions.length - 1 ? idx + 1 : 0
-            setActiveSession(sessions[nextIdx].id)
-          }
-        }}
-        onOpenStats={() => setActivePanel('stats')}
-        onOpenSettings={() => setSettingsVisible(true)}
-        onTogglePin={toggleAlwaysOnTop}
-      />
+      <Suspense fallback={null}>
+        <CommandPalette
+          visible={commandPaletteVisible}
+          onClose={() => setCommandPaletteVisible(false)}
+          onNewSession={() => {
+            const btn = document.querySelector('[data-testid="new-session-btn"]') as HTMLButtonElement
+            btn?.click()
+          }}
+          onCloseSession={() => {
+            const { activeSessionId, setClosedSession } = useSessionStore.getState()
+            if (activeSessionId) setClosedSession(activeSessionId)
+          }}
+          onPrevSession={() => {
+            const { sessions, activeSessionId, setActiveSession } = useSessionStore.getState()
+            if (sessions.length > 1 && activeSessionId) {
+              const idx = sessions.findIndex(s => s.id === activeSessionId)
+              const prevIdx = idx > 0 ? idx - 1 : sessions.length - 1
+              setActiveSession(sessions[prevIdx].id)
+            }
+          }}
+          onNextSession={() => {
+            const { sessions, activeSessionId, setActiveSession } = useSessionStore.getState()
+            if (sessions.length > 1 && activeSessionId) {
+              const idx = sessions.findIndex(s => s.id === activeSessionId)
+              const nextIdx = idx < sessions.length - 1 ? idx + 1 : 0
+              setActiveSession(sessions[nextIdx].id)
+            }
+          }}
+          onOpenStats={() => setActivePanel('stats')}
+          onOpenSettings={() => setSettingsVisible(true)}
+          onTogglePin={toggleAlwaysOnTop}
+        />
+      </Suspense>
 
-      <ClaudeCommandsPanel
-        visible={claudeCommandsVisible}
-        onClose={() => setClaudeCommandsVisible(false)}
-      />
+      <Suspense fallback={null}>
+        <ClaudeCommandsPanel
+          visible={claudeCommandsVisible}
+          onClose={() => setClaudeCommandsVisible(false)}
+        />
+      </Suspense>
 
-      <CheckpointModal
-        visible={checkpointVisible}
-        onClose={() => setCheckpointVisible(false)}
-        theme={currentTheme}
-      />
+      <Suspense fallback={null}>
+        <CheckpointModal
+          visible={checkpointVisible}
+          onClose={() => setCheckpointVisible(false)}
+          theme={currentTheme}
+        />
+      </Suspense>
 
-      <FileBrowserModal
-        visible={fileBrowserVisible}
-        onClose={() => setFileBrowserVisible(false)}
-        projectPath={activeSession?.projectPath || ''}
-        theme={currentTheme}
-      />
+      <Suspense fallback={null}>
+        <FileBrowserModal
+          visible={fileBrowserVisible}
+          onClose={() => setFileBrowserVisible(false)}
+          projectPath={activeSession?.projectPath || ''}
+          theme={currentTheme}
+        />
+      </Suspense>
 
-      <DashboardModal
-        visible={dashboardVisible}
-        onClose={() => setDashboardVisible(false)}
-        theme={currentTheme}
-      />
+      <Suspense fallback={null}>
+        <DashboardModal
+          visible={dashboardVisible}
+          onClose={() => setDashboardVisible(false)}
+          theme={currentTheme}
+        />
+      </Suspense>
     </ConfigProvider>
   )
 }
