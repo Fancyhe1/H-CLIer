@@ -226,8 +226,6 @@ function MultiTerminal() {
         session_id?: string
       }
 
-      console.log('[Hook] 收到 Claude Code 通知:', payload)
-
       // 只处理需要用户操作的事件
       if (payload.matcher === 'permission_prompt' || payload.matcher === 'elicitation_dialog') {
         // 如果有 session_id，标记对应会话为未读
@@ -272,6 +270,10 @@ function MultiTerminal() {
     }
   }, [activeSessionId])
 
+  // 窗口可见性冷却机制：切回窗口后短暂忽略输出，避免 TUI 重绘触发误报
+  const lastVisibleTimeRef = useRef(Date.now())
+  const COOLDOWN_MS = 5000  // 切回窗口后5秒内忽略输出
+
   // 辅助函数：标记所有终端为可检测未读
   const markAllTerminalsMarkable = () => {
     terminalsRef.current.forEach((instance) => {
@@ -279,8 +281,9 @@ function MultiTerminal() {
     })
   }
 
-  // 辅助函数：清除当前活跃终端的未读
-  const clearActiveTerminalUnread = () => {
+  // 辅助函数：窗口变为可见时的处理
+  const handleWindowVisible = () => {
+    lastVisibleTimeRef.current = Date.now()  // 记录冷却起点
     const current = useSessionStore.getState().activeSessionId
     if (current) {
       const instance = terminalsRef.current.get(current)
@@ -289,13 +292,18 @@ function MultiTerminal() {
     }
   }
 
+  // 辅助函数：窗口变为不可见时的处理
+  const handleWindowHidden = () => {
+    markAllTerminalsMarkable()
+  }
+
   // 监听窗口焦点变化（Tauri 原生事件）
   useEffect(() => {
     const unlisten = listen<boolean>('tauri://focus-changed', (event) => {
       if (event.payload) {
-        clearActiveTerminalUnread()
+        handleWindowVisible()
       } else {
-        markAllTerminalsMarkable()
+        handleWindowHidden()
       }
     })
     return () => { unlisten.then(fn => fn()) }
@@ -305,9 +313,9 @@ function MultiTerminal() {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        markAllTerminalsMarkable()
+        handleWindowHidden()
       } else {
-        clearActiveTerminalUnread()
+        handleWindowVisible()
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -316,8 +324,8 @@ function MultiTerminal() {
 
   // 监听窗口 blur/focus 事件（浏览器原生，额外保障）
   useEffect(() => {
-    const handleBlur = () => markAllTerminalsMarkable()
-    const handleFocus = () => clearActiveTerminalUnread()
+    const handleBlur = () => handleWindowHidden()
+    const handleFocus = () => handleWindowVisible()
     window.addEventListener('blur', handleBlur)
     window.addEventListener('focus', handleFocus)
     return () => {
@@ -521,6 +529,8 @@ function MultiTerminal() {
           // 如果这个终端需要标记未读（后台运行），且有新输出
           const instance = terminalsRef.current.get(mySessionId)
           if (!instance || !instance.shouldMarkUnread) return
+          // 冷却期：窗口刚变为可见时忽略输出，避免 TUI 重绘触发误报
+          if (Date.now() - lastVisibleTimeRef.current < COOLDOWN_MS) return
           if (data) {
             // 剥离ANSI转义序列，检查是否包含有意义的可见文本
             const visibleContent = stripAnsi(data)
