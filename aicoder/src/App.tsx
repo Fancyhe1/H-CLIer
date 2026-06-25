@@ -220,7 +220,7 @@ function App() {
     return () => { unlistenPromise.then(fn => fn()) }
   }, [])
 
-  // 启动时自动检查更新（延迟 3 秒避免阻塞启动）+ 每天自动检查
+  // 启动时自动检查更新（延迟 3 秒避免阻塞启动）+ 每小时自动检查
   useEffect(() => {
     const { checkForUpdates } = useSettingsStore.getState()
 
@@ -229,14 +229,14 @@ function App() {
       checkForUpdates()
     }, 3000)
 
-    // 每 24 小时检查一次
-    const dailyTimer = setInterval(() => {
+    // 每小时检查一次
+    const hourlyTimer = setInterval(() => {
       checkForUpdates()
-    }, 24 * 60 * 60 * 1000)
+    }, 60 * 60 * 1000)
 
     return () => {
       clearTimeout(startupTimer)
-      clearInterval(dailyTimer)
+      clearInterval(hourlyTimer)
     }
   }, [])
 
