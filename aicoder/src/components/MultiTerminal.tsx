@@ -76,6 +76,10 @@ function isClaudeCodeNoise(text: string): boolean {
     /Please\s+wait|请稍候/i,                       // 等待提示
     /^\s*exit\s*$/i,                              // exit 命令
     /^\s*clear\s*$/i,                             // clear 命令
+    /Auto-update\s+failed/i,                      // 自动更新失败
+    /claude\.exe\s+in\s+use/i,                    // claude.exe 被占用
+    /close\s+other.*Claude\s+Code/i,              // 关闭其他 Claude Code 会话
+    /Run\s+\/doctor/i,                            // 运行 /doctor 提示
   ]
 
   return noiseKeywordPatterns.some((pattern) => pattern.test(compact))
