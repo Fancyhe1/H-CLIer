@@ -7,6 +7,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { Spin, Empty, Button, Tooltip, Input } from 'antd'
 import { ReloadOutlined, ArrowDownOutlined, SendOutlined } from '@ant-design/icons'
+import { useTerminalStore } from '../stores/terminalStore'
 import type { ChatMessage, ContentBlock } from '../types/history'
 import '../styles/MarkdownPanel.css'
 
@@ -69,10 +70,11 @@ export default function MarkdownPanel({ sessionId, projectPath }: MarkdownPanelP
     loadMessages()
   }, [loadMessages])
 
-  // 监听 PTY 输出事件，实时更新
+  // 监听 PTY 输出事件 + 定期轮询，确保消息及时更新
   useEffect(() => {
     if (!sessionId) return
 
+    // 监听 PTY 输出事件
     const unlisten = listen<string>(`pty-output-${sessionId}`, () => {
       // 使用防抖，避免频繁刷新
       if (loadTimeoutRef.current) {
@@ -83,8 +85,14 @@ export default function MarkdownPanel({ sessionId, projectPath }: MarkdownPanelP
       }, 800)
     })
 
+    // 定期轮询（每 2 秒读取一次文件）
+    const pollInterval = setInterval(() => {
+      loadMessages()
+    }, 2000)
+
     return () => {
       unlisten.then(fn => fn())
+      clearInterval(pollInterval)
       if (loadTimeoutRef.current) {
         clearTimeout(loadTimeoutRef.current)
       }
@@ -118,8 +126,11 @@ export default function MarkdownPanel({ sessionId, projectPath }: MarkdownPanelP
 
     setSending(true)
     try {
-      // 在当前实现中，sessionId 就是 ptyId
-      const ptyId = sessionId
+      // 从终端存储获取 ptyId
+      // 注意：sessionId 可能不是 ptyId，需要从终端实例获取
+      const terminalState = useTerminalStore.getState()
+      const terminalInstance = terminalState.terminals.get(sessionId)
+      const ptyId = terminalInstance?.ptyId || sessionId
 
       // 发送输入到 PTY（添加回车符）
       await invoke('write_to_pty', {

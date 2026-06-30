@@ -8,8 +8,8 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:dev": ".\\run-tauri.cmd dev",
+    "tauri:build": ".\\run-tauri.cmd build"
   },
   "keywords": [
     "tauri",
@@ -42,6 +42,7 @@
     "@types/react-syntax-highlighter": "^15.5.13",
     "@vitejs/plugin-react": "^4.7.0",
     "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
     "typescript": "^6.0.2",
     "vite": "^5.4.21"
   }
