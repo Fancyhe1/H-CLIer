@@ -9,6 +9,7 @@ mod token_usage;
 mod claude_config;
 mod web_server;
 mod tunnel;
+mod agent_hub;
 
 use session::{Session, SessionManager};
 use pty::PtyManager;
@@ -55,6 +56,7 @@ pub struct AppState {
     pub license_manager: Mutex<license::LicenseManager>,
     pub tunnel_manager: tunnel::TunnelManager,
     pub web_access_token: Mutex<String>,
+    pub agent_hub_manager: Mutex<agent_hub::AgentHubManager>,
 }
 
 /// Arc 包装的 AppState，供 Tauri 和 Web Server 共享
@@ -1045,6 +1047,173 @@ async fn get_tunnel_status(
     Ok(state.tunnel_manager.status().await)
 }
 
+// ============================================================
+// AgentHub 命令
+// ============================================================
+
+#[tauri::command]
+fn agenthub_init(
+    state: tauri::State<SharedAppState>,
+    project_path: String,
+) -> Result<(), String> {
+    let mut manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.init(std::path::Path::new(&project_path))
+}
+
+#[tauri::command]
+fn agenthub_is_initialized(
+    state: tauri::State<SharedAppState>,
+    project_path: String,
+) -> Result<bool, String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    Ok(manager.is_initialized(std::path::Path::new(&project_path)))
+}
+
+#[tauri::command]
+fn agenthub_set_project(
+    state: tauri::State<SharedAppState>,
+    project_path: String,
+) -> Result<(), String> {
+    let mut manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.set_hub_path(std::path::Path::new(&project_path));
+    Ok(())
+}
+
+#[tauri::command]
+fn agenthub_load_tasks(
+    state: tauri::State<SharedAppState>,
+) -> Result<Vec<agent_hub::Task>, String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.load_tasks()
+}
+
+#[tauri::command]
+fn agenthub_create_task(
+    state: tauri::State<SharedAppState>,
+    task: agent_hub::Task,
+) -> Result<(), String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.create_task(&task)
+}
+
+#[tauri::command]
+fn agenthub_update_task(
+    state: tauri::State<SharedAppState>,
+    id: String,
+    updates: agent_hub::TaskUpdate,
+) -> Result<(), String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.update_task(&id, &updates)
+}
+
+#[tauri::command]
+fn agenthub_delete_task(
+    state: tauri::State<SharedAppState>,
+    id: String,
+) -> Result<(), String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.delete_task(&id)
+}
+
+#[tauri::command]
+fn agenthub_load_agent_roles(
+    state: tauri::State<SharedAppState>,
+) -> Result<Vec<agent_hub::AgentRole>, String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.load_agent_roles()
+}
+
+#[tauri::command]
+fn agenthub_save_agent_role(
+    state: tauri::State<SharedAppState>,
+    role: agent_hub::AgentRole,
+) -> Result<(), String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.save_agent_role(&role)
+}
+
+#[tauri::command]
+fn agenthub_delete_agent_role(
+    state: tauri::State<SharedAppState>,
+    id: String,
+) -> Result<(), String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.delete_agent_role(&id)
+}
+
+#[tauri::command]
+fn agenthub_load_active_agents(
+    state: tauri::State<SharedAppState>,
+) -> Result<Vec<agent_hub::ActiveAgent>, String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.load_active_agents()
+}
+
+#[tauri::command]
+fn agenthub_update_agent_status(
+    state: tauri::State<SharedAppState>,
+    agent_id: String,
+    status: String,
+    current_action: String,
+) -> Result<(), String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.update_agent_status(&agent_id, &status, &current_action)
+}
+
+#[tauri::command]
+fn agenthub_load_brain_meta(
+    state: tauri::State<SharedAppState>,
+) -> Result<agent_hub::BrainMeta, String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.load_brain_meta()
+}
+
+#[tauri::command]
+fn agenthub_load_brain_section(
+    state: tauri::State<SharedAppState>,
+    section: String,
+) -> Result<String, String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.load_brain_section(&section)
+}
+
+#[tauri::command]
+fn agenthub_update_brain_section(
+    state: tauri::State<SharedAppState>,
+    section: String,
+    content: String,
+) -> Result<(), String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.update_brain_section(&section, &content)
+}
+
+#[tauri::command]
+fn agenthub_build_context(
+    state: tauri::State<SharedAppState>,
+    task_id: String,
+) -> Result<String, String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.build_context(&task_id)
+}
+
+#[tauri::command]
+fn agenthub_load_events(
+    state: tauri::State<SharedAppState>,
+    limit: Option<usize>,
+) -> Result<Vec<agent_hub::HubEvent>, String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.load_events(limit.unwrap_or(100))
+}
+
+#[tauri::command]
+fn agenthub_scan_project(
+    state: tauri::State<SharedAppState>,
+    project_path: String,
+) -> Result<agent_hub::BrainMeta, String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.scan_project(std::path::Path::new(&project_path))
+}
+
 // 主函数
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -1084,11 +1253,29 @@ pub fn run() {
                 .expect("Failed to create license manager");
 
             // 生成 Web Server 访问令牌
-            let access_token = web_server::generate_token();
+            // 优先读取已有的 token（保证重启后 token 不变，hook 脚本可正常工作）
+            let access_token = if let Ok(config_dir) = app_handle.path().app_config_dir() {
+                let token_path = config_dir.join("web_access_token");
+                if let Ok(existing) = std::fs::read_to_string(&token_path) {
+                    let trimmed = existing.trim().to_string();
+                    if !trimmed.is_empty() {
+                        trimmed
+                    } else {
+                        web_server::generate_token()
+                    }
+                } else {
+                    web_server::generate_token()
+                }
+            } else {
+                web_server::generate_token()
+            };
             let web_config = web_server::WebServerConfig {
                 access_token: access_token.clone(),
                 ..Default::default()
             };
+
+            // 初始化 AgentHub 管理器
+            let agent_hub_manager = agent_hub::AgentHubManager::new();
 
             let app_state = Arc::new(AppState {
                 session_manager: Mutex::new(session_manager),
@@ -1098,6 +1285,7 @@ pub fn run() {
                 license_manager: Mutex::new(license_manager),
                 tunnel_manager: tunnel::TunnelManager::new(),
                 web_access_token: Mutex::new(access_token.clone()),
+                agent_hub_manager: Mutex::new(agent_hub_manager),
             });
 
             // 保存 web_access_token 到配置目录，供 Claude Code hook 脚本读取
@@ -1107,8 +1295,11 @@ pub fn run() {
                 let token_path = config_dir.join("web_access_token");
                 let _ = std::fs::write(&token_path, &access_token);
 
-                // 自动配置 Claude Code hooks（默认启用，仅未配置时）
-                if claude_config::get_hook_script_path().is_err() {
+                // 自动配置 Claude Code hooks（默认启用）
+                // 未配置时首次配置，已配置但缺少 Stop 事件时自动更新
+                let needs_setup = claude_config::get_hook_script_path().is_err()
+                    || !claude_config::is_hooks_config_complete();
+                if needs_setup {
                     if let Ok(script_path) = ensure_hook_scripts(&config_dir) {
                         if let Err(e) = claude_config::setup_claude_hooks(&script_path) {
                             eprintln!("[Hooks] 自动配置失败: {}", e);
@@ -1216,6 +1407,25 @@ pub fn run() {
             get_web_access_token,
             get_local_ips,
             activate_session_on_desktop_ui,
+            // AgentHub
+            agenthub_init,
+            agenthub_is_initialized,
+            agenthub_set_project,
+            agenthub_load_tasks,
+            agenthub_create_task,
+            agenthub_update_task,
+            agenthub_delete_task,
+            agenthub_load_agent_roles,
+            agenthub_save_agent_role,
+            agenthub_delete_agent_role,
+            agenthub_load_active_agents,
+            agenthub_update_agent_status,
+            agenthub_load_brain_meta,
+            agenthub_load_brain_section,
+            agenthub_update_brain_section,
+            agenthub_build_context,
+            agenthub_load_events,
+            agenthub_scan_project,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

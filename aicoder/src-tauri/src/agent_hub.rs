@@ -1,0 +1,837 @@
+use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
+use chrono::Utc;
+
+// ============================================================
+// 数据结构定义（与 CLI/Web 面板共享的格式）
+// ============================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TaskStatus {
+    Pending,
+    Assigned,
+    Running,
+    Done,
+    Failed,
+    Blocked,
+}
+
+impl Default for TaskStatus {
+    fn default() -> Self {
+        Self::Pending
+    }
+}
+
+impl TaskStatus {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Pending => "pending",
+            Self::Assigned => "assigned",
+            Self::Running => "running",
+            Self::Done => "done",
+            Self::Failed => "failed",
+            Self::Blocked => "blocked",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "assigned" => Self::Assigned,
+            "running" => Self::Running,
+            "done" => Self::Done,
+            "failed" => Self::Failed,
+            "blocked" => Self::Blocked,
+            _ => Self::Pending,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Priority {
+    Low,
+    Medium,
+    High,
+    Critical,
+}
+
+impl Default for Priority {
+    fn default() -> Self {
+        Self::Medium
+    }
+}
+
+impl Priority {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Low => "low",
+            Self::Medium => "medium",
+            Self::High => "high",
+            Self::Critical => "critical",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "low" => Self::Low,
+            "high" => Self::High,
+            "critical" => Self::Critical,
+            _ => Self::Medium,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Subtask {
+    pub id: String,
+    pub title: String,
+    #[serde(default)]
+    pub status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Task {
+    pub id: String,
+    pub title: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub status: TaskStatus,
+    #[serde(default)]
+    pub priority: Priority,
+    #[serde(default)]
+    pub assigned_agent: Option<String>,
+    #[serde(default)]
+    pub dependencies: Vec<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub subtasks: Vec<Subtask>,
+    pub created: String,
+    #[serde(default)]
+    pub updated: Option<String>,
+    #[serde(default)]
+    pub started_at: Option<String>,
+    #[serde(default)]
+    pub completed_at: Option<String>,
+    #[serde(default)]
+    pub result: Option<String>,
+    #[serde(default)]
+    pub error: Option<String>,
+    #[serde(default)]
+    pub retry_count: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskUpdate {
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub status: Option<TaskStatus>,
+    #[serde(default)]
+    pub priority: Option<Priority>,
+    #[serde(default)]
+    pub assigned_agent: Option<Option<String>>,
+    #[serde(default)]
+    pub tags: Option<Vec<String>>,
+    #[serde(default)]
+    pub result: Option<Option<String>>,
+    #[serde(default)]
+    pub error: Option<Option<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRole {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default = "default_model")]
+    pub model: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+fn default_model() -> String {
+    "sonnet".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActiveAgent {
+    pub agent_id: String,
+    pub role: String,
+    pub task_id: String,
+    pub started_at: String,
+    pub last_heartbeat: String,
+    #[serde(default = "default_agent_status")]
+    pub status: String,
+    #[serde(default)]
+    pub current_action: String,
+    #[serde(default)]
+    pub pid: Option<u32>,
+}
+
+fn default_agent_status() -> String {
+    "running".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BrainMeta {
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub tech_stack: std::collections::HashMap<String, String>,
+    #[serde(default)]
+    pub repo_path: String,
+    #[serde(default = "default_model")]
+    pub default_model: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HubEvent {
+    pub ts: String,
+    #[serde(rename = "type")]
+    pub event_type: String,
+    #[serde(default)]
+    pub task_id: Option<String>,
+    #[serde(default)]
+    pub agent: Option<String>,
+    #[serde(default)]
+    pub message: Option<String>,
+    #[serde(default)]
+    pub files_changed: Option<Vec<String>>,
+}
+
+// YAML 文件的顶层结构
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct TasksFile {
+    version: u32,
+    #[serde(default)]
+    tasks: Vec<Task>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct AgentsFile {
+    #[serde(default)]
+    agents: Vec<AgentRole>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ActiveAgentsFile {
+    #[serde(default)]
+    active: Vec<ActiveAgent>,
+}
+
+// ============================================================
+// AgentHubManager — 核心管理器
+// ============================================================
+
+pub struct AgentHubManager {
+    hub_path: Option<PathBuf>,
+}
+
+impl AgentHubManager {
+    pub fn new() -> Self {
+        Self { hub_path: None }
+    }
+
+    /// 初始化 AgentHub 目录结构
+    pub fn init(&mut self, project_path: &Path) -> Result<(), String> {
+        let hub_path = project_path.join(".agent-hub");
+
+        // 创建目录结构
+        let dirs = [
+            hub_path.join("brain").join("state"),
+            hub_path.join("tasks").join("archive"),
+            hub_path.join("agents").join("logs"),
+            hub_path.join("state"),
+        ];
+        for dir in &dirs {
+            std::fs::create_dir_all(dir)
+                .map_err(|e| format!("创建目录失败 {}: {}", dir.display(), e))?;
+        }
+
+        // 创建默认 tasks.yaml（如果不存在）
+        let tasks_file = hub_path.join("tasks").join("tasks.yaml");
+        if !tasks_file.exists() {
+            let default_tasks = TasksFile {
+                version: 1,
+                tasks: vec![],
+            };
+            let yaml = serde_yaml::to_string(&default_tasks)
+                .map_err(|e| format!("序列化 tasks.yaml 失败: {}", e))?;
+            std::fs::write(&tasks_file, yaml)
+                .map_err(|e| format!("写入 tasks.yaml 失败: {}", e))?;
+        }
+
+        // 创建默认 registry.yaml（如果不存在）
+        let registry_file = hub_path.join("agents").join("registry.yaml");
+        if !registry_file.exists() {
+            let default_agents = AgentsFile { agents: vec![] };
+            let yaml = serde_yaml::to_string(&default_agents)
+                .map_err(|e| format!("序列化 registry.yaml 失败: {}", e))?;
+            std::fs::write(&registry_file, yaml)
+                .map_err(|e| format!("写入 registry.yaml 失败: {}", e))?;
+        }
+
+        // 创建默认 active-agents.yaml（如果不存在）
+        let active_file = hub_path.join("state").join("active-agents.yaml");
+        if !active_file.exists() {
+            let default_active = ActiveAgentsFile { active: vec![] };
+            let yaml = serde_yaml::to_string(&default_active)
+                .map_err(|e| format!("序列化 active-agents.yaml 失败: {}", e))?;
+            std::fs::write(&active_file, yaml)
+                .map_err(|e| format!("写入 active-agents.yaml 失败: {}", e))?;
+        }
+
+        // 创建默认 config.yaml（如果不存在）
+        let config_file = hub_path.join("config.yaml");
+        if !config_file.exists() {
+            let default_config = format!(
+                "# AgentHub 配置\nversion: 1\ndefault_model: sonnet\nheartbeat_interval: 30\n"
+            );
+            std::fs::write(&config_file, default_config)
+                .map_err(|e| format!("写入 config.yaml 失败: {}", e))?;
+        }
+
+        // 创建默认 brain meta.yaml（如果不存在）
+        let brain_meta_file = hub_path.join("brain").join("meta.yaml");
+        if !brain_meta_file.exists() {
+            let project_name = project_path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| "unknown".to_string());
+            let default_meta = BrainMeta {
+                name: project_name,
+                description: String::new(),
+                tech_stack: std::collections::HashMap::new(),
+                repo_path: project_path.to_string_lossy().to_string(),
+                default_model: "sonnet".to_string(),
+            };
+            let yaml = serde_yaml::to_string(&default_meta)
+                .map_err(|e| format!("序列化 meta.yaml 失败: {}", e))?;
+            std::fs::write(&brain_meta_file, yaml)
+                .map_err(|e| format!("写入 meta.yaml 失败: {}", e))?;
+        }
+
+        self.hub_path = Some(hub_path);
+        Ok(())
+    }
+
+    /// 检查项目是否已初始化 AgentHub
+    pub fn is_initialized(&self, project_path: &Path) -> bool {
+        let hub_path = project_path.join(".agent-hub");
+        hub_path.exists() && hub_path.join("tasks").join("tasks.yaml").exists()
+    }
+
+    /// 设置当前工作路径（在 init 或检测到已初始化后调用）
+    pub fn set_hub_path(&mut self, project_path: &Path) {
+        self.hub_path = Some(project_path.join(".agent-hub"));
+    }
+
+    /// 获取 .agent-hub 路径，未初始化则返回错误
+    fn get_hub_path(&self) -> Result<&PathBuf, String> {
+        self.hub_path.as_ref().ok_or_else(|| {
+            "AgentHub 未初始化，请先调用 agenthub_init".to_string()
+        })
+    }
+
+    // ============================================================
+    // 任务操作
+    // ============================================================
+
+    pub fn load_tasks(&self) -> Result<Vec<Task>, String> {
+        let hub_path = self.get_hub_path()?;
+        let tasks_file = hub_path.join("tasks").join("tasks.yaml");
+
+        if !tasks_file.exists() {
+            return Ok(vec![]);
+        }
+
+        let content = std::fs::read_to_string(&tasks_file)
+            .map_err(|e| format!("读取 tasks.yaml 失败: {}", e))?;
+
+        let tasks_file_data: TasksFile = serde_yaml::from_str(&content)
+            .map_err(|e| format!("解析 tasks.yaml 失败: {}", e))?;
+
+        Ok(tasks_file_data.tasks)
+    }
+
+    pub fn create_task(&self, task: &Task) -> Result<(), String> {
+        let hub_path = self.get_hub_path()?;
+        let tasks_file = hub_path.join("tasks").join("tasks.yaml");
+
+        let mut tasks_data = if tasks_file.exists() {
+            let content = std::fs::read_to_string(&tasks_file)
+                .map_err(|e| format!("读取 tasks.yaml 失败: {}", e))?;
+            serde_yaml::from_str::<TasksFile>(&content)
+                .map_err(|e| format!("解析 tasks.yaml 失败: {}", e))?
+        } else {
+            TasksFile { version: 1, tasks: vec![] }
+        };
+
+        // 检查 ID 是否重复
+        if tasks_data.tasks.iter().any(|t| t.id == task.id) {
+            return Err(format!("任务 ID {} 已存在", task.id));
+        }
+
+        tasks_data.tasks.push(task.clone());
+
+        let yaml = serde_yaml::to_string(&tasks_data)
+            .map_err(|e| format!("序列化 tasks.yaml 失败: {}", e))?;
+        std::fs::write(&tasks_file, yaml)
+            .map_err(|e| format!("写入 tasks.yaml 失败: {}", e))?;
+
+        // 追加事件
+        self.append_event(&HubEvent {
+            ts: Utc::now().to_rfc3339(),
+            event_type: "task_created".to_string(),
+            task_id: Some(task.id.clone()),
+            agent: None,
+            message: Some(format!("创建任务: {}", task.title)),
+            files_changed: None,
+        })?;
+
+        Ok(())
+    }
+
+    pub fn update_task(&self, id: &str, updates: &TaskUpdate) -> Result<(), String> {
+        let hub_path = self.get_hub_path()?;
+        let tasks_file = hub_path.join("tasks").join("tasks.yaml");
+
+        let content = std::fs::read_to_string(&tasks_file)
+            .map_err(|e| format!("读取 tasks.yaml 失败: {}", e))?;
+        let mut tasks_data: TasksFile = serde_yaml::from_str(&content)
+            .map_err(|e| format!("解析 tasks.yaml 失败: {}", e))?;
+
+        let task = tasks_data.tasks.iter_mut().find(|t| t.id == id)
+            .ok_or_else(|| format!("任务 {} 不存在", id))?;
+
+        // 应用更新
+        if let Some(title) = &updates.title {
+            task.title = title.clone();
+        }
+        if let Some(desc) = &updates.description {
+            task.description = desc.clone();
+        }
+        if let Some(status) = &updates.status {
+            task.status = status.clone();
+            // 自动设置时间戳
+            match status {
+                TaskStatus::Running => {
+                    task.started_at = Some(Utc::now().to_rfc3339());
+                }
+                TaskStatus::Done => {
+                    task.completed_at = Some(Utc::now().to_rfc3339());
+                }
+                _ => {}
+            }
+        }
+        if let Some(priority) = &updates.priority {
+            task.priority = priority.clone();
+        }
+        if let Some(assigned) = &updates.assigned_agent {
+            task.assigned_agent = assigned.clone();
+        }
+        if let Some(tags) = &updates.tags {
+            task.tags = tags.clone();
+        }
+        if let Some(result) = &updates.result {
+            task.result = result.clone();
+        }
+        if let Some(error) = &updates.error {
+            task.error = error.clone();
+        }
+        task.updated = Some(Utc::now().to_rfc3339());
+
+        let yaml = serde_yaml::to_string(&tasks_data)
+            .map_err(|e| format!("序列化 tasks.yaml 失败: {}", e))?;
+        std::fs::write(&tasks_file, yaml)
+            .map_err(|e| format!("写入 tasks.yaml 失败: {}", e))?;
+
+        Ok(())
+    }
+
+    pub fn delete_task(&self, id: &str) -> Result<(), String> {
+        let hub_path = self.get_hub_path()?;
+        let tasks_file = hub_path.join("tasks").join("tasks.yaml");
+
+        let content = std::fs::read_to_string(&tasks_file)
+            .map_err(|e| format!("读取 tasks.yaml 失败: {}", e))?;
+        let mut tasks_data: TasksFile = serde_yaml::from_str(&content)
+            .map_err(|e| format!("解析 tasks.yaml 失败: {}", e))?;
+
+        let original_len = tasks_data.tasks.len();
+        tasks_data.tasks.retain(|t| t.id != id);
+
+        if tasks_data.tasks.len() == original_len {
+            return Err(format!("任务 {} 不存在", id));
+        }
+
+        let yaml = serde_yaml::to_string(&tasks_data)
+            .map_err(|e| format!("序列化 tasks.yaml 失败: {}", e))?;
+        std::fs::write(&tasks_file, yaml)
+            .map_err(|e| format!("写入 tasks.yaml 失败: {}", e))?;
+
+        // 追加事件
+        self.append_event(&HubEvent {
+            ts: Utc::now().to_rfc3339(),
+            event_type: "task_deleted".to_string(),
+            task_id: Some(id.to_string()),
+            agent: None,
+            message: Some(format!("删除任务: {}", id)),
+            files_changed: None,
+        })?;
+
+        Ok(())
+    }
+
+    // ============================================================
+    // Agent 角色操作
+    // ============================================================
+
+    pub fn load_agent_roles(&self) -> Result<Vec<AgentRole>, String> {
+        let hub_path = self.get_hub_path()?;
+        let registry_file = hub_path.join("agents").join("registry.yaml");
+
+        if !registry_file.exists() {
+            return Ok(vec![]);
+        }
+
+        let content = std::fs::read_to_string(&registry_file)
+            .map_err(|e| format!("读取 registry.yaml 失败: {}", e))?;
+
+        let agents_file: AgentsFile = serde_yaml::from_str(&content)
+            .map_err(|e| format!("解析 registry.yaml 失败: {}", e))?;
+
+        Ok(agents_file.agents)
+    }
+
+    pub fn save_agent_role(&self, role: &AgentRole) -> Result<(), String> {
+        let hub_path = self.get_hub_path()?;
+        let registry_file = hub_path.join("agents").join("registry.yaml");
+
+        let mut agents_data = if registry_file.exists() {
+            let content = std::fs::read_to_string(&registry_file)
+                .map_err(|e| format!("读取 registry.yaml 失败: {}", e))?;
+            serde_yaml::from_str::<AgentsFile>(&content)
+                .map_err(|e| format!("解析 registry.yaml 失败: {}", e))?
+        } else {
+            AgentsFile { agents: vec![] }
+        };
+
+        // 更新或插入
+        if let Some(existing) = agents_data.agents.iter_mut().find(|a| a.id == role.id) {
+            *existing = role.clone();
+        } else {
+            agents_data.agents.push(role.clone());
+        }
+
+        let yaml = serde_yaml::to_string(&agents_data)
+            .map_err(|e| format!("序列化 registry.yaml 失败: {}", e))?;
+        std::fs::write(&registry_file, yaml)
+            .map_err(|e| format!("写入 registry.yaml 失败: {}", e))?;
+
+        Ok(())
+    }
+
+    pub fn delete_agent_role(&self, id: &str) -> Result<(), String> {
+        let hub_path = self.get_hub_path()?;
+        let registry_file = hub_path.join("agents").join("registry.yaml");
+
+        let content = std::fs::read_to_string(&registry_file)
+            .map_err(|e| format!("读取 registry.yaml 失败: {}", e))?;
+        let mut agents_data: AgentsFile = serde_yaml::from_str(&content)
+            .map_err(|e| format!("解析 registry.yaml 失败: {}", e))?;
+
+        agents_data.agents.retain(|a| a.id != id);
+
+        let yaml = serde_yaml::to_string(&agents_data)
+            .map_err(|e| format!("序列化 registry.yaml 失败: {}", e))?;
+        std::fs::write(&registry_file, yaml)
+            .map_err(|e| format!("写入 registry.yaml 失败: {}", e))?;
+
+        Ok(())
+    }
+
+    // ============================================================
+    // 活跃 Agent 操作
+    // ============================================================
+
+    pub fn load_active_agents(&self) -> Result<Vec<ActiveAgent>, String> {
+        let hub_path = self.get_hub_path()?;
+        let active_file = hub_path.join("state").join("active-agents.yaml");
+
+        if !active_file.exists() {
+            return Ok(vec![]);
+        }
+
+        let content = std::fs::read_to_string(&active_file)
+            .map_err(|e| format!("读取 active-agents.yaml 失败: {}", e))?;
+
+        let active_data: ActiveAgentsFile = serde_yaml::from_str(&content)
+            .map_err(|e| format!("解析 active-agents.yaml 失败: {}", e))?;
+
+        Ok(active_data.active)
+    }
+
+    pub fn update_agent_status(
+        &self,
+        agent_id: &str,
+        status: &str,
+        current_action: &str,
+    ) -> Result<(), String> {
+        let hub_path = self.get_hub_path()?;
+        let active_file = hub_path.join("state").join("active-agents.yaml");
+
+        let content = std::fs::read_to_string(&active_file)
+            .map_err(|e| format!("读取 active-agents.yaml 失败: {}", e))?;
+        let mut active_data: ActiveAgentsFile = serde_yaml::from_str(&content)
+            .map_err(|e| format!("解析 active-agents.yaml 失败: {}", e))?;
+
+        if let Some(agent) = active_data.active.iter_mut().find(|a| a.agent_id == agent_id) {
+            agent.status = status.to_string();
+            agent.current_action = current_action.to_string();
+            agent.last_heartbeat = Utc::now().to_rfc3339();
+        } else {
+            return Err(format!("Agent {} 不在活跃列表中", agent_id));
+        }
+
+        let yaml = serde_yaml::to_string(&active_data)
+            .map_err(|e| format!("序列化 active-agents.yaml 失败: {}", e))?;
+        std::fs::write(&active_file, yaml)
+            .map_err(|e| format!("写入 active-agents.yaml 失败: {}", e))?;
+
+        Ok(())
+    }
+
+    // ============================================================
+    // 项目大脑操作
+    // ============================================================
+
+    pub fn load_brain_meta(&self) -> Result<BrainMeta, String> {
+        let hub_path = self.get_hub_path()?;
+        let meta_file = hub_path.join("brain").join("meta.yaml");
+
+        if !meta_file.exists() {
+            return Err("brain/meta.yaml 不存在，请先初始化 AgentHub".to_string());
+        }
+
+        let content = std::fs::read_to_string(&meta_file)
+            .map_err(|e| format!("读取 meta.yaml 失败: {}", e))?;
+
+        let meta: BrainMeta = serde_yaml::from_str(&content)
+            .map_err(|e| format!("解析 meta.yaml 失败: {}", e))?;
+
+        Ok(meta)
+    }
+
+    pub fn load_brain_section(&self, section: &str) -> Result<String, String> {
+        let hub_path = self.get_hub_path()?;
+        let section_file = hub_path.join("brain").join(format!("{}.md", section));
+
+        if !section_file.exists() {
+            return Ok(String::new());
+        }
+
+        std::fs::read_to_string(&section_file)
+            .map_err(|e| format!("读取 brain/{}.md 失败: {}", section, e))
+    }
+
+    pub fn update_brain_section(&self, section: &str, content: &str) -> Result<(), String> {
+        let hub_path = self.get_hub_path()?;
+        let section_file = hub_path.join("brain").join(format!("{}.md", section));
+
+        std::fs::write(&section_file, content)
+            .map_err(|e| format!("写入 brain/{}.md 失败: {}", section, e))?;
+
+        Ok(())
+    }
+
+    /// 从 brain 各部分拼接上下文 prompt
+    pub fn build_context(&self, task_id: &str) -> Result<String, String> {
+        let tasks = self.load_tasks()?;
+        let task = tasks.iter().find(|t| t.id == task_id)
+            .ok_or_else(|| format!("任务 {} 不存在", task_id))?;
+
+        let mut context = String::new();
+
+        // 加载 brain 各部分
+        let sections = ["architecture", "decisions", "conventions"];
+        for section in &sections {
+            if let Ok(content) = self.load_brain_section(section) {
+                if !content.trim().is_empty() {
+                    context.push_str(&format!("## {}\n\n{}\n\n", section, content));
+                }
+            }
+        }
+
+        // 加载当前状态
+        if let Ok(state) = self.load_brain_section("state/current") {
+            if !state.trim().is_empty() {
+                context.push_str(&format!("## 当前状态\n\n{}\n\n", state));
+            }
+        }
+
+        // 加载阻塞项
+        if let Ok(blockers) = self.load_brain_section("state/blockers") {
+            if !blockers.trim().is_empty() {
+                context.push_str(&format!("## 已知阻塞项\n\n{}\n\n", blockers));
+            }
+        }
+
+        // 构建任务描述
+        context.push_str(&format!(
+            "## 当前任务\n\n**ID**: {}\n**标题**: {}\n**描述**: {}\n**优先级**: {}\n",
+            task.id, task.title, task.description, task.priority.as_str()
+        ));
+
+        if !task.tags.is_empty() {
+            context.push_str(&format!("**标签**: {}\n", task.tags.join(", ")));
+        }
+
+        if !task.dependencies.is_empty() {
+            context.push_str(&format!("**依赖**: {}\n", task.dependencies.join(", ")));
+        }
+
+        if !task.subtasks.is_empty() {
+            context.push_str("**子任务**:\n");
+            for sub in &task.subtasks {
+                context.push_str(&format!("- [{}] {}\n", sub.status, sub.title));
+            }
+        }
+
+        Ok(context)
+    }
+
+    // ============================================================
+    // 事件操作
+    // ============================================================
+
+    pub fn load_events(&self, limit: usize) -> Result<Vec<HubEvent>, String> {
+        let hub_path = self.get_hub_path()?;
+        let events_file = hub_path.join("state").join("events.jsonl");
+
+        if !events_file.exists() {
+            return Ok(vec![]);
+        }
+
+        let content = std::fs::read_to_string(&events_file)
+            .map_err(|e| format!("读取 events.jsonl 失败: {}", e))?;
+
+        let mut events: Vec<HubEvent> = Vec::new();
+        for line in content.lines() {
+            if line.trim().is_empty() {
+                continue;
+            }
+            if let Ok(event) = serde_json::from_str::<HubEvent>(line) {
+                events.push(event);
+            }
+        }
+
+        // 按时间倒序，取最新的 limit 条
+        events.reverse();
+        events.truncate(limit);
+
+        Ok(events)
+    }
+
+    pub fn append_event(&self, event: &HubEvent) -> Result<(), String> {
+        let hub_path = self.get_hub_path()?;
+        let events_file = hub_path.join("state").join("events.jsonl");
+
+        let json_line = serde_json::to_string(event)
+            .map_err(|e| format!("序列化事件失败: {}", e))?;
+
+        use std::io::Write;
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&events_file)
+            .map_err(|e| format!("打开 events.jsonl 失败: {}", e))?;
+
+        writeln!(file, "{}", json_line)
+            .map_err(|e| format!("写入事件失败: {}", e))?;
+
+        Ok(())
+    }
+
+    // ============================================================
+    // 扫描项目（自动推断 brain 内容）
+    // ============================================================
+
+    pub fn scan_project(&self, project_path: &Path) -> Result<BrainMeta, String> {
+        let project_name = project_path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| "unknown".to_string());
+
+        let mut tech_stack = std::collections::HashMap::new();
+
+        // 检测技术栈
+        if project_path.join("package.json").exists() {
+            if let Ok(content) = std::fs::read_to_string(project_path.join("package.json")) {
+                if let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&content) {
+                    if let Some(deps) = pkg.get("dependencies").and_then(|d| d.as_object()) {
+                        if deps.contains_key("react") {
+                            tech_stack.insert("frontend".to_string(), "React".to_string());
+                        }
+                        if deps.contains_key("vue") {
+                            tech_stack.insert("frontend".to_string(), "Vue".to_string());
+                        }
+                        if deps.contains_key("next") {
+                            tech_stack.insert("framework".to_string(), "Next.js".to_string());
+                        }
+                    }
+                    if let Some(dev_deps) = pkg.get("devDependencies").and_then(|d| d.as_object()) {
+                        if dev_deps.contains_key("typescript") {
+                            tech_stack.insert("language".to_string(), "TypeScript".to_string());
+                        }
+                    }
+                }
+            }
+        }
+
+        if project_path.join("Cargo.toml").exists() {
+            tech_stack.insert("language".to_string(), "Rust".to_string());
+        }
+
+        if project_path.join("tsconfig.json").exists() && !tech_stack.contains_key("language") {
+            tech_stack.insert("language".to_string(), "TypeScript".to_string());
+        }
+
+        if project_path.join("pyproject.toml").exists() || project_path.join("requirements.txt").exists() {
+            tech_stack.insert("language".to_string(), "Python".to_string());
+        }
+
+        let meta = BrainMeta {
+            name: project_name,
+            description: String::new(),
+            tech_stack,
+            repo_path: project_path.to_string_lossy().to_string(),
+            default_model: "sonnet".to_string(),
+        };
+
+        // 如果已初始化，保存扫描结果
+        if self.is_initialized(project_path) {
+            let hub_path = project_path.join(".agent-hub");
+            let meta_file = hub_path.join("brain").join("meta.yaml");
+            if let Ok(yaml) = serde_yaml::to_string(&meta) {
+                let _ = std::fs::write(&meta_file, yaml);
+            }
+        }
+
+        Ok(meta)
+    }
+}

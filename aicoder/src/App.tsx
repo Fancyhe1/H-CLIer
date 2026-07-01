@@ -22,6 +22,7 @@ import {
   CloudOutlined,
   FileTextOutlined,
   CodeOutlined,
+  RobotOutlined,
 } from '@ant-design/icons'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { invoke as tauriInvoke } from '@tauri-apps/api/core'
@@ -39,6 +40,7 @@ const CheckpointModal = lazy(() => import('./components/CheckpointModal'))
 const FileBrowserModal = lazy(() => import('./components/FileBrowserModal'))
 const DashboardModal = lazy(() => import('./components/DashboardModal'))
 const MarkdownPanel = lazy(() => import('./components/MarkdownPanel'))
+const AgentHubPanel = lazy(() => import('./components/agenthub/AgentHubPanel'))
 import { useSettingsStore } from './stores/settingsStore'
 import { useSessionStore } from './stores/sessionStore'
 import { useKeybindingStore } from './stores/keybindingStore'
@@ -71,6 +73,7 @@ function App() {
   const [claudeMdPath, setClaudeMdPath] = useState('')
   const [fileBrowserVisible, setFileBrowserVisible] = useState(false)
   const [dashboardVisible, setDashboardVisible] = useState(false)
+  const [agentHubVisible, setAgentHubVisible] = useState(false)
 
   // 从 store 获取版本和更新状态
   const { appVersion, updateStatus, getAppVersion } = useSettingsStore()
@@ -613,6 +616,17 @@ function App() {
                   任务
                 </Button>
               </Tooltip>
+              <Tooltip title="AgentHub - AI Agent 协作管理">
+                <Button
+                  type="text"
+                  icon={<RobotOutlined />}
+                  className="status-btn"
+                  size="small"
+                  onClick={() => setAgentHubVisible(true)}
+                >
+                  AgentHub
+                </Button>
+              </Tooltip>
               <Tooltip title="仪表盘">
                 <Button
                   type="text"
@@ -748,6 +762,27 @@ function App() {
           theme={currentTheme}
         />
       </Suspense>
+
+      {/* AgentHub 面板 */}
+      <Modal
+        title={
+          <Space>
+            <RobotOutlined />
+            <span>AgentHub - AI Agent 协作管理</span>
+          </Space>
+        }
+        open={agentHubVisible}
+        onCancel={() => setAgentHubVisible(false)}
+        footer={null}
+        width={900}
+        style={{ top: 20 }}
+        styles={{ body: { height: 'calc(100vh - 120px)', padding: 0, overflow: 'hidden' } }}
+        destroyOnClose={false}
+      >
+        <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spin /></div>}>
+          <AgentHubPanel projectPath={activeSession?.projectPath || null} />
+        </Suspense>
+      </Modal>
     </ConfigProvider>
   )
 }
