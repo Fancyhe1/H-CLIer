@@ -60,7 +60,7 @@ export interface ActiveAgent {
   sessionId: string | null
   startedAt: string
   lastHeartbeat: string
-  status: 'running' | 'idle' | 'failed'
+  status: 'running' | 'ready' | 'done' | 'failed' | 'idle'
   currentAction: string
   pid: number | null
 }

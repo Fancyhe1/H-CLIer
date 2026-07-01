@@ -447,11 +447,19 @@ impl AgentHubManager {
                 }
                 _ => {}
             }
-            // 如果从 running/ready 变为 done/failed/pending，清理关联的活跃 agent
-            let was_active = matches!(old_status, TaskStatus::Running | TaskStatus::Ready);
-            let is_terminal = matches!(status, TaskStatus::Done | TaskStatus::Failed | TaskStatus::Pending);
-            if was_active && is_terminal {
-                if let Some(ref agent_id) = task.assigned_agent {
+            // 同步更新 Agent 状态
+            if let Some(ref agent_id) = task.assigned_agent {
+                let agent_status = match status {
+                    TaskStatus::Running => "running",
+                    TaskStatus::Ready => "ready",
+                    TaskStatus::Done => "done",
+                    TaskStatus::Failed => "failed",
+                    _ => "idle",
+                };
+                let _ = self.update_agent_status(agent_id, agent_status, &format!("任务状态: {}", status.as_str()));
+
+                // 仅在 pending 状态时移除 Agent（重置任务）
+                if matches!(status, TaskStatus::Pending) {
                     let _ = self.remove_active_agent(agent_id);
                 }
             }
@@ -1175,13 +1183,12 @@ impl AgentHubManager {
 
         let session_id = agent.and_then(|a| a.session_id.clone());
 
+        // update_task 会自动同步 Agent 状态为 failed
         self.update_task(task_id, &TaskUpdate {
             status: Some(TaskStatus::Failed),
             error: Some(Some(error.to_string())),
             ..Default::default()
         })?;
-
-        self.remove_active_agent(agent_id)?;
 
         self.append_event(&HubEvent {
             ts: Utc::now().to_rfc3339(),
@@ -1202,13 +1209,12 @@ impl AgentHubManager {
 
     /// 完成任务
     pub fn complete_task(&self, task_id: &str, agent_id: &str, result: &str) -> Result<(), String> {
+        // update_task 会自动同步 Agent 状态为 done
         self.update_task(task_id, &TaskUpdate {
             status: Some(TaskStatus::Done),
             result: Some(Some(result.to_string())),
             ..Default::default()
         })?;
-
-        self.remove_active_agent(agent_id)?;
 
         self.append_event(&HubEvent {
             ts: Utc::now().to_rfc3339(),
@@ -1224,13 +1230,12 @@ impl AgentHubManager {
 
     /// 失败任务
     pub fn fail_task(&self, task_id: &str, agent_id: &str, error: &str) -> Result<(), String> {
+        // update_task 会自动同步 Agent 状态为 failed
         self.update_task(task_id, &TaskUpdate {
             status: Some(TaskStatus::Failed),
             error: Some(Some(error.to_string())),
             ..Default::default()
         })?;
-
-        self.remove_active_agent(agent_id)?;
 
         self.append_event(&HubEvent {
             ts: Utc::now().to_rfc3339(),

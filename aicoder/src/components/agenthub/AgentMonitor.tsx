@@ -8,20 +8,28 @@ import { useSessionStore } from '../../stores/sessionStore'
 const { Text } = Typography
 
 // Agent 节点组件（带动画）
-const AgentNode: React.FC<{ agent: ActiveAgent; role?: AgentRole }> = ({ agent, role }) => {
-  const statusColors: Record<string, string> = {
-    running: '#52c41a',
-    idle: '#8c8c8c',
-    failed: '#ff4d4f',
+const AgentNode: React.FC<{
+  agent: ActiveAgent
+  role?: AgentRole
+  onStop?: (agentId: string) => void
+}> = ({ agent, role, onStop }) => {
+  const statusConfig: Record<string, { color: string; label: string; pulse: boolean }> = {
+    running: { color: '#52c41a', label: '运行中', pulse: true },
+    ready: { color: '#722ed1', label: '就绪', pulse: false },
+    done: { color: '#52c41a', label: '已完成', pulse: false },
+    failed: { color: '#ff4d4f', label: '失败', pulse: false },
+    idle: { color: '#8c8c8c', label: '空闲', pulse: false },
   }
+
+  const config = statusConfig[agent.status] || statusConfig.idle
 
   return (
     <div className={`agent-node agent-node-${agent.status}`}>
       <div
         className="agent-node-indicator"
-        style={{ backgroundColor: statusColors[agent.status] || '#8c8c8c' }}
+        style={{ backgroundColor: config.color }}
       >
-        {agent.status === 'running' && <div className="agent-pulse" />}
+        {config.pulse && <div className="agent-pulse" />}
       </div>
       <div className="agent-node-info">
         <Text strong>{role?.name || agent.role}</Text>
@@ -29,6 +37,13 @@ const AgentNode: React.FC<{ agent: ActiveAgent; role?: AgentRole }> = ({ agent, 
           {agent.agentId}
         </Text>
       </div>
+      <Tag
+        color={config.color}
+        className="agent-node-status"
+        style={{ marginTop: 4 }}
+      >
+        {config.label}
+      </Tag>
       {agent.taskId && (
         <Tag color="blue" className="agent-node-task">
           {agent.taskId}
@@ -38,6 +53,16 @@ const AgentNode: React.FC<{ agent: ActiveAgent; role?: AgentRole }> = ({ agent, 
         <Text className="agent-node-action" ellipsis>
           {agent.currentAction}
         </Text>
+      )}
+      {(agent.status === 'running' || agent.status === 'ready') && onStop && (
+        <Button
+          size="small"
+          danger
+          style={{ marginTop: 6, fontSize: 11 }}
+          onClick={() => onStop(agent.agentId)}
+        >
+          停止
+        </Button>
       )}
     </div>
   )
