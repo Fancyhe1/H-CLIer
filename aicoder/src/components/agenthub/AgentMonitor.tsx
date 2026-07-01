@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react'
 import { Card, Tag, Timeline, Empty, Typography, Button, Popconfirm, message } from 'antd'
 import { ReloadOutlined, StopOutlined } from '@ant-design/icons'
+import { listen } from '@tauri-apps/api/event'
 import { useAgentHubStore, type ActiveAgent, type AgentRole, type HubEvent } from '../../stores/agentHubStore'
 
 const { Text } = Typography
@@ -180,12 +181,23 @@ const AgentMonitor: React.FC = () => {
   useEffect(() => {
     loadActiveAgents()
     loadEvents()
-    // 定时刷新
+
+    // 监听 Tauri 事件（后端推送的状态变更）
+    const unlisten = listen('agenthub-update', () => {
+      loadActiveAgents()
+      loadEvents()
+    })
+
+    // 保留低频轮询作为兜底（心跳超时检测等）
     const interval = setInterval(() => {
       loadActiveAgents()
       loadEvents()
-    }, 5000)
-    return () => clearInterval(interval)
+    }, 30000)
+
+    return () => {
+      unlisten.then(fn => fn())
+      clearInterval(interval)
+    }
   }, [])
 
   const handleStopAgent = async (agentId: string) => {

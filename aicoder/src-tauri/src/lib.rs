@@ -1232,21 +1232,27 @@ fn agenthub_scan_project(
 
 #[tauri::command]
 fn agenthub_run_task(
+    app: tauri::AppHandle,
     state: tauri::State<SharedAppState>,
     task_id: String,
     agent_id: Option<String>,
 ) -> Result<String, String> {
     let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
-    manager.run_task(&task_id, agent_id.as_deref())
+    let context = manager.run_task(&task_id, agent_id.as_deref())?;
+    let _ = app.emit("agenthub-update", serde_json::json!({"type": "task_started", "taskId": task_id}));
+    Ok(context)
 }
 
 #[tauri::command]
 fn agenthub_stop_agent(
+    app: tauri::AppHandle,
     state: tauri::State<SharedAppState>,
     agent_id: String,
 ) -> Result<(), String> {
     let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
-    manager.stop_agent(&agent_id)
+    manager.stop_agent(&agent_id)?;
+    let _ = app.emit("agenthub-update", serde_json::json!({"type": "agent_stopped", "agentId": agent_id}));
+    Ok(())
 }
 
 #[tauri::command]
@@ -1261,24 +1267,30 @@ fn agenthub_heartbeat_agent(
 
 #[tauri::command]
 fn agenthub_complete_task(
+    app: tauri::AppHandle,
     state: tauri::State<SharedAppState>,
     task_id: String,
     agent_id: String,
     result: String,
 ) -> Result<(), String> {
     let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
-    manager.complete_task(&task_id, &agent_id, &result)
+    manager.complete_task(&task_id, &agent_id, &result)?;
+    let _ = app.emit("agenthub-update", serde_json::json!({"type": "task_completed", "taskId": task_id}));
+    Ok(())
 }
 
 #[tauri::command]
 fn agenthub_fail_task(
+    app: tauri::AppHandle,
     state: tauri::State<SharedAppState>,
     task_id: String,
     agent_id: String,
     error: String,
 ) -> Result<(), String> {
     let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
-    manager.fail_task(&task_id, &agent_id, &error)
+    manager.fail_task(&task_id, &agent_id, &error)?;
+    let _ = app.emit("agenthub-update", serde_json::json!({"type": "task_failed", "taskId": task_id}));
+    Ok(())
 }
 
 // 主函数
