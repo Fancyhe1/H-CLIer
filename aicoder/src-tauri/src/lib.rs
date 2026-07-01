@@ -1295,11 +1295,8 @@ pub fn run() {
                 let token_path = config_dir.join("web_access_token");
                 let _ = std::fs::write(&token_path, &access_token);
 
-                // 自动配置 Claude Code hooks（默认启用）
-                // 未配置时首次配置，已配置但缺少 Stop 事件时自动更新
-                let needs_setup = claude_config::get_hook_script_path().is_err()
-                    || !claude_config::is_hooks_config_complete();
-                if needs_setup {
+                // 自动配置 Claude Code hooks（默认启用，仅未配置时）
+                if claude_config::get_hook_script_path().is_err() {
                     if let Ok(script_path) = ensure_hook_scripts(&config_dir) {
                         if let Err(e) = claude_config::setup_claude_hooks(&script_path) {
                             eprintln!("[Hooks] 自动配置失败: {}", e);
