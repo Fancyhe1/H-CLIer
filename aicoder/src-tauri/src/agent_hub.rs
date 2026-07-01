@@ -426,6 +426,7 @@ impl AgentHubManager {
             task.description = desc.clone();
         }
         if let Some(status) = &updates.status {
+            let old_status = task.status.clone();
             task.status = status.clone();
             // 自动设置时间戳
             match status {
@@ -436,6 +437,12 @@ impl AgentHubManager {
                     task.completed_at = Some(Utc::now().to_rfc3339());
                 }
                 _ => {}
+            }
+            // 如果从 running 变为其他状态，清理关联的活跃 agent
+            if matches!(old_status, TaskStatus::Running) && !matches!(status, TaskStatus::Running) {
+                if let Some(ref agent_id) = task.assigned_agent {
+                    let _ = self.remove_active_agent(agent_id);
+                }
             }
         }
         if let Some(priority) = &updates.priority {
@@ -616,6 +623,30 @@ impl AgentHubManager {
         Ok(())
     }
 
+    /// 从活跃列表中移除 agent
+    pub fn remove_active_agent(&self, agent_id: &str) -> Result<(), String> {
+        let hub_path = self.get_hub_path()?;
+        let active_file = hub_path.join("state").join("active-agents.yaml");
+
+        if !active_file.exists() {
+            return Ok(());
+        }
+
+        let content = std::fs::read_to_string(&active_file)
+            .map_err(|e| format!("读取 active-agents.yaml 失败: {}", e))?;
+        let mut active_data: ActiveAgentsFile = serde_yaml::from_str(&content)
+            .map_err(|e| format!("解析 active-agents.yaml 失败: {}", e))?;
+
+        active_data.active.retain(|a| a.agent_id != agent_id);
+
+        let yaml = serde_yaml::to_string(&active_data)
+            .map_err(|e| format!("序列化 active-agents.yaml 失败: {}", e))?;
+        std::fs::write(&active_file, yaml)
+            .map_err(|e| format!("写入 active-agents.yaml 失败: {}", e))?;
+
+        Ok(())
+    }
+
     // ============================================================
     // 项目大脑操作
     // ============================================================
@@ -713,120 +744,6 @@ impl AgentHubManager {
         }
 
         Ok(context)
-    }
-
-    /// 从 brain 各部分生成 CLAUDE.md 内容
-    pub fn generate_claude_md(&self) -> Result<String, String> {
-        let hub_path = self.get_hub_path()?;
-        let meta = self.load_brain_meta().ok();
-
-        let mut md = String::new();
-
-        // 标题
-        let project_name = meta.as_ref().map(|m| m.name.as_str()).unwrap_or("Project");
-        md.push_str(&format!("# CLAUDE.md — {}\n\n", project_name));
-        md.push_str("> 由 AgentHub 自动生成，请勿手动编辑此文件。\n\n");
-
-        // 项目描述
-        if let Some(ref meta) = meta {
-            if !meta.description.is_empty() {
-                md.push_str(&format!("## 项目简介\n\n{}\n\n", meta.description));
-            }
-        }
-
-        // 技术栈
-        if let Some(ref meta) = meta {
-            if !meta.tech_stack.is_empty() {
-                md.push_str("## 技术栈\n\n");
-                for (key, value) in &meta.tech_stack {
-                    md.push_str(&format!("- **{}**: {}\n", key, value));
-                }
-                md.push('\n');
-            }
-        }
-
-        // 架构概述
-        let sections_to_include = [
-            ("architecture", "架构概述"),
-            ("conventions", "代码规范"),
-            ("decisions", "技术决策"),
-        ];
-
-        for (section_key, section_title) in &sections_to_include {
-            let section_file = hub_path.join("brain").join(format!("{}.md", section_key));
-            if section_file.exists() {
-                if let Ok(content) = std::fs::read_to_string(&section_file) {
-                    let trimmed = content.trim();
-                    if !trimmed.is_empty() {
-                        md.push_str(&format!("## {}\n\n{}\n\n", section_title, trimmed));
-                    }
-                }
-            }
-        }
-
-        // 当前状态
-        let state_file = hub_path.join("brain").join("state").join("current.md");
-        if state_file.exists() {
-            if let Ok(content) = std::fs::read_to_string(&state_file) {
-                let trimmed = content.trim();
-                if !trimmed.is_empty() {
-                    md.push_str(&format!("## 当前状态\n\n{}\n\n", trimmed));
-                }
-            }
-        }
-
-        // 阻塞项
-        let blockers_file = hub_path.join("brain").join("state").join("blockers.md");
-        if blockers_file.exists() {
-            if let Ok(content) = std::fs::read_to_string(&blockers_file) {
-                let trimmed = content.trim();
-                if !trimmed.is_empty() {
-                    md.push_str(&format!("## 已知阻塞项\n\n{}\n\n", trimmed));
-                }
-            }
-        }
-
-        // 活跃任务摘要
-        if let Ok(tasks) = self.load_tasks() {
-            let active_tasks: Vec<_> = tasks.iter()
-                .filter(|t| matches!(t.status, TaskStatus::Running | TaskStatus::Assigned))
-                .collect();
-            if !active_tasks.is_empty() {
-                md.push_str("## 活跃任务\n\n");
-                for task in &active_tasks {
-                    md.push_str(&format!("- **[{}]** {} — {}\n", task.id, task.title, task.status.as_str()));
-                }
-                md.push('\n');
-            }
-        }
-
-        Ok(md)
-    }
-
-    /// 生成 CLAUDE.md 并写入项目根目录
-    pub fn sync_claude_md(&self) -> Result<String, String> {
-        let hub_path = self.get_hub_path()?;
-        // .agent-hub 的父目录就是项目根目录
-        let project_path = hub_path.parent()
-            .ok_or("无法获取项目根目录")?;
-
-        let content = self.generate_claude_md()?;
-        let claude_md_path = project_path.join("CLAUDE.md");
-
-        std::fs::write(&claude_md_path, &content)
-            .map_err(|e| format!("写入 CLAUDE.md 失败: {}", e))?;
-
-        // 追加事件
-        self.append_event(&HubEvent {
-            ts: Utc::now().to_rfc3339(),
-            event_type: "claude_md_synced".to_string(),
-            task_id: None,
-            agent: None,
-            message: Some("同步 CLAUDE.md 到项目根目录".to_string()),
-            files_changed: Some(vec!["CLAUDE.md".to_string()]),
-        })?;
-
-        Ok(content)
     }
 
     // ============================================================
@@ -950,13 +867,117 @@ impl AgentHubManager {
     }
 
     // ============================================================
+    // 项目大脑 - CLAUDE.md 生成
+    // ============================================================
+
+    /// 从 brain 各部分生成 CLAUDE.md 内容
+    pub fn generate_claude_md(&self) -> Result<String, String> {
+        let hub_path = self.get_hub_path()?;
+        let meta = self.load_brain_meta().ok();
+
+        let mut md = String::new();
+
+        let project_name = meta.as_ref().map(|m| m.name.as_str()).unwrap_or("Project");
+        md.push_str(&format!("# CLAUDE.md — {}\n\n", project_name));
+        md.push_str("> 由 AgentHub 自动生成，请勿手动编辑此文件。\n\n");
+
+        if let Some(ref meta) = meta {
+            if !meta.description.is_empty() {
+                md.push_str(&format!("## 项目简介\n\n{}\n\n", meta.description));
+            }
+            if !meta.tech_stack.is_empty() {
+                md.push_str("## 技术栈\n\n");
+                for (key, value) in &meta.tech_stack {
+                    md.push_str(&format!("- **{}**: {}\n", key, value));
+                }
+                md.push('\n');
+            }
+        }
+
+        let sections_to_include = [
+            ("architecture", "架构概述"),
+            ("conventions", "代码规范"),
+            ("decisions", "技术决策"),
+        ];
+
+        for (section_key, section_title) in &sections_to_include {
+            let section_file = hub_path.join("brain").join(format!("{}.md", section_key));
+            if section_file.exists() {
+                if let Ok(content) = std::fs::read_to_string(&section_file) {
+                    let trimmed = content.trim();
+                    if !trimmed.is_empty() {
+                        md.push_str(&format!("## {}\n\n{}\n\n", section_title, trimmed));
+                    }
+                }
+            }
+        }
+
+        let state_file = hub_path.join("brain").join("state").join("current.md");
+        if state_file.exists() {
+            if let Ok(content) = std::fs::read_to_string(&state_file) {
+                let trimmed = content.trim();
+                if !trimmed.is_empty() {
+                    md.push_str(&format!("## 当前状态\n\n{}\n\n", trimmed));
+                }
+            }
+        }
+
+        let blockers_file = hub_path.join("brain").join("state").join("blockers.md");
+        if blockers_file.exists() {
+            if let Ok(content) = std::fs::read_to_string(&blockers_file) {
+                let trimmed = content.trim();
+                if !trimmed.is_empty() {
+                    md.push_str(&format!("## 已知阻塞项\n\n{}\n\n", trimmed));
+                }
+            }
+        }
+
+        if let Ok(tasks) = self.load_tasks() {
+            let active_tasks: Vec<_> = tasks.iter()
+                .filter(|t| matches!(t.status, TaskStatus::Running | TaskStatus::Assigned))
+                .collect();
+            if !active_tasks.is_empty() {
+                md.push_str("## 活跃任务\n\n");
+                for task in &active_tasks {
+                    md.push_str(&format!("- **[{}]** {} — {}\n", task.id, task.title, task.status.as_str()));
+                }
+                md.push('\n');
+            }
+        }
+
+        Ok(md)
+    }
+
+    /// 生成 CLAUDE.md 并写入项目根目录
+    pub fn sync_claude_md(&self) -> Result<String, String> {
+        let hub_path = self.get_hub_path()?;
+        let project_path = hub_path.parent()
+            .ok_or("无法获取项目根目录")?;
+
+        let content = self.generate_claude_md()?;
+        let claude_md_path = project_path.join("CLAUDE.md");
+
+        std::fs::write(&claude_md_path, &content)
+            .map_err(|e| format!("写入 CLAUDE.md 失败: {}", e))?;
+
+        self.append_event(&HubEvent {
+            ts: Utc::now().to_rfc3339(),
+            event_type: "claude_md_synced".to_string(),
+            task_id: None,
+            agent: None,
+            message: Some("同步 CLAUDE.md 到项目根目录".to_string()),
+            files_changed: Some(vec!["CLAUDE.md".to_string()]),
+        })?;
+
+        Ok(content)
+    }
+
+    // ============================================================
     // 任务执行
     // ============================================================
 
     /// 启动任务：更新状态、注册活跃 agent、追加事件
-    /// 返回构建的上下文 prompt，前端用它来创建会话并注入
     pub fn run_task(&self, task_id: &str, agent_id: Option<&str>) -> Result<String, String> {
-        // 1. 加载任务并验证状态
         let tasks = self.load_tasks()?;
         let task = tasks.iter().find(|t| t.id == task_id)
             .ok_or_else(|| format!("任务 {} 不存在", task_id))?;
@@ -965,26 +986,18 @@ impl AgentHubManager {
             return Err(format!("任务 {} 已在运行中", task_id));
         }
 
-        if task.status.as_str() == "done" {
-            return Err(format!("任务 {} 已完成", task_id));
-        }
-
-        // 2. 生成 agent ID
         let agent_id = agent_id
             .map(|s| s.to_string())
             .unwrap_or_else(|| format!("{}-{}", task_id, uuid::Uuid::new_v4().to_string()[..8].to_string()));
 
-        // 3. 构建上下文
         let context = self.build_context(task_id)?;
 
-        // 4. 更新任务状态为 running
         self.update_task(task_id, &TaskUpdate {
             status: Some(TaskStatus::Running),
             assigned_agent: Some(Some(agent_id.clone())),
             ..Default::default()
         })?;
 
-        // 5. 注册活跃 agent
         let active_agent = ActiveAgent {
             agent_id: agent_id.clone(),
             role: task.assigned_agent.clone().unwrap_or_else(|| "default".to_string()),
@@ -998,7 +1011,6 @@ impl AgentHubManager {
 
         self.register_active_agent(&active_agent)?;
 
-        // 6. 追加事件
         self.append_event(&HubEvent {
             ts: Utc::now().to_rfc3339(),
             event_type: "task_started".to_string(),
@@ -1011,15 +1023,13 @@ impl AgentHubManager {
         Ok(context)
     }
 
-    /// 停止 agent：更新状态、移除活跃记录、追加事件
+    /// 停止 agent
     pub fn stop_agent(&self, agent_id: &str) -> Result<(), String> {
-        // 1. 查找活跃 agent
         let active_agents = self.load_active_agents()?;
         let agent = active_agents.iter().find(|a| a.agent_id == agent_id)
             .ok_or_else(|| format!("Agent {} 不在活跃列表中", agent_id))?
             .clone();
 
-        // 2. 更新任务状态为 failed（如果正在运行）
         if agent.task_id.starts_with('T') {
             let _ = self.update_task(&agent.task_id, &TaskUpdate {
                 status: Some(TaskStatus::Failed),
@@ -1028,10 +1038,8 @@ impl AgentHubManager {
             });
         }
 
-        // 3. 移除活跃 agent
         self.remove_active_agent(agent_id)?;
 
-        // 4. 追加事件
         self.append_event(&HubEvent {
             ts: Utc::now().to_rfc3339(),
             event_type: "agent_stopped".to_string(),
@@ -1049,19 +1057,16 @@ impl AgentHubManager {
         self.update_agent_status(agent_id, "running", current_action)
     }
 
-    /// 完成任务：更新状态、移除活跃 agent、追加事件
+    /// 完成任务
     pub fn complete_task(&self, task_id: &str, agent_id: &str, result: &str) -> Result<(), String> {
-        // 1. 更新任务状态
         self.update_task(task_id, &TaskUpdate {
             status: Some(TaskStatus::Done),
             result: Some(Some(result.to_string())),
             ..Default::default()
         })?;
 
-        // 2. 移除活跃 agent
         self.remove_active_agent(agent_id)?;
 
-        // 3. 追加事件
         self.append_event(&HubEvent {
             ts: Utc::now().to_rfc3339(),
             event_type: "task_completed".to_string(),
@@ -1074,13 +1079,8 @@ impl AgentHubManager {
         Ok(())
     }
 
-    /// 失败任务：更新状态、移除活跃 agent、追加事件
+    /// 失败任务
     pub fn fail_task(&self, task_id: &str, agent_id: &str, error: &str) -> Result<(), String> {
-        let tasks = self.load_tasks()?;
-        let task = tasks.iter().find(|t| t.id == task_id);
-
-        let retry_count = task.map(|t| t.retry_count).unwrap_or(0);
-
         self.update_task(task_id, &TaskUpdate {
             status: Some(TaskStatus::Failed),
             error: Some(Some(error.to_string())),
@@ -1094,14 +1094,14 @@ impl AgentHubManager {
             event_type: "task_failed".to_string(),
             task_id: Some(task_id.to_string()),
             agent: Some(agent_id.to_string()),
-            message: Some(format!("任务 {} 失败 (重试 {} 次): {}", task_id, retry_count, error)),
+            message: Some(format!("任务 {} 失败: {}", task_id, error)),
             files_changed: None,
         })?;
 
         Ok(())
     }
 
-    /// 注册活跃 agent（写入 active-agents.yaml）
+    /// 注册活跃 agent
     fn register_active_agent(&self, agent: &ActiveAgent) -> Result<(), String> {
         let hub_path = self.get_hub_path()?;
         let active_file = hub_path.join("state").join("active-agents.yaml");
@@ -1115,33 +1115,8 @@ impl AgentHubManager {
             ActiveAgentsFile { active: vec![] }
         };
 
-        // 移除已有的同 ID agent
         active_data.active.retain(|a| a.agent_id != agent.agent_id);
         active_data.active.push(agent.clone());
-
-        let yaml = serde_yaml::to_string(&active_data)
-            .map_err(|e| format!("序列化 active-agents.yaml 失败: {}", e))?;
-        std::fs::write(&active_file, yaml)
-            .map_err(|e| format!("写入 active-agents.yaml 失败: {}", e))?;
-
-        Ok(())
-    }
-
-    /// 移除活跃 agent
-    fn remove_active_agent(&self, agent_id: &str) -> Result<(), String> {
-        let hub_path = self.get_hub_path()?;
-        let active_file = hub_path.join("state").join("active-agents.yaml");
-
-        if !active_file.exists() {
-            return Ok(());
-        }
-
-        let content = std::fs::read_to_string(&active_file)
-            .map_err(|e| format!("读取 active-agents.yaml 失败: {}", e))?;
-        let mut active_data: ActiveAgentsFile = serde_yaml::from_str(&content)
-            .map_err(|e| format!("解析 active-agents.yaml 失败: {}", e))?;
-
-        active_data.active.retain(|a| a.agent_id != agent_id);
 
         let yaml = serde_yaml::to_string(&active_data)
             .map_err(|e| format!("序列化 active-agents.yaml 失败: {}", e))?;

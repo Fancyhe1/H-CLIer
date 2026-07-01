@@ -1,3 +1,5 @@
 @echo off
 cd /d "%~dp0"
-npx tauri %*
+set "PATH=%USERPROFILE%\.cargo\bin;%PATH%"
+cd src-tauri
+cargo tauri %*

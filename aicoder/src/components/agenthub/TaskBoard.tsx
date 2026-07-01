@@ -42,17 +42,21 @@ const TaskBoard: React.FC = () => {
       const context = await runTask(taskId)
       message.success('任务已启动，正在创建会话...')
 
-      // 2. 创建一个新的 HCLIer 会话
+      // 2. 获取当前项目路径
       const projectPath = currentProjectPath || ''
+      if (!projectPath) {
+        message.warning('未检测到项目路径，请先打开一个项目')
+        return
+      }
+
+      // 3. 创建新的 HCLIer 会话
       const session = await invoke<{ id: string; title: string }>('create_session', {
         projectPath,
         title: `AgentHub: ${taskId}`,
         sessionType: 'claude',
       })
 
-      // 3. 在该会话的终端中注入上下文
-      // 终端会自动通过 session 的 PTY 启动
-      // 延迟一下等待 PTY 就绪
+      // 4. 等待 PTY 就绪后注入上下文
       setTimeout(async () => {
         try {
           await invoke('write_to_pty', {
@@ -62,9 +66,9 @@ const TaskBoard: React.FC = () => {
         } catch (e) {
           console.error('注入上下文失败:', e)
         }
-      }, 1500)
+      }, 2000)
 
-      // 4. 切换到该会话
+      // 5. 切换到新会话
       setActiveSession(session.id)
     } catch (e: any) {
       message.error(`启动失败: ${e}`)
@@ -126,7 +130,7 @@ const TaskBoard: React.FC = () => {
                       className="task-card"
                       onClick={() => setSelectedTask(task.id)}
                       extra={
-                        task.status === 'pending' || task.status === 'assigned' || task.status === 'blocked' ? (
+                        task.status === 'pending' || task.status === 'assigned' || task.status === 'blocked' || task.status === 'failed' ? (
                           <Space size={4}>
                             <Tooltip title="运行">
                               <PlayCircleOutlined

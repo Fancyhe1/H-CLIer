@@ -273,7 +273,7 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, onClose }) => {
 
       <div className="task-detail-actions">
         <Space>
-          {(task.status === 'pending' || task.status === 'assigned' || task.status === 'blocked') && (
+          {(task.status === 'pending' || task.status === 'assigned' || task.status === 'blocked' || task.status === 'failed') && (
             <Button
               type="primary"
               icon={<PlayCircleOutlined />}
