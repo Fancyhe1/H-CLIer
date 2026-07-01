@@ -74,7 +74,17 @@ const TaskBoard: React.FC = () => {
       const agentRoleId = isClaudeCodeAgent ? undefined : (selectedRoleId || undefined)
 
       // 3. 调用后端 run_task，获取构建的上下文
-      const context = await runTask(runTaskId, agentRoleId)
+      let context = await runTask(runTaskId, agentRoleId)
+
+      // 4. 如果选了 Claude Code Agent，把它的 prompt 加到上下文前面
+      if (isClaudeCodeAgent && selectedRoleId) {
+        const agentName = selectedRoleId.replace('cc-', '')
+        const ccAgent = claudeCodeAgents.find(a => a.name === agentName)
+        if (ccAgent?.prompt) {
+          context = `## 你的角色\n\n${ccAgent.prompt}\n\n---\n\n${context}`
+        }
+      }
+
       message.success('任务已启动，正在创建会话...')
 
       // 3. 创建新的 HCLIer 会话
