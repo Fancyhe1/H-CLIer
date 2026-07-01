@@ -230,6 +230,15 @@ const AgentMonitor: React.FC = () => {
     return () => { unlisten.then(fn => fn()) }
   }, [])
 
+  // 监听 AgentHub 状态变更事件
+  useEffect(() => {
+    const unlisten = listen('agenthub-update', () => {
+      loadActiveAgents()
+      loadEvents()
+    })
+    return () => { unlisten.then(fn => fn()) }
+  }, [])
+
   useEffect(() => {
     loadActiveAgents()
     loadEvents()

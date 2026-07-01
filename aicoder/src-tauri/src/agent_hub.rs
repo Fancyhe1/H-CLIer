@@ -631,7 +631,8 @@ impl AgentHubManager {
             agent.current_action = current_action.to_string();
             agent.last_heartbeat = Utc::now().to_rfc3339();
         } else {
-            return Err(format!("Agent {} 不在活跃列表中", agent_id));
+            // Agent 不存在时静默成功（可能已被清理）
+            return Ok(());
         }
 
         let yaml = serde_yaml::to_string(&active_data)
