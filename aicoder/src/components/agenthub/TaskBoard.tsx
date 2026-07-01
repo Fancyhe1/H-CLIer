@@ -13,12 +13,12 @@ import { useSessionStore } from '../../stores/sessionStore'
 import TaskCreateModal from './TaskCreateModal'
 import TaskDetail from './TaskDetail'
 
-const statusColumns: { key: TaskStatus; title: string; color: string; borderColor: string }[] = [
-  { key: 'pending', title: '待处理', color: 'default', borderColor: '#6b7280' },
-  { key: 'ready', title: '就绪', color: 'purple', borderColor: '#a855f7' },
-  { key: 'running', title: '进行中', color: 'processing', borderColor: '#3b82f6' },
-  { key: 'done', title: '已完成', color: 'success', borderColor: '#22c55e' },
-  { key: 'failed', title: '失败', color: 'error', borderColor: '#ef4444' },
+const statusColumns: { key: TaskStatus; title: string; tagColor: string; bgColor: string; borderColor: string }[] = [
+  { key: 'pending', title: '待处理', tagColor: 'default', bgColor: '#6b7280', borderColor: '#6b7280' },
+  { key: 'ready', title: '就绪', tagColor: 'purple', bgColor: '#a855f7', borderColor: '#a855f7' },
+  { key: 'running', title: '进行中', tagColor: 'processing', bgColor: '#3b82f6', borderColor: '#3b82f6' },
+  { key: 'done', title: '已完成', tagColor: 'success', bgColor: '#22c55e', borderColor: '#22c55e' },
+  { key: 'failed', title: '失败', tagColor: 'error', bgColor: '#ef4444', borderColor: '#ef4444' },
 ]
 
 const priorityColors: Record<Priority, string> = {
@@ -150,7 +150,7 @@ const TaskBoard: React.FC = () => {
             <div key={col.key} className="task-column">
               <div className="column-header" style={{ borderLeftColor: col.borderColor }}>
                 {col.title}
-                <Badge count={columnTasks.length} color={col.color} />
+                <Badge count={columnTasks.length} style={{ backgroundColor: col.bgColor }} />
               </div>
               <div className="column-body">
                 {columnTasks.length === 0 ? (
