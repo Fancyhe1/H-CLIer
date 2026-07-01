@@ -14,18 +14,18 @@ import TaskCreateModal from './TaskCreateModal'
 import TaskDetail from './TaskDetail'
 
 const statusColumns: { key: TaskStatus; title: string; color: string }[] = [
-  { key: 'pending', title: '待处理', color: '#8c8c8c' },
-  { key: 'ready', title: '就绪', color: '#722ed1' },
-  { key: 'running', title: '进行中', color: '#1890ff' },
-  { key: 'done', title: '已完成', color: '#52c41a' },
-  { key: 'failed', title: '失败', color: '#ff4d4f' },
+  { key: 'pending', title: '待处理', color: '#6b7280' },
+  { key: 'ready', title: '就绪', color: '#a855f7' },
+  { key: 'running', title: '进行中', color: '#3b82f6' },
+  { key: 'done', title: '已完成', color: '#22c55e' },
+  { key: 'failed', title: '失败', color: '#ef4444' },
 ]
 
 const priorityColors: Record<Priority, string> = {
-  critical: '#ff4d4f',
-  high: '#fa8c16',
-  medium: '#1890ff',
-  low: '#8c8c8c',
+  critical: '#ef4444',
+  high: '#f59e0b',
+  medium: '#3b82f6',
+  low: '#6b7280',
 }
 
 const TaskBoard: React.FC = () => {

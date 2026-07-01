@@ -14,11 +14,11 @@ const AgentNode: React.FC<{
   onStop?: (agentId: string) => void
 }> = ({ agent, role, onStop }) => {
   const statusConfig: Record<string, { color: string; label: string; pulse: boolean }> = {
-    running: { color: '#52c41a', label: '运行中', pulse: true },
-    ready: { color: '#722ed1', label: '就绪', pulse: false },
-    done: { color: '#52c41a', label: '已完成', pulse: false },
-    failed: { color: '#ff4d4f', label: '失败', pulse: false },
-    idle: { color: '#8c8c8c', label: '空闲', pulse: false },
+    running: { color: '#3b82f6', label: '运行中', pulse: true },
+    ready: { color: '#a855f7', label: '就绪', pulse: false },
+    done: { color: '#22c55e', label: '已完成', pulse: false },
+    failed: { color: '#ef4444', label: '失败', pulse: false },
+    idle: { color: '#6b7280', label: '空闲', pulse: false },
   }
 
   const config = statusConfig[agent.status] || statusConfig.idle
