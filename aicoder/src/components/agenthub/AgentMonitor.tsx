@@ -13,12 +13,12 @@ const AgentNode: React.FC<{
   role?: AgentRole
   onStop?: (agentId: string) => void
 }> = ({ agent, role, onStop }) => {
-  const statusConfig: Record<string, { color: string; label: string; pulse: boolean }> = {
-    running: { color: '#3b82f6', label: '运行中', pulse: true },
-    ready: { color: '#a855f7', label: '就绪', pulse: false },
-    done: { color: '#22c55e', label: '已完成', pulse: false },
-    failed: { color: '#ef4444', label: '失败', pulse: false },
-    idle: { color: '#6b7280', label: '空闲', pulse: false },
+  const statusConfig: Record<string, { color: string; antdColor: string; label: string; pulse: boolean }> = {
+    running: { color: '#3b82f6', antdColor: 'processing', label: '运行中', pulse: true },
+    ready: { color: '#a855f7', antdColor: 'purple', label: '就绪', pulse: false },
+    done: { color: '#22c55e', antdColor: 'success', label: '已完成', pulse: false },
+    failed: { color: '#ef4444', antdColor: 'error', label: '失败', pulse: false },
+    idle: { color: '#6b7280', antdColor: 'default', label: '空闲', pulse: false },
   }
 
   const config = statusConfig[agent.status] || statusConfig.idle
@@ -38,9 +38,8 @@ const AgentNode: React.FC<{
         </Text>
       </div>
       <Tag
-        color={config.color}
+        color={config.antdColor}
         className="agent-node-status"
-        style={{ marginTop: 4 }}
       >
         {config.label}
       </Tag>

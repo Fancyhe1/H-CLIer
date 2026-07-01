@@ -13,12 +13,12 @@ import { useSessionStore } from '../../stores/sessionStore'
 import TaskCreateModal from './TaskCreateModal'
 import TaskDetail from './TaskDetail'
 
-const statusColumns: { key: TaskStatus; title: string; color: string }[] = [
-  { key: 'pending', title: '待处理', color: 'default' },
-  { key: 'ready', title: '就绪', color: 'purple' },
-  { key: 'running', title: '进行中', color: 'processing' },
-  { key: 'done', title: '已完成', color: 'success' },
-  { key: 'failed', title: '失败', color: 'error' },
+const statusColumns: { key: TaskStatus; title: string; color: string; borderColor: string }[] = [
+  { key: 'pending', title: '待处理', color: 'default', borderColor: '#6b7280' },
+  { key: 'ready', title: '就绪', color: 'purple', borderColor: '#a855f7' },
+  { key: 'running', title: '进行中', color: 'processing', borderColor: '#3b82f6' },
+  { key: 'done', title: '已完成', color: 'success', borderColor: '#22c55e' },
+  { key: 'failed', title: '失败', color: 'error', borderColor: '#ef4444' },
 ]
 
 const priorityColors: Record<Priority, string> = {
@@ -148,9 +148,9 @@ const TaskBoard: React.FC = () => {
           const columnTasks = getColumnTasks(col.key)
           return (
             <div key={col.key} className="task-column">
-              <div className="column-header" style={{ borderLeftColor: col.color }}>
+              <div className="column-header" style={{ borderLeftColor: col.borderColor }}>
                 {col.title}
-                <Badge count={columnTasks.length} style={{ backgroundColor: col.color }} />
+                <Badge count={columnTasks.length} color={col.color} />
               </div>
               <div className="column-body">
                 {columnTasks.length === 0 ? (
