@@ -437,16 +437,20 @@ impl AgentHubManager {
             task.status = status.clone();
             // 自动设置时间戳
             match status {
-                TaskStatus::Running => {
-                    task.started_at = Some(Utc::now().to_rfc3339());
+                TaskStatus::Running | TaskStatus::Ready => {
+                    if task.started_at.is_none() {
+                        task.started_at = Some(Utc::now().to_rfc3339());
+                    }
                 }
                 TaskStatus::Done => {
                     task.completed_at = Some(Utc::now().to_rfc3339());
                 }
                 _ => {}
             }
-            // 如果从 running 变为其他状态，清理关联的活跃 agent
-            if matches!(old_status, TaskStatus::Running) && !matches!(status, TaskStatus::Running) {
+            // 如果从 running/ready 变为 done/failed/pending，清理关联的活跃 agent
+            let was_active = matches!(old_status, TaskStatus::Running | TaskStatus::Ready);
+            let is_terminal = matches!(status, TaskStatus::Done | TaskStatus::Failed | TaskStatus::Pending);
+            if was_active && is_terminal {
                 if let Some(ref agent_id) = task.assigned_agent {
                     let _ = self.remove_active_agent(agent_id);
                 }
@@ -1101,7 +1105,7 @@ impl AgentHubManager {
 
         // 更新任务状态
         self.update_task(task_id, &TaskUpdate {
-            status: Some(TaskStatus::Running),
+            status: Some(TaskStatus::Ready),
             assigned_agent: Some(Some(agent_role_id.unwrap_or("default").to_string())),
             ..Default::default()
         })?;

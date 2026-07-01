@@ -10,6 +10,14 @@
   overflow: hidden;
 }
 
+/* Modal 可调节大小 */
+.agenthub-modal .ant-modal-content {
+  resize: both;
+  overflow: auto;
+  min-width: 700px;
+  min-height: 400px;
+}
+
 /* 项目选择器 */
 .agenthub-project-selector {
   padding: 8px 12px;
@@ -116,7 +124,7 @@
 }
 
 .task-column {
-  min-width: 220px;
+  min-width: 160px;
   flex: 1;
   display: flex;
   flex-direction: column;

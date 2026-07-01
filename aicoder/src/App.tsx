@@ -774,11 +774,13 @@ function App() {
         open={agentHubVisible}
         onCancel={() => setAgentHubVisible(false)}
         footer={null}
-        width={900}
-        style={{ top: 20 }}
-        styles={{ body: { height: 'calc(100vh - 120px)', padding: 0, overflow: 'hidden' } }}
+        width="85vw"
+        style={{ top: 10 }}
+        styles={{ body: { height: 'calc(100vh - 80px)', padding: 0, overflow: 'hidden' } }}
+        className="agenthub-modal"
         destroyOnClose={false}
         maskClosable={false}
+        centered
       >
         <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spin /></div>}>
           <AgentHubPanel />
