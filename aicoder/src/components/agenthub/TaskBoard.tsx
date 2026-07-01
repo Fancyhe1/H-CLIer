@@ -72,12 +72,18 @@ const TaskBoard: React.FC = () => {
       // 2. 判断是 Claude Code Agent 还是 AgentHub 角色
       const isClaudeCodeAgent = selectedRoleId?.startsWith('cc-')
       const agentRoleId = isClaudeCodeAgent ? undefined : (selectedRoleId || undefined)
-      const ccAgentName = isClaudeCodeAgent && selectedRoleId
-        ? selectedRoleId.replace('cc-', '')
-        : null
 
       // 3. 调用后端 run_task，获取构建的上下文
-      const context = await runTask(runTaskId, agentRoleId)
+      let context = await runTask(runTaskId, agentRoleId)
+
+      // 4. 如果选了 Claude Code Agent，把它的 prompt 加到上下文前面
+      if (isClaudeCodeAgent && selectedRoleId) {
+        const agentName = selectedRoleId.replace('cc-', '')
+        const ccAgent = claudeCodeAgents.find(a => a.name === agentName)
+        if (ccAgent?.prompt) {
+          context = `## 你的角色\n\n${ccAgent.prompt}\n\n---\n\n${context}`
+        }
+      }
 
       message.success('任务已启动，正在创建会话...')
 
@@ -101,11 +107,7 @@ const TaskBoard: React.FC = () => {
       // 7. 切换到新会话
       setActiveSession(session.id)
 
-      // 8. 注入上下文（如果是 Claude Code Agent，先发送 /agent 命令）
-      if (ccAgentName) {
-        // 先存储 agent 命令，终端就绪后会先发送这个
-        sessionStorage.setItem(`agenthub-agent-cmd-${session.id}`, `/${ccAgentName}`)
-      }
+      // 8. 注入上下文
       sessionStorage.setItem(`agenthub-context-${session.id}`, context)
       window.dispatchEvent(new CustomEvent('agenthub-inject-context', {
         detail: { sessionId: session.id, context }
