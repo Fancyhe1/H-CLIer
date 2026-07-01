@@ -30,20 +30,20 @@ interface TaskDetailProps {
 }
 
 const priorityColors: Record<Priority, string> = {
-  critical: '#ef4444',
-  high: '#f59e0b',
-  medium: '#3b82f6',
-  low: '#6b7280',
+  critical: 'red',
+  high: 'orange',
+  medium: 'blue',
+  low: 'default',
 }
 
 const statusLabels: Record<TaskStatus, { text: string; color: string }> = {
-  pending: { text: '待处理', color: '#6b7280' },
-  assigned: { text: '已分配', color: '#a855f7' },
-  running: { text: '进行中', color: '#3b82f6' },
-  ready: { text: '就绪', color: '#a855f7' },
-  done: { text: '已完成', color: '#22c55e' },
-  failed: { text: '失败', color: '#ef4444' },
-  blocked: { text: '阻塞', color: '#eab308' },
+  pending: { text: '待处理', color: 'default' },
+  assigned: { text: '已分配', color: 'purple' },
+  running: { text: '进行中', color: 'processing' },
+  ready: { text: '就绪', color: 'purple' },
+  done: { text: '已完成', color: 'success' },
+  failed: { text: '失败', color: 'error' },
+  blocked: { text: '阻塞', color: 'warning' },
 }
 
 const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, onClose }) => {
