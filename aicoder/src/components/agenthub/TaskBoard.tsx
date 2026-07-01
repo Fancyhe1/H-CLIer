@@ -16,6 +16,7 @@ import TaskDetail from './TaskDetail'
 const statusColumns: { key: TaskStatus; title: string; color: string }[] = [
   { key: 'pending', title: '待处理', color: '#8c8c8c' },
   { key: 'running', title: '进行中', color: '#1890ff' },
+  { key: 'ready', title: '就绪', color: '#722ed1' },
   { key: 'done', title: '已完成', color: '#52c41a' },
   { key: 'failed', title: '失败', color: '#ff4d4f' },
 ]
@@ -186,6 +187,19 @@ const TaskBoard: React.FC = () => {
                           </Space>
                         ) : task.status === 'running' ? (
                           <Badge status="processing" />
+                        ) : task.status === 'ready' ? (
+                          <Space size={4}>
+                            <Badge status="warning" text="就绪" />
+                            <Tooltip title="删除">
+                              <DeleteOutlined
+                                style={{ color: '#ff4d4f', fontSize: 12 }}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDelete(task.id)
+                                }}
+                              />
+                            </Tooltip>
+                          </Space>
                         ) : null
                       }
                     >

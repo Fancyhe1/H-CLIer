@@ -5,7 +5,7 @@ import { invoke } from '@tauri-apps/api/core'
 // 类型定义
 // ============================================================
 
-export type TaskStatus = 'pending' | 'assigned' | 'running' | 'done' | 'failed' | 'blocked'
+export type TaskStatus = 'pending' | 'assigned' | 'running' | 'ready' | 'done' | 'failed' | 'blocked'
 export type Priority = 'low' | 'medium' | 'high' | 'critical'
 
 export interface Subtask {

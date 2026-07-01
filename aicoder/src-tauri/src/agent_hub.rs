@@ -12,6 +12,7 @@ pub enum TaskStatus {
     Pending,
     Assigned,
     Running,
+    Ready,
     Done,
     Failed,
     Blocked,
@@ -29,6 +30,7 @@ impl TaskStatus {
             Self::Pending => "pending",
             Self::Assigned => "assigned",
             Self::Running => "running",
+            Self::Ready => "ready",
             Self::Done => "done",
             Self::Failed => "failed",
             Self::Blocked => "blocked",
@@ -39,6 +41,7 @@ impl TaskStatus {
         match s {
             "assigned" => Self::Assigned,
             "running" => Self::Running,
+            "ready" => Self::Ready,
             "done" => Self::Done,
             "failed" => Self::Failed,
             "blocked" => Self::Blocked,

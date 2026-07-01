@@ -189,15 +189,14 @@ const AgentMonitor: React.FC = () => {
         const agents = useAgentHubStore.getState().activeAgents
         const agent = agents.find(a => a.sessionId === payload.session_id)
         if (agent) {
-          // Claude 完成了任务，自动标记为已完成
-          useAgentHubStore.getState().completeTask(
+          // Claude 完成一轮对话，任务进入就绪状态
+          useAgentHubStore.getState().updateTask(
             agent.taskId,
-            agent.agentId,
-            'Claude 已完成任务'
+            { status: 'ready' }
           ).then(() => {
-            message.success(`任务 ${agent.taskId} 已自动完成`)
+            message.info(`任务 ${agent.taskId} 已就绪，等待下一轮指令`)
           }).catch(e => {
-            console.error('自动完成任务失败:', e)
+            console.error('更新任务状态失败:', e)
           })
         }
       }
