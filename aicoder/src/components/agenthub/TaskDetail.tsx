@@ -18,6 +18,7 @@ import {
   DeleteOutlined,
   PlayCircleOutlined,
   CopyOutlined,
+  CheckCircleOutlined,
 } from '@ant-design/icons'
 import { useAgentHubStore, type Priority, type TaskStatus } from '../../stores/agentHubStore'
 
@@ -281,6 +282,15 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, onClose }) => {
               onClick={() => handleStatusChange('running')}
             >
               启动任务
+            </Button>
+          )}
+          {task.status === 'running' && (
+            <Button
+              type="primary"
+              icon={<CheckCircleOutlined />}
+              onClick={() => handleStatusChange('done')}
+            >
+              标记完成
             </Button>
           )}
           <Popconfirm

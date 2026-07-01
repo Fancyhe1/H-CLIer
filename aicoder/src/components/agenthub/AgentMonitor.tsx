@@ -1,17 +1,14 @@
 import React, { useEffect, useRef } from 'react'
-import { Card, Tag, Timeline, Empty, Typography, Button, Popconfirm, message } from 'antd'
-import { ReloadOutlined, StopOutlined } from '@ant-design/icons'
+import { Card, Tag, Timeline, Empty, Typography, Button, message } from 'antd'
+import { ReloadOutlined } from '@ant-design/icons'
 import { listen } from '@tauri-apps/api/event'
 import { useAgentHubStore, type ActiveAgent, type AgentRole, type HubEvent } from '../../stores/agentHubStore'
+import { useSessionStore } from '../../stores/sessionStore'
 
 const { Text } = Typography
 
 // Agent 节点组件（带动画）
-const AgentNode: React.FC<{
-  agent: ActiveAgent
-  role?: AgentRole
-  onStop?: (agentId: string) => void
-}> = ({ agent, role, onStop }) => {
+const AgentNode: React.FC<{ agent: ActiveAgent; role?: AgentRole }> = ({ agent, role }) => {
   const statusColors: Record<string, string> = {
     running: '#52c41a',
     idle: '#8c8c8c',
@@ -42,23 +39,6 @@ const AgentNode: React.FC<{
           {agent.currentAction}
         </Text>
       )}
-      {agent.status === 'running' && onStop && (
-        <Popconfirm
-          title="确定停止此 Agent？"
-          onConfirm={() => onStop(agent.agentId)}
-          okText="停止"
-          cancelText="取消"
-        >
-          <Button
-            size="small"
-            danger
-            icon={<StopOutlined />}
-            className="agent-node-stop"
-          >
-            停止
-          </Button>
-        </Popconfirm>
-      )}
     </div>
   )
 }
@@ -67,8 +47,7 @@ const AgentNode: React.FC<{
 const AgentTopology: React.FC<{
   agents: ActiveAgent[]
   roles: AgentRole[]
-  onStop?: (agentId: string) => void
-}> = ({ agents, roles, onStop }) => {
+}> = ({ agents, roles }) => {
   return (
     <div className="agent-topology">
       {/* Boss 节点 */}
@@ -94,7 +73,7 @@ const AgentTopology: React.FC<{
       <div className="topology-agents">
         {agents.map((agent) => {
           const role = roles.find((r) => r.id === agent.role)
-          return <AgentNode key={agent.agentId} agent={agent} role={role} onStop={onStop} />
+          return <AgentNode key={agent.agentId} agent={agent} role={role} />
         })}
         {agents.length === 0 && (
           <Empty description="暂无活跃Agent" image={Empty.PRESENTED_IMAGE_SIMPLE} />
@@ -174,40 +153,72 @@ const AgentMonitor: React.FC = () => {
     events,
     loadActiveAgents,
     loadEvents,
-    stopAgent,
+    terminateTask,
     isLoading,
   } = useAgentHubStore()
+  useSessionStore() // 确保 store 已加载
+
+  // 检查活跃 Agent 的会话是否还存在
+  const checkSessionAlive = async () => {
+    const currentAgents = useAgentHubStore.getState().activeAgents
+    const currentSessions = useSessionStore.getState().sessions
+    const sessionIds = new Set(currentSessions.map(s => s.id))
+
+    for (const agent of currentAgents) {
+      if (agent.sessionId && !sessionIds.has(agent.sessionId)) {
+        try {
+          await terminateTask(agent.taskId, agent.agentId, '会话已被删除')
+          message.warning(`任务 ${agent.taskId} 的会话已删除，已标记为失败`)
+        } catch (e) {
+          console.error('终止任务失败:', e)
+        }
+      }
+    }
+  }
+
+  // 监听 Claude Stop hook，自动完成任务
+  useEffect(() => {
+    const unlisten = listen('claude-hook-notification', (event) => {
+      const payload = event.payload as {
+        hook_event_name?: string
+        session_id?: string
+      }
+
+      if (payload.hook_event_name === 'Stop' && payload.session_id) {
+        // 查找关联此会话的活跃 Agent
+        const agents = useAgentHubStore.getState().activeAgents
+        const agent = agents.find(a => a.sessionId === payload.session_id)
+        if (agent) {
+          // Claude 完成了任务，自动标记为已完成
+          useAgentHubStore.getState().completeTask(
+            agent.taskId,
+            agent.agentId,
+            'Claude 已完成任务'
+          ).then(() => {
+            message.success(`任务 ${agent.taskId} 已自动完成`)
+          }).catch(e => {
+            console.error('自动完成任务失败:', e)
+          })
+        }
+      }
+    })
+
+    return () => { unlisten.then(fn => fn()) }
+  }, [])
 
   useEffect(() => {
     loadActiveAgents()
     loadEvents()
 
-    // 监听 Tauri 事件（后端推送的状态变更）
-    const unlisten = listen('agenthub-update', () => {
-      loadActiveAgents()
-      loadEvents()
-    })
-
-    // 保留低频轮询作为兜底（心跳超时检测等）
+    // 定时刷新 + 会话存活检查
     const interval = setInterval(() => {
       loadActiveAgents()
       loadEvents()
-    }, 30000)
+      checkSessionAlive()
+    }, 5000)
 
-    return () => {
-      unlisten.then(fn => fn())
-      clearInterval(interval)
-    }
+    return () => clearInterval(interval)
   }, [])
-
-  const handleStopAgent = async (agentId: string) => {
-    try {
-      await stopAgent(agentId)
-      message.success(`Agent ${agentId} 已停止`)
-    } catch (e: any) {
-      message.error(`停止失败: ${e}`)
-    }
-  }
 
   return (
     <div className="agent-monitor">
@@ -228,7 +239,7 @@ const AgentMonitor: React.FC = () => {
           </Button>
         }
       >
-        <AgentTopology agents={activeAgents} roles={agentRoles} onStop={handleStopAgent} />
+        <AgentTopology agents={activeAgents} roles={agentRoles} />
       </Card>
 
       <Card title="📋 活动日志" className="monitor-events-card">
