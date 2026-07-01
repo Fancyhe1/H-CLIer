@@ -53,6 +53,14 @@ export interface AgentRole {
   tags: string[]
 }
 
+export interface ClaudeCodeAgent {
+  name: string
+  description: string
+  prompt: string
+  tools: string[]
+  source: string
+}
+
 export interface ActiveAgent {
   agentId: string
   role: string
@@ -92,6 +100,7 @@ interface AgentHubStore {
   // 状态
   tasks: Task[]
   agentRoles: AgentRole[]
+  claudeCodeAgents: ClaudeCodeAgent[]
   activeAgents: ActiveAgent[]
   events: HubEvent[]
   brainMeta: BrainMeta | null
@@ -120,6 +129,7 @@ interface AgentHubStore {
   loadAgentRoles: () => Promise<void>
   saveAgentRole: (role: AgentRole) => Promise<void>
   deleteAgentRole: (id: string) => Promise<void>
+  loadClaudeCodeAgents: () => Promise<void>
 
   // 活跃 Agent 操作
   loadActiveAgents: () => Promise<void>
@@ -131,6 +141,8 @@ interface AgentHubStore {
   updateBrainSection: (section: string, content: string) => Promise<void>
   scanProject: () => Promise<void>
   buildContext: (taskId: string) => Promise<string>
+  generateClaudeMd: () => Promise<string>
+  syncClaudeMd: () => Promise<string>
 
   // 事件
   loadEvents: () => Promise<void>
@@ -147,6 +159,7 @@ export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
   // 初始状态
   tasks: [],
   agentRoles: [],
+  claudeCodeAgents: [],
   activeAgents: [],
   events: [],
   brainMeta: null,
@@ -305,6 +318,15 @@ export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
     }
   },
 
+  loadClaudeCodeAgents: async () => {
+    try {
+      const agents = await invoke<ClaudeCodeAgent[]>('agenthub_load_claude_code_agents')
+      set({ claudeCodeAgents: agents })
+    } catch (e: any) {
+      set({ error: String(e) })
+    }
+  },
+
   // ============================================================
   // 活跃 Agent 操作
   // ============================================================
@@ -389,6 +411,26 @@ export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
     try {
       const context = await invoke<string>('agenthub_build_context', { taskId })
       return context
+    } catch (e: any) {
+      set({ error: String(e) })
+      throw e
+    }
+  },
+
+  generateClaudeMd: async () => {
+    try {
+      const content = await invoke<string>('agenthub_generate_claude_md')
+      return content
+    } catch (e: any) {
+      set({ error: String(e) })
+      throw e
+    }
+  },
+
+  syncClaudeMd: async () => {
+    try {
+      const content = await invoke<string>('agenthub_sync_claude_md')
+      return content
     } catch (e: any) {
       set({ error: String(e) })
       throw e

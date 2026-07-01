@@ -1010,6 +1010,7 @@ impl AgentHubManager {
             ("architecture", "架构概述"),
             ("conventions", "代码规范"),
             ("decisions", "技术决策"),
+            ("other", "其他补充"),
         ];
 
         for (section_key, section_title) in &sections_to_include {
@@ -1271,4 +1272,65 @@ impl AgentHubManager {
 
         Ok(())
     }
+}
+
+// ============================================================
+// Claude Code Agent 读取
+// ============================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaudeCodeAgent {
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub prompt: String,
+    #[serde(default)]
+    pub tools: Vec<String>,
+    #[serde(default)]
+    pub source: String,  // "claude-code" 或 "agent-hub"
+}
+
+/// 读取 Claude Code 的 agents 目录
+pub fn load_claude_code_agents() -> Result<Vec<ClaudeCodeAgent>, String> {
+    let home_dir = dirs::home_dir()
+        .ok_or("无法获取用户主目录")?;
+    let agents_dir = home_dir.join(".claude").join("agents");
+
+    if !agents_dir.exists() {
+        return Ok(vec![]);
+    }
+
+    let mut agents = Vec::new();
+
+    let entries = std::fs::read_dir(&agents_dir)
+        .map_err(|e| format!("读取 agents 目录失败: {}", e))?;
+
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("读取目录项失败: {}", e))?;
+        let path = entry.path();
+
+        // 只读取 .json 文件
+        if path.extension().and_then(|e| e.to_str()) == Some("json") {
+            match std::fs::read_to_string(&path) {
+                Ok(content) => {
+                    match serde_json::from_str::<ClaudeCodeAgent>(&content) {
+                        Ok(mut agent) => {
+                            agent.source = "claude-code".to_string();
+                            agents.push(agent);
+                        }
+                        Err(e) => {
+                            eprintln!("[AgentHub] 解析 {:?} 失败: {}", path, e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[AgentHub] 读取 {:?} 失败: {}", path, e);
+                }
+            }
+        }
+    }
+
+    Ok(agents)
 }

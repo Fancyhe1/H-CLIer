@@ -14,13 +14,13 @@ import {
   Typography,
   Empty,
 } from 'antd'
-import { PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons'
-import { useAgentHubStore, type AgentRole } from '../../stores/agentHubStore'
+import { PlusOutlined, DeleteOutlined, EditOutlined, RobotOutlined } from '@ant-design/icons'
+import { useAgentHubStore, type AgentRole, type ClaudeCodeAgent } from '../../stores/agentHubStore'
 
-const { Text } = Typography
+const { Text, Paragraph } = Typography
 
 const AgentSettingsPanel: React.FC = () => {
-  const { agentRoles, loadAgentRoles, saveAgentRole, deleteAgentRole } =
+  const { agentRoles, claudeCodeAgents, loadAgentRoles, loadClaudeCodeAgents, saveAgentRole, deleteAgentRole } =
     useAgentHubStore()
 
   const [modalOpen, setModalOpen] = useState(false)
@@ -29,6 +29,7 @@ const AgentSettingsPanel: React.FC = () => {
 
   useEffect(() => {
     loadAgentRoles()
+    loadClaudeCodeAgents()
   }, [])
 
   const handleAdd = () => {
@@ -130,6 +131,57 @@ const AgentSettingsPanel: React.FC = () => {
                             </Tag>
                           ))}
                         </div>
+                      )}
+                    </div>
+                  }
+                />
+              </List.Item>
+            )}
+          />
+        )}
+      </Card>
+
+      {/* Claude Code 已有 Agent */}
+      <Card
+        title={
+          <Space>
+            <RobotOutlined />
+            <span>Claude Code 内置 Agent</span>
+          </Space>
+        }
+        size="small"
+        style={{ marginTop: 12 }}
+      >
+        {claudeCodeAgents.length === 0 ? (
+          <Empty description="未检测到 Claude Code Agent" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        ) : (
+          <List
+            dataSource={claudeCodeAgents}
+            renderItem={(agent: ClaudeCodeAgent) => (
+              <List.Item>
+                <List.Item.Meta
+                  title={
+                    <Space>
+                      <Text strong>{agent.name}</Text>
+                      <Tag color="cyan">{agent.source}</Tag>
+                      {agent.tools?.length > 0 && (
+                        <Tag>{agent.tools.length} 个工具</Tag>
+                      )}
+                    </Space>
+                  }
+                  description={
+                    <div>
+                      {agent.description && (
+                        <Text type="secondary">{agent.description}</Text>
+                      )}
+                      {agent.prompt && (
+                        <Paragraph
+                          type="secondary"
+                          ellipsis={{ rows: 2, expandable: true }}
+                          style={{ fontSize: 12, marginTop: 4 }}
+                        >
+                          {agent.prompt}
+                        </Paragraph>
                       )}
                     </div>
                   }

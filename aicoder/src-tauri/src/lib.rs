@@ -1279,6 +1279,11 @@ fn agenthub_sync_claude_md(
     manager.sync_claude_md()
 }
 
+#[tauri::command]
+fn agenthub_load_claude_code_agents() -> Result<Vec<agent_hub::ClaudeCodeAgent>, String> {
+    agent_hub::load_claude_code_agents()
+}
+
 // 主函数
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -1494,6 +1499,7 @@ pub fn run() {
             agenthub_update_agent_session,
             agenthub_generate_claude_md,
             agenthub_sync_claude_md,
+            agenthub_load_claude_code_agents,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

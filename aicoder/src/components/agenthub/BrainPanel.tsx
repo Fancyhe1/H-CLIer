@@ -20,6 +20,7 @@ const brainSections = [
   { key: 'architecture', label: '架构概述', file: 'architecture.md' },
   { key: 'decisions', label: '技术决策', file: 'decisions.md' },
   { key: 'conventions', label: '代码规范', file: 'conventions.md' },
+  { key: 'other', label: '其他补充', file: 'other.md' },
   { key: 'state/current', label: '当前状态', file: 'state/current.md' },
   { key: 'state/blockers', label: '阻塞项', file: 'state/blockers.md' },
 ]
