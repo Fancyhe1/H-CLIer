@@ -72,42 +72,40 @@ const TaskBoard: React.FC = () => {
       // 2. 判断是 Claude Code Agent 还是 AgentHub 角色
       const isClaudeCodeAgent = selectedRoleId?.startsWith('cc-')
       const agentRoleId = isClaudeCodeAgent ? undefined : (selectedRoleId || undefined)
+      const ccAgentName = isClaudeCodeAgent && selectedRoleId
+        ? selectedRoleId.replace('cc-', '')
+        : null
 
       // 3. 调用后端 run_task，获取构建的上下文
-      let context = await runTask(runTaskId, agentRoleId)
-
-      // 4. 如果选了 Claude Code Agent，把它的 prompt 加到上下文前面
-      if (isClaudeCodeAgent && selectedRoleId) {
-        const agentName = selectedRoleId.replace('cc-', '')
-        const ccAgent = claudeCodeAgents.find(a => a.name === agentName)
-        if (ccAgent?.prompt) {
-          context = `## 你的角色\n\n${ccAgent.prompt}\n\n---\n\n${context}`
-        }
-      }
+      const context = await runTask(runTaskId, agentRoleId)
 
       message.success('任务已启动，正在创建会话...')
 
-      // 3. 创建新的 HCLIer 会话
+      // 4. 创建新的 HCLIer 会话
       const session = await invoke<{ id: string; title: string }>('create_session', {
         projectPath,
         title: `AgentHub: ${runTaskId}`,
         sessionType: 'claude',
       })
 
-      // 4. 更新 Agent 记录的 sessionId
+      // 5. 更新 Agent 记录的 sessionId
       const { activeAgents } = useAgentHubStore.getState()
       const newAgent = activeAgents.find(a => a.taskId === runTaskId)
       if (newAgent) {
         await useAgentHubStore.getState().updateAgentSession(newAgent.agentId, session.id)
       }
 
-      // 5. 刷新会话列表
+      // 6. 刷新会话列表
       await fetchSessions()
 
-      // 6. 切换到新会话
+      // 7. 切换到新会话
       setActiveSession(session.id)
 
-      // 7. 注入上下文
+      // 8. 注入上下文（如果是 Claude Code Agent，先发送 /agent 命令）
+      if (ccAgentName) {
+        // 先存储 agent 命令，终端就绪后会先发送这个
+        sessionStorage.setItem(`agenthub-agent-cmd-${session.id}`, `/${ccAgentName}`)
+      }
       sessionStorage.setItem(`agenthub-context-${session.id}`, context)
       window.dispatchEvent(new CustomEvent('agenthub-inject-context', {
         detail: { sessionId: session.id, context }

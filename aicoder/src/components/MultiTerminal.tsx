@@ -622,8 +622,27 @@ function MultiTerminal() {
         }
 
         // 检查是否有 AgentHub 待注入的上下文
+        const pendingAgentCmd = sessionStorage.getItem(`agenthub-agent-cmd-${session.id}`)
         const pendingContext = sessionStorage.getItem(`agenthub-context-${session.id}`)
-        if (pendingContext) {
+
+        if (pendingAgentCmd) {
+          // 先发送 agent 命令（如 /code-researcher）
+          setTimeout(() => {
+            invoke('write_to_pty', { ptyId: actualPtyId, data: pendingAgentCmd + '\n' })
+              .catch(e => console.error('发送 Agent 命令失败:', e))
+            sessionStorage.removeItem(`agenthub-agent-cmd-${session.id}`)
+
+            // 等 Claude Code 处理完 agent 命令后，再注入任务上下文
+            if (pendingContext) {
+              setTimeout(() => {
+                invoke('write_to_pty', { ptyId: actualPtyId, data: pendingContext + '\n' })
+                  .catch(e => console.error('注入 AgentHub 上下文失败:', e))
+                sessionStorage.removeItem(`agenthub-context-${session.id}`)
+              }, 3000)
+            }
+          }, 1500)
+        } else if (pendingContext) {
+          // 没有 agent 命令，直接注入上下文
           setTimeout(() => {
             invoke('write_to_pty', { ptyId: actualPtyId, data: pendingContext + '\n' })
               .catch(e => console.error('注入 AgentHub 上下文失败:', e))
