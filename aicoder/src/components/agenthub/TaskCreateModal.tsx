@@ -62,6 +62,7 @@ const TaskCreateModal: React.FC<TaskCreateModalProps> = ({ open, onClose }) => {
       okText="创建"
       cancelText="取消"
       destroyOnClose
+      maskClosable={false}
     >
       <Form form={form} layout="vertical" initialValues={{ priority: 'medium' }}>
         <Form.Item

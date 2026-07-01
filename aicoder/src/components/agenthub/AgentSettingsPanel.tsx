@@ -148,6 +148,7 @@ const AgentSettingsPanel: React.FC = () => {
         okText="保存"
         cancelText="取消"
         destroyOnClose
+        maskClosable={false}
       >
         <Form form={form} layout="vertical">
           {!editingRole && (

@@ -778,9 +778,10 @@ function App() {
         style={{ top: 20 }}
         styles={{ body: { height: 'calc(100vh - 120px)', padding: 0, overflow: 'hidden' } }}
         destroyOnClose={false}
+        maskClosable={false}
       >
         <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spin /></div>}>
-          <AgentHubPanel projectPath={activeSession?.projectPath || null} />
+          <AgentHubPanel />
         </Suspense>
       </Modal>
     </ConfigProvider>

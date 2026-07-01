@@ -127,6 +127,7 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, onClose }) => {
       open
       onClose={onClose}
       width={480}
+      maskClosable={false}
       extra={
         <Space>
           {editing ? (

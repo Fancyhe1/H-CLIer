@@ -10,6 +10,17 @@
   overflow: hidden;
 }
 
+/* 项目选择器 */
+.agenthub-project-selector {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.agenthub-project-selector .ant-select {
+  min-width: 200px;
+}
+
 .agenthub-panel.agenthub-loading,
 .agenthub-panel.agenthub-empty {
   display: flex;
@@ -190,20 +201,6 @@
   flex-direction: column;
 }
 
-.brain-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.brain-toolbar .ant-tabs {
-  flex: 1;
-}
-
-.brain-mode-toggle {
-  flex-shrink: 0;
-}
-
 .brain-loading {
   display: flex;
   align-items: center;
@@ -228,81 +225,6 @@
 .brain-editor-footer {
   display: flex;
   justify-content: flex-end;
-}
-
-.brain-preview {
-  flex: 1;
-  padding: 12px;
-  overflow-y: auto;
-  font-size: 14px;
-  line-height: 1.8;
-}
-
-.brain-preview h1,
-.brain-preview h2,
-.brain-preview h3 {
-  margin-top: 16px;
-  margin-bottom: 8px;
-}
-
-.brain-preview p {
-  margin-bottom: 8px;
-}
-
-.brain-preview code {
-  background: rgba(255, 255, 255, 0.06);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 13px;
-}
-
-.brain-preview pre {
-  background: rgba(255, 255, 255, 0.04);
-  padding: 12px;
-  border-radius: 6px;
-  overflow-x: auto;
-}
-
-.brain-preview ul,
-.brain-preview ol {
-  padding-left: 20px;
-  margin-bottom: 8px;
-}
-
-.brain-preview blockquote {
-  border-left: 3px solid #1890ff;
-  padding-left: 12px;
-  margin: 8px 0;
-  color: #8c8c8c;
-}
-
-.claude-md-preview {
-  max-height: 60vh;
-  overflow-y: auto;
-  padding: 16px;
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 6px;
-  line-height: 1.8;
-}
-
-.claude-md-preview h1,
-.claude-md-preview h2,
-.claude-md-preview h3 {
-  margin-top: 16px;
-  margin-bottom: 8px;
-}
-
-.claude-md-preview code {
-  background: rgba(255, 255, 255, 0.06);
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-.claude-md-preview pre {
-  background: rgba(255, 255, 255, 0.04);
-  padding: 12px;
-  border-radius: 6px;
-  overflow-x: auto;
 }
 
 /* ============================================================
@@ -415,11 +337,6 @@
   margin-top: 4px;
   max-width: 140px;
   text-align: center;
-}
-
-.agent-node-stop {
-  margin-top: 8px;
-  font-size: 12px;
 }
 
 /* 拓扑图布局 */

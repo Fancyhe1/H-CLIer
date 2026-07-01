@@ -238,6 +238,7 @@ const TaskBoard: React.FC = () => {
         okText="启动任务"
         cancelText="取消"
         destroyOnClose
+        maskClosable={false}
       >
         <div style={{ marginBottom: 12 }}>
           <span style={{ color: '#8c8c8c' }}>
