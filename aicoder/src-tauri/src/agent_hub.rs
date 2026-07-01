@@ -425,12 +425,15 @@ impl AgentHubManager {
         let task = tasks_data.tasks.iter_mut().find(|t| t.id == id)
             .ok_or_else(|| format!("任务 {} 不存在", id))?;
 
-        // 应用更新
+        // 应用更新（顺序重要：assigned_agent 必须在 status 之前更新）
         if let Some(title) = &updates.title {
             task.title = title.clone();
         }
         if let Some(desc) = &updates.description {
             task.description = desc.clone();
+        }
+        if let Some(assigned) = &updates.assigned_agent {
+            task.assigned_agent = assigned.clone();
         }
         if let Some(status) = &updates.status {
             let old_status = task.status.clone();
@@ -447,7 +450,7 @@ impl AgentHubManager {
                 }
                 _ => {}
             }
-            // 同步更新 Agent 状态
+            // 同步更新 Agent 状态（使用更新后的 assigned_agent）
             if let Some(ref agent_id) = task.assigned_agent {
                 let agent_status = match status {
                     TaskStatus::Running => "running",
@@ -463,12 +466,6 @@ impl AgentHubManager {
                     let _ = self.remove_active_agent(agent_id);
                 }
             }
-        }
-        if let Some(priority) = &updates.priority {
-            task.priority = priority.clone();
-        }
-        if let Some(assigned) = &updates.assigned_agent {
-            task.assigned_agent = assigned.clone();
         }
         if let Some(tags) = &updates.tags {
             task.tags = tags.clone();
@@ -1112,26 +1109,26 @@ impl AgentHubManager {
         // 构建上下文（Agent 角色 + 项目 brain + 任务描述）
         let context = self.build_context_with_agent(task_id, agent_role)?;
 
-        // 更新任务状态
-        self.update_task(task_id, &TaskUpdate {
-            status: Some(TaskStatus::Ready),
-            assigned_agent: Some(Some(agent_role_id.unwrap_or("default").to_string())),
-            ..Default::default()
-        })?;
-
+        // 1. 先创建 Agent（状态为 ready）
         let active_agent = ActiveAgent {
             agent_id: worker_id.clone(),
             role: agent_role_id.unwrap_or("default").to_string(),
             task_id: task_id.to_string(),
-            session_id: None, // 前端创建 session 后更新
+            session_id: None,
             started_at: Utc::now().to_rfc3339(),
             last_heartbeat: Utc::now().to_rfc3339(),
-            status: "running".to_string(),
-            current_action: format!("启动任务: {}", task.title),
+            status: "ready".to_string(),
+            current_action: format!("就绪: {}", task.title),
             pid: None,
         };
-
         self.register_active_agent(&active_agent)?;
+
+        // 2. 再更新任务状态（会同步更新 Agent 状态）
+        self.update_task(task_id, &TaskUpdate {
+            status: Some(TaskStatus::Ready),
+            assigned_agent: Some(Some(worker_id.clone())),
+            ..Default::default()
+        })?;
 
         self.append_event(&HubEvent {
             ts: Utc::now().to_rfc3339(),
