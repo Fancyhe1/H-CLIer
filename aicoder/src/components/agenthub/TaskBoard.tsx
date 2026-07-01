@@ -6,7 +6,9 @@ import {
   ReloadOutlined,
   DeleteOutlined,
 } from '@ant-design/icons'
+import { invoke } from '@tauri-apps/api/core'
 import { useAgentHubStore, type Task, type TaskStatus, type Priority } from '../../stores/agentHubStore'
+import { useSessionStore } from '../../stores/sessionStore'
 import TaskCreateModal from './TaskCreateModal'
 import TaskDetail from './TaskDetail'
 
@@ -25,7 +27,8 @@ const priorityColors: Record<Priority, string> = {
 }
 
 const TaskBoard: React.FC = () => {
-  const { tasks, loadTasks, updateTask, deleteTask, isLoading } = useAgentHubStore()
+  const { tasks, loadTasks, deleteTask, runTask, currentProjectPath, isLoading } = useAgentHubStore()
+  const { setActiveSession } = useSessionStore()
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState<string | null>(null)
 
@@ -35,8 +38,34 @@ const TaskBoard: React.FC = () => {
 
   const handleRun = async (taskId: string) => {
     try {
-      await updateTask(taskId, { status: 'running' })
-      message.success('任务已启动')
+      // 1. 调用后端 run_task，获取构建的上下文
+      const context = await runTask(taskId)
+      message.success('任务已启动，正在创建会话...')
+
+      // 2. 创建一个新的 HCLIer 会话
+      const projectPath = currentProjectPath || ''
+      const session = await invoke<{ id: string; title: string }>('create_session', {
+        projectPath,
+        title: `AgentHub: ${taskId}`,
+        sessionType: 'claude',
+      })
+
+      // 3. 在该会话的终端中注入上下文
+      // 终端会自动通过 session 的 PTY 启动
+      // 延迟一下等待 PTY 就绪
+      setTimeout(async () => {
+        try {
+          await invoke('write_to_pty', {
+            sessionId: session.id,
+            data: context + '\n',
+          })
+        } catch (e) {
+          console.error('注入上下文失败:', e)
+        }
+      }, 1500)
+
+      // 4. 切换到该会话
+      setActiveSession(session.id)
     } catch (e: any) {
       message.error(`启动失败: ${e}`)
     }

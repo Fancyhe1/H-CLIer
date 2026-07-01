@@ -417,6 +417,11 @@
   text-align: center;
 }
 
+.agent-node-stop {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
 /* 拓扑图布局 */
 .agent-topology {
   display: flex;

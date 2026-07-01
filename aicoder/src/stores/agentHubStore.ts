@@ -135,8 +135,11 @@ interface AgentHubStore {
   // 事件
   loadEvents: () => Promise<void>
 
-  // 任务执行（占位，Phase 4 实现完整逻辑）
-  runTask: (taskId: string, agentId?: string) => Promise<void>
+  // 任务执行
+  runTask: (taskId: string, agentId?: string) => Promise<string>
+  stopAgent: (agentId: string) => Promise<void>
+  completeTask: (taskId: string, agentId: string, result: string) => Promise<void>
+  failTask: (taskId: string, agentId: string, error: string) => Promise<void>
 }
 
 export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
@@ -428,11 +431,49 @@ export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
   // 任务执行（Phase 4 完善）
   // ============================================================
 
-  runTask: async (taskId: string, _agentId?: string) => {
+  runTask: async (taskId: string, agentId?: string) => {
     try {
-      // Phase 4: 构建上下文 → 创建会话 → 注入终端
-      // 目前只更新任务状态
-      await get().updateTask(taskId, { status: 'running' })
+      const context = await invoke<string>('agenthub_run_task', { taskId, agentId: agentId || null })
+      await get().loadTasks()
+      await get().loadActiveAgents()
+      await get().loadEvents()
+      return context
+    } catch (e: any) {
+      set({ error: String(e) })
+      throw e
+    }
+  },
+
+  stopAgent: async (agentId: string) => {
+    try {
+      await invoke('agenthub_stop_agent', { agentId })
+      await get().loadTasks()
+      await get().loadActiveAgents()
+      await get().loadEvents()
+    } catch (e: any) {
+      set({ error: String(e) })
+      throw e
+    }
+  },
+
+  completeTask: async (taskId: string, agentId: string, result: string) => {
+    try {
+      await invoke('agenthub_complete_task', { taskId, agentId, result })
+      await get().loadTasks()
+      await get().loadActiveAgents()
+      await get().loadEvents()
+    } catch (e: any) {
+      set({ error: String(e) })
+      throw e
+    }
+  },
+
+  failTask: async (taskId: string, agentId: string, error: string) => {
+    try {
+      await invoke('agenthub_fail_task', { taskId, agentId, error })
+      await get().loadTasks()
+      await get().loadActiveAgents()
+      await get().loadEvents()
     } catch (e: any) {
       set({ error: String(e) })
       throw e

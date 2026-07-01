@@ -1,12 +1,16 @@
 import React, { useEffect, useRef } from 'react'
-import { Card, Tag, Timeline, Empty, Typography, Button } from 'antd'
-import { ReloadOutlined } from '@ant-design/icons'
+import { Card, Tag, Timeline, Empty, Typography, Button, Popconfirm, message } from 'antd'
+import { ReloadOutlined, StopOutlined } from '@ant-design/icons'
 import { useAgentHubStore, type ActiveAgent, type AgentRole, type HubEvent } from '../../stores/agentHubStore'
 
 const { Text } = Typography
 
 // Agent 节点组件（带动画）
-const AgentNode: React.FC<{ agent: ActiveAgent; role?: AgentRole }> = ({ agent, role }) => {
+const AgentNode: React.FC<{
+  agent: ActiveAgent
+  role?: AgentRole
+  onStop?: (agentId: string) => void
+}> = ({ agent, role, onStop }) => {
   const statusColors: Record<string, string> = {
     running: '#52c41a',
     idle: '#8c8c8c',
@@ -37,6 +41,23 @@ const AgentNode: React.FC<{ agent: ActiveAgent; role?: AgentRole }> = ({ agent, 
           {agent.currentAction}
         </Text>
       )}
+      {agent.status === 'running' && onStop && (
+        <Popconfirm
+          title="确定停止此 Agent？"
+          onConfirm={() => onStop(agent.agentId)}
+          okText="停止"
+          cancelText="取消"
+        >
+          <Button
+            size="small"
+            danger
+            icon={<StopOutlined />}
+            className="agent-node-stop"
+          >
+            停止
+          </Button>
+        </Popconfirm>
+      )}
     </div>
   )
 }
@@ -45,7 +66,8 @@ const AgentNode: React.FC<{ agent: ActiveAgent; role?: AgentRole }> = ({ agent, 
 const AgentTopology: React.FC<{
   agents: ActiveAgent[]
   roles: AgentRole[]
-}> = ({ agents, roles }) => {
+  onStop?: (agentId: string) => void
+}> = ({ agents, roles, onStop }) => {
   return (
     <div className="agent-topology">
       {/* Boss 节点 */}
@@ -71,7 +93,7 @@ const AgentTopology: React.FC<{
       <div className="topology-agents">
         {agents.map((agent) => {
           const role = roles.find((r) => r.id === agent.role)
-          return <AgentNode key={agent.agentId} agent={agent} role={role} />
+          return <AgentNode key={agent.agentId} agent={agent} role={role} onStop={onStop} />
         })}
         {agents.length === 0 && (
           <Empty description="暂无活跃Agent" image={Empty.PRESENTED_IMAGE_SIMPLE} />
@@ -151,6 +173,7 @@ const AgentMonitor: React.FC = () => {
     events,
     loadActiveAgents,
     loadEvents,
+    stopAgent,
     isLoading,
   } = useAgentHubStore()
 
@@ -164,6 +187,15 @@ const AgentMonitor: React.FC = () => {
     }, 5000)
     return () => clearInterval(interval)
   }, [])
+
+  const handleStopAgent = async (agentId: string) => {
+    try {
+      await stopAgent(agentId)
+      message.success(`Agent ${agentId} 已停止`)
+    } catch (e: any) {
+      message.error(`停止失败: ${e}`)
+    }
+  }
 
   return (
     <div className="agent-monitor">
@@ -184,7 +216,7 @@ const AgentMonitor: React.FC = () => {
           </Button>
         }
       >
-        <AgentTopology agents={activeAgents} roles={agentRoles} />
+        <AgentTopology agents={activeAgents} roles={agentRoles} onStop={handleStopAgent} />
       </Card>
 
       <Card title="📋 活动日志" className="monitor-events-card">

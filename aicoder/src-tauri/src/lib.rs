@@ -1230,6 +1230,57 @@ fn agenthub_scan_project(
     manager.scan_project(std::path::Path::new(&project_path))
 }
 
+#[tauri::command]
+fn agenthub_run_task(
+    state: tauri::State<SharedAppState>,
+    task_id: String,
+    agent_id: Option<String>,
+) -> Result<String, String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.run_task(&task_id, agent_id.as_deref())
+}
+
+#[tauri::command]
+fn agenthub_stop_agent(
+    state: tauri::State<SharedAppState>,
+    agent_id: String,
+) -> Result<(), String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.stop_agent(&agent_id)
+}
+
+#[tauri::command]
+fn agenthub_heartbeat_agent(
+    state: tauri::State<SharedAppState>,
+    agent_id: String,
+    current_action: String,
+) -> Result<(), String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.heartbeat_agent(&agent_id, &current_action)
+}
+
+#[tauri::command]
+fn agenthub_complete_task(
+    state: tauri::State<SharedAppState>,
+    task_id: String,
+    agent_id: String,
+    result: String,
+) -> Result<(), String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.complete_task(&task_id, &agent_id, &result)
+}
+
+#[tauri::command]
+fn agenthub_fail_task(
+    state: tauri::State<SharedAppState>,
+    task_id: String,
+    agent_id: String,
+    error: String,
+) -> Result<(), String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.fail_task(&task_id, &agent_id, &error)
+}
+
 // 主函数
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -1441,6 +1492,11 @@ pub fn run() {
             agenthub_sync_claude_md,
             agenthub_load_events,
             agenthub_scan_project,
+            agenthub_run_task,
+            agenthub_stop_agent,
+            agenthub_heartbeat_agent,
+            agenthub_complete_task,
+            agenthub_fail_task,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

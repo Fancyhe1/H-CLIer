@@ -125,7 +125,7 @@ pub struct Task {
     pub retry_count: u32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskUpdate {
     #[serde(default)]
@@ -947,5 +947,207 @@ impl AgentHubManager {
         }
 
         Ok(meta)
+    }
+
+    // ============================================================
+    // 任务执行
+    // ============================================================
+
+    /// 启动任务：更新状态、注册活跃 agent、追加事件
+    /// 返回构建的上下文 prompt，前端用它来创建会话并注入
+    pub fn run_task(&self, task_id: &str, agent_id: Option<&str>) -> Result<String, String> {
+        // 1. 加载任务并验证状态
+        let tasks = self.load_tasks()?;
+        let task = tasks.iter().find(|t| t.id == task_id)
+            .ok_or_else(|| format!("任务 {} 不存在", task_id))?;
+
+        if task.status.as_str() == "running" {
+            return Err(format!("任务 {} 已在运行中", task_id));
+        }
+
+        if task.status.as_str() == "done" {
+            return Err(format!("任务 {} 已完成", task_id));
+        }
+
+        // 2. 生成 agent ID
+        let agent_id = agent_id
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| format!("{}-{}", task_id, uuid::Uuid::new_v4().to_string()[..8].to_string()));
+
+        // 3. 构建上下文
+        let context = self.build_context(task_id)?;
+
+        // 4. 更新任务状态为 running
+        self.update_task(task_id, &TaskUpdate {
+            status: Some(TaskStatus::Running),
+            assigned_agent: Some(Some(agent_id.clone())),
+            ..Default::default()
+        })?;
+
+        // 5. 注册活跃 agent
+        let active_agent = ActiveAgent {
+            agent_id: agent_id.clone(),
+            role: task.assigned_agent.clone().unwrap_or_else(|| "default".to_string()),
+            task_id: task_id.to_string(),
+            started_at: Utc::now().to_rfc3339(),
+            last_heartbeat: Utc::now().to_rfc3339(),
+            status: "running".to_string(),
+            current_action: format!("启动任务: {}", task.title),
+            pid: None,
+        };
+
+        self.register_active_agent(&active_agent)?;
+
+        // 6. 追加事件
+        self.append_event(&HubEvent {
+            ts: Utc::now().to_rfc3339(),
+            event_type: "task_started".to_string(),
+            task_id: Some(task_id.to_string()),
+            agent: Some(agent_id),
+            message: Some(format!("开始执行任务: {}", task.title)),
+            files_changed: None,
+        })?;
+
+        Ok(context)
+    }
+
+    /// 停止 agent：更新状态、移除活跃记录、追加事件
+    pub fn stop_agent(&self, agent_id: &str) -> Result<(), String> {
+        // 1. 查找活跃 agent
+        let active_agents = self.load_active_agents()?;
+        let agent = active_agents.iter().find(|a| a.agent_id == agent_id)
+            .ok_or_else(|| format!("Agent {} 不在活跃列表中", agent_id))?
+            .clone();
+
+        // 2. 更新任务状态为 failed（如果正在运行）
+        if agent.task_id.starts_with('T') {
+            let _ = self.update_task(&agent.task_id, &TaskUpdate {
+                status: Some(TaskStatus::Failed),
+                error: Some(Some("Agent 被手动停止".to_string())),
+                ..Default::default()
+            });
+        }
+
+        // 3. 移除活跃 agent
+        self.remove_active_agent(agent_id)?;
+
+        // 4. 追加事件
+        self.append_event(&HubEvent {
+            ts: Utc::now().to_rfc3339(),
+            event_type: "agent_stopped".to_string(),
+            task_id: Some(agent.task_id),
+            agent: Some(agent_id.to_string()),
+            message: Some(format!("Agent {} 已停止", agent_id)),
+            files_changed: None,
+        })?;
+
+        Ok(())
+    }
+
+    /// 更新 agent 心跳
+    pub fn heartbeat_agent(&self, agent_id: &str, current_action: &str) -> Result<(), String> {
+        self.update_agent_status(agent_id, "running", current_action)
+    }
+
+    /// 完成任务：更新状态、移除活跃 agent、追加事件
+    pub fn complete_task(&self, task_id: &str, agent_id: &str, result: &str) -> Result<(), String> {
+        // 1. 更新任务状态
+        self.update_task(task_id, &TaskUpdate {
+            status: Some(TaskStatus::Done),
+            result: Some(Some(result.to_string())),
+            ..Default::default()
+        })?;
+
+        // 2. 移除活跃 agent
+        self.remove_active_agent(agent_id)?;
+
+        // 3. 追加事件
+        self.append_event(&HubEvent {
+            ts: Utc::now().to_rfc3339(),
+            event_type: "task_completed".to_string(),
+            task_id: Some(task_id.to_string()),
+            agent: Some(agent_id.to_string()),
+            message: Some(format!("任务 {} 已完成", task_id)),
+            files_changed: None,
+        })?;
+
+        Ok(())
+    }
+
+    /// 失败任务：更新状态、移除活跃 agent、追加事件
+    pub fn fail_task(&self, task_id: &str, agent_id: &str, error: &str) -> Result<(), String> {
+        let tasks = self.load_tasks()?;
+        let task = tasks.iter().find(|t| t.id == task_id);
+
+        let retry_count = task.map(|t| t.retry_count).unwrap_or(0);
+
+        self.update_task(task_id, &TaskUpdate {
+            status: Some(TaskStatus::Failed),
+            error: Some(Some(error.to_string())),
+            ..Default::default()
+        })?;
+
+        self.remove_active_agent(agent_id)?;
+
+        self.append_event(&HubEvent {
+            ts: Utc::now().to_rfc3339(),
+            event_type: "task_failed".to_string(),
+            task_id: Some(task_id.to_string()),
+            agent: Some(agent_id.to_string()),
+            message: Some(format!("任务 {} 失败 (重试 {} 次): {}", task_id, retry_count, error)),
+            files_changed: None,
+        })?;
+
+        Ok(())
+    }
+
+    /// 注册活跃 agent（写入 active-agents.yaml）
+    fn register_active_agent(&self, agent: &ActiveAgent) -> Result<(), String> {
+        let hub_path = self.get_hub_path()?;
+        let active_file = hub_path.join("state").join("active-agents.yaml");
+
+        let mut active_data = if active_file.exists() {
+            let content = std::fs::read_to_string(&active_file)
+                .map_err(|e| format!("读取 active-agents.yaml 失败: {}", e))?;
+            serde_yaml::from_str::<ActiveAgentsFile>(&content)
+                .map_err(|e| format!("解析 active-agents.yaml 失败: {}", e))?
+        } else {
+            ActiveAgentsFile { active: vec![] }
+        };
+
+        // 移除已有的同 ID agent
+        active_data.active.retain(|a| a.agent_id != agent.agent_id);
+        active_data.active.push(agent.clone());
+
+        let yaml = serde_yaml::to_string(&active_data)
+            .map_err(|e| format!("序列化 active-agents.yaml 失败: {}", e))?;
+        std::fs::write(&active_file, yaml)
+            .map_err(|e| format!("写入 active-agents.yaml 失败: {}", e))?;
+
+        Ok(())
+    }
+
+    /// 移除活跃 agent
+    fn remove_active_agent(&self, agent_id: &str) -> Result<(), String> {
+        let hub_path = self.get_hub_path()?;
+        let active_file = hub_path.join("state").join("active-agents.yaml");
+
+        if !active_file.exists() {
+            return Ok(());
+        }
+
+        let content = std::fs::read_to_string(&active_file)
+            .map_err(|e| format!("读取 active-agents.yaml 失败: {}", e))?;
+        let mut active_data: ActiveAgentsFile = serde_yaml::from_str(&content)
+            .map_err(|e| format!("解析 active-agents.yaml 失败: {}", e))?;
+
+        active_data.active.retain(|a| a.agent_id != agent_id);
+
+        let yaml = serde_yaml::to_string(&active_data)
+            .map_err(|e| format!("序列化 active-agents.yaml 失败: {}", e))?;
+        std::fs::write(&active_file, yaml)
+            .map_err(|e| format!("写入 active-agents.yaml 失败: {}", e))?;
+
+        Ok(())
     }
 }
