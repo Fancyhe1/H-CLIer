@@ -1,6 +1,16 @@
 import React, { useEffect, useState } from 'react'
-import { Card, Tabs, Button, Input, Space, Tag, Typography, Spin, Descriptions, message } from 'antd'
-import { SaveOutlined, ScanOutlined, ReloadOutlined } from '@ant-design/icons'
+import { Card, Tabs, Button, Input, Space, Tag, Typography, Spin, Descriptions, message, Modal, Tooltip } from 'antd'
+import {
+  SaveOutlined,
+  ScanOutlined,
+  ReloadOutlined,
+  SyncOutlined,
+  EyeOutlined,
+  EditOutlined,
+  FileTextOutlined,
+} from '@ant-design/icons'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { useAgentHubStore } from '../../stores/agentHubStore'
 
 const { Text } = Typography
@@ -23,12 +33,17 @@ const BrainPanel: React.FC = () => {
     loadBrainSection,
     updateBrainSection,
     scanProject,
+    generateClaudeMd,
+    syncClaudeMd,
   } = useAgentHubStore()
 
   const [activeSection, setActiveSection] = useState('architecture')
   const [editContent, setEditContent] = useState('')
   const [saving, setSaving] = useState(false)
   const [loadingSection, setLoadingSection] = useState(false)
+  const [mode, setMode] = useState<'edit' | 'preview'>('edit')
+  const [previewContent, setPreviewContent] = useState('')
+  const [previewOpen, setPreviewOpen] = useState(false)
 
   useEffect(() => {
     loadBrain()
@@ -73,6 +88,27 @@ const BrainPanel: React.FC = () => {
     await loadBrainSection(activeSection)
   }
 
+  const handlePreviewClaudeMd = async () => {
+    try {
+      const content = await generateClaudeMd()
+      setPreviewContent(content)
+      setPreviewOpen(true)
+    } catch (e: any) {
+      message.error(`生成预览失败: ${e}`)
+    }
+  }
+
+  const handleSyncClaudeMd = async () => {
+    try {
+      await syncClaudeMd()
+      message.success('CLAUDE.md 已同步到项目根目录')
+    } catch (e: any) {
+      message.error(`同步失败: ${e}`)
+    }
+  }
+
+  const currentSectionLabel = brainSections.find((s) => s.key === activeSection)?.label || ''
+
   return (
     <div className="brain-panel">
       <div className="brain-header">
@@ -83,6 +119,16 @@ const BrainPanel: React.FC = () => {
           <Button icon={<ReloadOutlined />} onClick={handleReload}>
             刷新
           </Button>
+          <Tooltip title="预览将生成的 CLAUDE.md 内容">
+            <Button icon={<EyeOutlined />} onClick={handlePreviewClaudeMd}>
+              预览 CLAUDE.md
+            </Button>
+          </Tooltip>
+          <Tooltip title="将 brain 内容同步生成到项目根目录的 CLAUDE.md">
+            <Button type="primary" icon={<SyncOutlined />} onClick={handleSyncClaudeMd}>
+              同步 CLAUDE.md
+            </Button>
+          </Tooltip>
         </Space>
       </div>
 
@@ -109,27 +155,44 @@ const BrainPanel: React.FC = () => {
 
       {/* 内容编辑区 */}
       <Card size="small" className="brain-content-card">
-        <Tabs
-          activeKey={activeSection}
-          onChange={handleSectionChange}
-          size="small"
-          items={brainSections.map((s) => ({
-            key: s.key,
-            label: s.label,
-          }))}
-        />
+        <div className="brain-toolbar">
+          <Tabs
+            activeKey={activeSection}
+            onChange={handleSectionChange}
+            size="small"
+            items={brainSections.map((s) => ({
+              key: s.key,
+              label: s.label,
+            }))}
+            style={{ flex: 1 }}
+          />
+          <Space size={4} className="brain-mode-toggle">
+            <Button
+              size="small"
+              type={mode === 'edit' ? 'primary' : 'default'}
+              icon={<EditOutlined />}
+              onClick={() => setMode('edit')}
+            />
+            <Button
+              size="small"
+              type={mode === 'preview' ? 'primary' : 'default'}
+              icon={<EyeOutlined />}
+              onClick={() => setMode('preview')}
+            />
+          </Space>
+        </div>
 
         {loadingSection ? (
           <div className="brain-loading">
             <Spin />
           </div>
-        ) : (
+        ) : mode === 'edit' ? (
           <div className="brain-editor">
             <TextArea
               value={editContent}
               onChange={(e) => setEditContent(e.target.value)}
               rows={16}
-              placeholder={`输入${brainSections.find((s) => s.key === activeSection)?.label || ''}内容...`}
+              placeholder={`输入${currentSectionLabel}内容... (支持 Markdown 格式)`}
               className="brain-textarea"
             />
             <div className="brain-editor-footer">
@@ -143,8 +206,48 @@ const BrainPanel: React.FC = () => {
               </Button>
             </div>
           </div>
+        ) : (
+          <div className="brain-preview">
+            {editContent.trim() ? (
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{editContent}</ReactMarkdown>
+            ) : (
+              <Text type="secondary">暂无内容</Text>
+            )}
+          </div>
         )}
       </Card>
+
+      {/* CLAUDE.md 预览弹窗 */}
+      <Modal
+        title={
+          <Space>
+            <FileTextOutlined />
+            <span>CLAUDE.md 预览</span>
+          </Space>
+        }
+        open={previewOpen}
+        onCancel={() => setPreviewOpen(false)}
+        width={700}
+        footer={
+          <Space>
+            <Button onClick={() => setPreviewOpen(false)}>关闭</Button>
+            <Button
+              type="primary"
+              icon={<SyncOutlined />}
+              onClick={async () => {
+                await handleSyncClaudeMd()
+                setPreviewOpen(false)
+              }}
+            >
+              确认同步到项目
+            </Button>
+          </Space>
+        }
+      >
+        <div className="claude-md-preview">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{previewContent}</ReactMarkdown>
+        </div>
+      </Modal>
     </div>
   )
 }

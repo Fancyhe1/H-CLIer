@@ -129,6 +129,8 @@ interface AgentHubStore {
   updateBrainSection: (section: string, content: string) => Promise<void>
   scanProject: () => Promise<void>
   buildContext: (taskId: string) => Promise<string>
+  generateClaudeMd: () => Promise<string>
+  syncClaudeMd: () => Promise<string>
 
   // 事件
   loadEvents: () => Promise<void>
@@ -383,6 +385,26 @@ export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
     try {
       const context = await invoke<string>('agenthub_build_context', { taskId })
       return context
+    } catch (e: any) {
+      set({ error: String(e) })
+      throw e
+    }
+  },
+
+  generateClaudeMd: async () => {
+    try {
+      const content = await invoke<string>('agenthub_generate_claude_md')
+      return content
+    } catch (e: any) {
+      set({ error: String(e) })
+      throw e
+    }
+  },
+
+  syncClaudeMd: async () => {
+    try {
+      const content = await invoke<string>('agenthub_sync_claude_md')
+      return content
     } catch (e: any) {
       set({ error: String(e) })
       throw e

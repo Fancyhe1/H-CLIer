@@ -1197,6 +1197,22 @@ fn agenthub_build_context(
 }
 
 #[tauri::command]
+fn agenthub_generate_claude_md(
+    state: tauri::State<SharedAppState>,
+) -> Result<String, String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.generate_claude_md()
+}
+
+#[tauri::command]
+fn agenthub_sync_claude_md(
+    state: tauri::State<SharedAppState>,
+) -> Result<String, String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.sync_claude_md()
+}
+
+#[tauri::command]
 fn agenthub_load_events(
     state: tauri::State<SharedAppState>,
     limit: Option<usize>,
@@ -1421,6 +1437,8 @@ pub fn run() {
             agenthub_load_brain_section,
             agenthub_update_brain_section,
             agenthub_build_context,
+            agenthub_generate_claude_md,
+            agenthub_sync_claude_md,
             agenthub_load_events,
             agenthub_scan_project,
         ])

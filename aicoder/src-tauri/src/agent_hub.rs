@@ -715,6 +715,120 @@ impl AgentHubManager {
         Ok(context)
     }
 
+    /// 从 brain 各部分生成 CLAUDE.md 内容
+    pub fn generate_claude_md(&self) -> Result<String, String> {
+        let hub_path = self.get_hub_path()?;
+        let meta = self.load_brain_meta().ok();
+
+        let mut md = String::new();
+
+        // 标题
+        let project_name = meta.as_ref().map(|m| m.name.as_str()).unwrap_or("Project");
+        md.push_str(&format!("# CLAUDE.md — {}\n\n", project_name));
+        md.push_str("> 由 AgentHub 自动生成，请勿手动编辑此文件。\n\n");
+
+        // 项目描述
+        if let Some(ref meta) = meta {
+            if !meta.description.is_empty() {
+                md.push_str(&format!("## 项目简介\n\n{}\n\n", meta.description));
+            }
+        }
+
+        // 技术栈
+        if let Some(ref meta) = meta {
+            if !meta.tech_stack.is_empty() {
+                md.push_str("## 技术栈\n\n");
+                for (key, value) in &meta.tech_stack {
+                    md.push_str(&format!("- **{}**: {}\n", key, value));
+                }
+                md.push('\n');
+            }
+        }
+
+        // 架构概述
+        let sections_to_include = [
+            ("architecture", "架构概述"),
+            ("conventions", "代码规范"),
+            ("decisions", "技术决策"),
+        ];
+
+        for (section_key, section_title) in &sections_to_include {
+            let section_file = hub_path.join("brain").join(format!("{}.md", section_key));
+            if section_file.exists() {
+                if let Ok(content) = std::fs::read_to_string(&section_file) {
+                    let trimmed = content.trim();
+                    if !trimmed.is_empty() {
+                        md.push_str(&format!("## {}\n\n{}\n\n", section_title, trimmed));
+                    }
+                }
+            }
+        }
+
+        // 当前状态
+        let state_file = hub_path.join("brain").join("state").join("current.md");
+        if state_file.exists() {
+            if let Ok(content) = std::fs::read_to_string(&state_file) {
+                let trimmed = content.trim();
+                if !trimmed.is_empty() {
+                    md.push_str(&format!("## 当前状态\n\n{}\n\n", trimmed));
+                }
+            }
+        }
+
+        // 阻塞项
+        let blockers_file = hub_path.join("brain").join("state").join("blockers.md");
+        if blockers_file.exists() {
+            if let Ok(content) = std::fs::read_to_string(&blockers_file) {
+                let trimmed = content.trim();
+                if !trimmed.is_empty() {
+                    md.push_str(&format!("## 已知阻塞项\n\n{}\n\n", trimmed));
+                }
+            }
+        }
+
+        // 活跃任务摘要
+        if let Ok(tasks) = self.load_tasks() {
+            let active_tasks: Vec<_> = tasks.iter()
+                .filter(|t| matches!(t.status, TaskStatus::Running | TaskStatus::Assigned))
+                .collect();
+            if !active_tasks.is_empty() {
+                md.push_str("## 活跃任务\n\n");
+                for task in &active_tasks {
+                    md.push_str(&format!("- **[{}]** {} — {}\n", task.id, task.title, task.status.as_str()));
+                }
+                md.push('\n');
+            }
+        }
+
+        Ok(md)
+    }
+
+    /// 生成 CLAUDE.md 并写入项目根目录
+    pub fn sync_claude_md(&self) -> Result<String, String> {
+        let hub_path = self.get_hub_path()?;
+        // .agent-hub 的父目录就是项目根目录
+        let project_path = hub_path.parent()
+            .ok_or("无法获取项目根目录")?;
+
+        let content = self.generate_claude_md()?;
+        let claude_md_path = project_path.join("CLAUDE.md");
+
+        std::fs::write(&claude_md_path, &content)
+            .map_err(|e| format!("写入 CLAUDE.md 失败: {}", e))?;
+
+        // 追加事件
+        self.append_event(&HubEvent {
+            ts: Utc::now().to_rfc3339(),
+            event_type: "claude_md_synced".to_string(),
+            task_id: None,
+            agent: None,
+            message: Some("同步 CLAUDE.md 到项目根目录".to_string()),
+            files_changed: Some(vec!["CLAUDE.md".to_string()]),
+        })?;
+
+        Ok(content)
+    }
+
     // ============================================================
     // 事件操作
     // ============================================================
