@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react'
-import { Tabs, Spin, Alert, Button, Space, Typography, Tag } from 'antd'
+import { Tabs, Alert, Button, Space, Typography, Tag, Select, Tooltip } from 'antd'
 import {
   DashboardOutlined,
   ProjectOutlined,
@@ -7,7 +7,8 @@ import {
   SettingOutlined,
   ReloadOutlined,
   FolderOpenOutlined,
-  CheckCircleFilled,
+  CheckCircleOutlined,
+  PlusOutlined,
 } from '@ant-design/icons'
 import { invoke } from '@tauri-apps/api/core'
 import TaskBoard from './TaskBoard'
@@ -146,53 +147,62 @@ const AgentHubPanel: React.FC = () => {
     setSelectedPath(path)
   }
 
-  // 项目选择区域（卡片列表）
+  // 项目下拉选择器
   const projectSelector = (
     <div className="agenthub-project-selector">
-      <div className="project-selector-header">
-        <Space>
-          <FolderOpenOutlined />
-          <Text strong>选择项目</Text>
-        </Space>
-        <Button
-          icon={<FolderOpenOutlined />}
-          size="small"
-          onClick={handleBrowse}
-        >
-          浏览文件夹
-        </Button>
-      </div>
-      <div className="project-list">
-        {checking ? (
-          <div className="project-list-loading"><Spin size="small" /></div>
-        ) : projects.length === 0 ? (
-          <div className="project-list-empty">
-            <Text type="secondary">暂无项目，请先创建会话或浏览文件夹</Text>
-          </div>
-        ) : (
-          projects.map((p) => (
-            <div
-              key={p.path}
-              className={`project-item ${selectedPath === p.path ? 'project-item-selected' : ''}`}
-              onClick={() => handleSelectProject(p.path)}
-            >
-              <div className="project-item-main">
-                <div className="project-item-name">
-                  {selectedPath === p.path && <CheckCircleFilled style={{ color: '#1890ff', marginRight: 6 }} />}
-                  <Text strong>{p.name}</Text>
-                  {p.isInitialized && <Tag color="green" style={{ marginLeft: 8 }}>已启用</Tag>}
-                </div>
-                <div className="project-item-path">
-                  <Text type="secondary" ellipsis>{p.path}</Text>
-                </div>
+      <Space>
+        <FolderOpenOutlined />
+        <Select
+          value={selectedPath || undefined}
+          onChange={handleSelectProject}
+          placeholder="选择项目..."
+          style={{ minWidth: 240, maxWidth: 400 }}
+          loading={checking}
+          showSearch
+          filterOption={(input, option) => {
+            const name = option?.label?.toString() || ''
+            const path = option?.value?.toString() || ''
+            return name.toLowerCase().includes(input.toLowerCase()) ||
+                   path.toLowerCase().includes(input.toLowerCase())
+          }}
+          options={projects.map((p) => ({
+            value: p.path,
+            label: (
+              <div className="project-option">
+                <span className="project-option-name">
+                  {p.isInitialized && <CheckCircleOutlined style={{ color: '#52c41a', marginRight: 4 }} />}
+                  {p.name}
+                </span>
+                <span className="project-option-meta">
+                  <Tag>{p.sessionCount}</Tag>
+                </span>
               </div>
-              <div className="project-item-meta">
-                <Tag>{p.sessionCount} 个会话</Tag>
+            ),
+          }))}
+          notFoundContent="暂无项目"
+          dropdownRender={(menu) => (
+            <>
+              {menu}
+              <div style={{ padding: '4px 8px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<PlusOutlined />}
+                  onClick={handleBrowse}
+                  block
+                >
+                  浏览文件夹...
+                </Button>
               </div>
-            </div>
-          ))
-        )}
-      </div>
+            </>
+          )}
+        />
+        <Tooltip title={selectedPath || '未选择'}>
+          <Text type="secondary" className="project-path-hint" ellipsis>
+            {selectedPath ? (selectedPath.split('\\').pop() || selectedPath.split('/').pop()) : ''}
+          </Text>
+        </Tooltip>
+      </Space>
     </div>
   )
 
