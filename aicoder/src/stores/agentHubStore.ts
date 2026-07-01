@@ -129,17 +129,12 @@ interface AgentHubStore {
   updateBrainSection: (section: string, content: string) => Promise<void>
   scanProject: () => Promise<void>
   buildContext: (taskId: string) => Promise<string>
-  generateClaudeMd: () => Promise<string>
-  syncClaudeMd: () => Promise<string>
 
   // 事件
   loadEvents: () => Promise<void>
 
   // 任务执行
   runTask: (taskId: string, agentId?: string) => Promise<string>
-  stopAgent: (agentId: string) => Promise<void>
-  completeTask: (taskId: string, agentId: string, result: string) => Promise<void>
-  failTask: (taskId: string, agentId: string, error: string) => Promise<void>
 }
 
 export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
@@ -394,26 +389,6 @@ export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
     }
   },
 
-  generateClaudeMd: async () => {
-    try {
-      const content = await invoke<string>('agenthub_generate_claude_md')
-      return content
-    } catch (e: any) {
-      set({ error: String(e) })
-      throw e
-    }
-  },
-
-  syncClaudeMd: async () => {
-    try {
-      const content = await invoke<string>('agenthub_sync_claude_md')
-      return content
-    } catch (e: any) {
-      set({ error: String(e) })
-      throw e
-    }
-  },
-
   // ============================================================
   // 事件
   // ============================================================
@@ -438,42 +413,6 @@ export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
       await get().loadActiveAgents()
       await get().loadEvents()
       return context
-    } catch (e: any) {
-      set({ error: String(e) })
-      throw e
-    }
-  },
-
-  stopAgent: async (agentId: string) => {
-    try {
-      await invoke('agenthub_stop_agent', { agentId })
-      await get().loadTasks()
-      await get().loadActiveAgents()
-      await get().loadEvents()
-    } catch (e: any) {
-      set({ error: String(e) })
-      throw e
-    }
-  },
-
-  completeTask: async (taskId: string, agentId: string, result: string) => {
-    try {
-      await invoke('agenthub_complete_task', { taskId, agentId, result })
-      await get().loadTasks()
-      await get().loadActiveAgents()
-      await get().loadEvents()
-    } catch (e: any) {
-      set({ error: String(e) })
-      throw e
-    }
-  },
-
-  failTask: async (taskId: string, agentId: string, error: string) => {
-    try {
-      await invoke('agenthub_fail_task', { taskId, agentId, error })
-      await get().loadTasks()
-      await get().loadActiveAgents()
-      await get().loadEvents()
     } catch (e: any) {
       set({ error: String(e) })
       throw e

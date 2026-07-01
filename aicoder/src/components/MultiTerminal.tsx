@@ -220,6 +220,25 @@ function MultiTerminal() {
     return () => window.removeEventListener('append-to-terminal', handleAppendToTerminal)
   }, [activeSessionId])
 
+  // 监听 AgentHub 上下文注入事件
+  useEffect(() => {
+    const handleInjectContext = (e: Event) => {
+      const customEvent = e as CustomEvent
+      const { sessionId, context } = customEvent.detail || {}
+      if (!sessionId || !context) return
+
+      const instance = terminalsRef.current.get(sessionId)
+      if (instance?.ptyId) {
+        invoke('write_to_pty', { ptyId: instance.ptyId, data: context + '\n' })
+        sessionStorage.removeItem(`agenthub-context-${sessionId}`)
+      }
+      // 如果 PTY 还没就绪，等终端初始化时会检查 sessionStorage
+    }
+
+    window.addEventListener('agenthub-inject-context', handleInjectContext)
+    return () => window.removeEventListener('agenthub-inject-context', handleInjectContext)
+  }, [])
+
   // 监听 Claude Code hook 通知（权限请求、选项选择等需要用户操作的场景）
   useEffect(() => {
     const unlisten = listen('claude-hook-notification', (event) => {
@@ -600,6 +619,16 @@ function MultiTerminal() {
           term.writeln(`\x1b[1;31m错误: PowerShell 启动失败 - ${spawnErr}\x1b[0m`)
           instance.initializationState = 'error'
           return
+        }
+
+        // 检查是否有 AgentHub 待注入的上下文
+        const pendingContext = sessionStorage.getItem(`agenthub-context-${session.id}`)
+        if (pendingContext) {
+          setTimeout(() => {
+            invoke('write_to_pty', { ptyId: actualPtyId, data: pendingContext + '\n' })
+              .catch(e => console.error('注入 AgentHub 上下文失败:', e))
+            sessionStorage.removeItem(`agenthub-context-${session.id}`)
+          }, 1000)
         }
 
         // 处理用户输入（含 /branch 检测）

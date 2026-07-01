@@ -65,17 +65,25 @@ const TaskBoard: React.FC = () => {
       // 5. 切换到新会话
       setActiveSession(session.id)
 
-      // 6. 等待 PTY 就绪后注入上下文
-      setTimeout(async () => {
-        try {
-          await invoke('write_to_pty', {
-            sessionId: session.id,
-            data: context + '\n',
-          })
-        } catch (e) {
-          console.error('注入上下文失败:', e)
+      // 6. 通过自定义事件注入上下文（终端挂载后会监听此事件）
+      // 存储到 sessionStorage，防止页面刷新丢失
+      sessionStorage.setItem(`agenthub-context-${session.id}`, context)
+
+      // 触发自定义事件，通知终端组件注入上下文
+      const injectEvent = new CustomEvent('agenthub-inject-context', {
+        detail: { sessionId: session.id, context }
+      })
+      window.dispatchEvent(injectEvent)
+
+      // 备用方案：延迟注入（如果事件丢失）
+      setTimeout(() => {
+        const stored = sessionStorage.getItem(`agenthub-context-${session.id}`)
+        if (stored) {
+          window.dispatchEvent(new CustomEvent('agenthub-inject-context', {
+            detail: { sessionId: session.id, context: stored }
+          }))
         }
-      }, 2000)
+      }, 3000)
     } catch (e: any) {
       message.error(`启动失败: ${e}`)
     }
