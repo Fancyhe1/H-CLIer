@@ -105,6 +105,7 @@ const TaskBoard: React.FC = () => {
       sessionStorage.setItem(`agenthub-context-${session.id}`, context)
       if (ccAgentName) {
         sessionStorage.setItem(`agenthub-agent-${session.id}`, ccAgentName)
+        console.log('[AgentHub] 存储 agent:', ccAgentName, 'session.id:', session.id)
       }
       window.dispatchEvent(new CustomEvent('agenthub-inject-context', {
         detail: { sessionId: session.id, context }

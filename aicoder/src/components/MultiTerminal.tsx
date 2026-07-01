@@ -624,6 +624,7 @@ function MultiTerminal() {
         // 检查是否有 AgentHub 待注入的上下文
         const pendingContext = sessionStorage.getItem(`agenthub-context-${session.id}`)
         const pendingAgent = sessionStorage.getItem(`agenthub-agent-${session.id}`)
+        console.log('[AgentHub] session.id:', session.id, 'pendingAgent:', pendingAgent, 'pendingContext:', pendingContext ? 'yes' : 'no')
 
         if (pendingContext || pendingAgent) {
           // 构建启动命令：claude 或 claude --agent xxx
