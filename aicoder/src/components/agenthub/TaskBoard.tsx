@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react'
-import { Card, Badge, Button, Tag, Space, Tooltip, Empty, Modal, Radio, message } from 'antd'
+import { Card, Badge, Button, Tag, Space, Tooltip, Empty, Modal, Radio, Typography, message } from 'antd'
+
+const { Text } = Typography
 import {
   PlusOutlined,
   PlayCircleOutlined,
@@ -29,7 +31,7 @@ const priorityColors: Record<Priority, string> = {
 }
 
 const TaskBoard: React.FC = () => {
-  const { tasks, loadTasks, deleteTask, runTask, agentRoles, loadAgentRoles, currentProjectPath, isLoading } = useAgentHubStore()
+  const { tasks, loadTasks, deleteTask, runTask, agentRoles, claudeCodeAgents, loadAgentRoles, loadClaudeCodeAgents, currentProjectPath, isLoading } = useAgentHubStore()
   const { setActiveSession, fetchSessions } = useSessionStore()
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState<string | null>(null)
@@ -40,6 +42,7 @@ const TaskBoard: React.FC = () => {
   useEffect(() => {
     loadTasks()
     loadAgentRoles()
+    loadClaudeCodeAgents()
   }, [])
 
   // 点击运行按钮 → 弹出角色选择
@@ -66,8 +69,12 @@ const TaskBoard: React.FC = () => {
         return
       }
 
-      // 2. 调用后端 run_task，获取构建的上下文
-      const context = await runTask(runTaskId, selectedRoleId || undefined)
+      // 2. 判断是 Claude Code Agent 还是 AgentHub 角色
+      const isClaudeCodeAgent = selectedRoleId?.startsWith('cc-')
+      const agentRoleId = isClaudeCodeAgent ? undefined : (selectedRoleId || undefined)
+
+      // 3. 调用后端 run_task，获取构建的上下文
+      const context = await runTask(runTaskId, agentRoleId)
       message.success('任务已启动，正在创建会话...')
 
       // 3. 创建新的 HCLIer 会话
@@ -283,6 +290,24 @@ const TaskBoard: React.FC = () => {
                 </Space>
               </Radio>
             ))}
+            {claudeCodeAgents.length > 0 && (
+              <>
+                <div style={{ marginTop: 8, marginBottom: 4 }}>
+                  <Text type="secondary" style={{ fontSize: 12 }}>Claude Code 内置 Agent</Text>
+                </div>
+                {claudeCodeAgents.map((agent) => (
+                  <Radio key={`cc-${agent.name}`} value={`cc-${agent.name}`}>
+                    <Space>
+                      <span>{agent.name}</span>
+                      <Tag color="cyan">Claude Code</Tag>
+                      {agent.tools?.length > 0 && (
+                        <Tag>{agent.tools.length} 工具</Tag>
+                      )}
+                    </Space>
+                  </Radio>
+                ))}
+              </>
+            )}
           </Space>
         </Radio.Group>
       </Modal>
