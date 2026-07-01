@@ -53,3 +53,5 @@ aicoder/latest.json
 # Temporary files
 *.tmp
 *.temp
+# AgentHub 运行时数据（每个项目独立生成）
+.agent-hub/
