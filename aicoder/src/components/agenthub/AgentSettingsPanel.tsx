@@ -51,6 +51,7 @@ const AgentSettingsPanel: React.FC = () => {
         id: editingRole?.id || values.id,
         name: values.name,
         description: values.description || '',
+        prompt: values.prompt || '',
         model: values.model || 'sonnet',
         tags: values.tags || [],
       }
@@ -169,6 +170,13 @@ const AgentSettingsPanel: React.FC = () => {
 
           <Form.Item name="description" label="描述">
             <Input.TextArea rows={2} placeholder="角色职责描述..." />
+          </Form.Item>
+
+          <Form.Item name="prompt" label="角色提示词">
+            <Input.TextArea
+              rows={4}
+              placeholder="作为这个角色，你应该...（Claude 会收到这段提示词作为角色指令）"
+            />
           </Form.Item>
 
           <Form.Item name="model" label="默认模型">

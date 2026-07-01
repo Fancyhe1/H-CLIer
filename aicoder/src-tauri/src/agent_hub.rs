@@ -153,6 +153,8 @@ pub struct AgentRole {
     pub name: String,
     #[serde(default)]
     pub description: String,
+    #[serde(default)]
+    pub prompt: String,
     #[serde(default = "default_model")]
     pub model: String,
     #[serde(default)]
@@ -169,6 +171,8 @@ pub struct ActiveAgent {
     pub agent_id: String,
     pub role: String,
     pub task_id: String,
+    #[serde(default)]
+    pub session_id: Option<String>,
     pub started_at: String,
     pub last_heartbeat: String,
     #[serde(default = "default_agent_status")]
@@ -746,6 +750,101 @@ impl AgentHubManager {
         Ok(context)
     }
 
+    /// 构建包含 Agent 角色信息的上下文
+    pub fn build_context_with_agent(&self, task_id: &str, agent_role: Option<&AgentRole>) -> Result<String, String> {
+        let mut context = String::new();
+
+        // 1. Agent 角色信息
+        if let Some(role) = agent_role {
+            context.push_str(&format!(
+                "## 你的角色\n\n你是 **{}**（{}）。\n",
+                role.name, role.id
+            ));
+            if !role.description.is_empty() {
+                context.push_str(&format!("{}\n", role.description));
+            }
+            if !role.prompt.is_empty() {
+                context.push_str(&format!("\n{}\n", role.prompt));
+            }
+            if !role.tags.is_empty() {
+                context.push_str(&format!("\n技能标签: {}\n", role.tags.join(", ")));
+            }
+            context.push_str(&format!("默认模型: {}\n", role.model));
+            context.push('\n');
+        }
+
+        // 2. 项目 brain
+        let sections = ["architecture", "decisions", "conventions"];
+        for section in &sections {
+            if let Ok(content) = self.load_brain_section(section) {
+                if !content.trim().is_empty() {
+                    context.push_str(&format!("## {}\n\n{}\n\n", section, content));
+                }
+            }
+        }
+
+        if let Ok(state) = self.load_brain_section("state/current") {
+            if !state.trim().is_empty() {
+                context.push_str(&format!("## 当前状态\n\n{}\n\n", state));
+            }
+        }
+
+        if let Ok(blockers) = self.load_brain_section("state/blockers") {
+            if !blockers.trim().is_empty() {
+                context.push_str(&format!("## 已知阻塞项\n\n{}\n\n", blockers));
+            }
+        }
+
+        // 3. 任务描述
+        let tasks = self.load_tasks()?;
+        let task = tasks.iter().find(|t| t.id == task_id)
+            .ok_or_else(|| format!("任务 {} 不存在", task_id))?;
+
+        context.push_str(&format!(
+            "## 当前任务\n\n**ID**: {}\n**标题**: {}\n**描述**: {}\n**优先级**: {}\n",
+            task.id, task.title, task.description, task.priority.as_str()
+        ));
+
+        if !task.tags.is_empty() {
+            context.push_str(&format!("**标签**: {}\n", task.tags.join(", ")));
+        }
+
+        if !task.dependencies.is_empty() {
+            context.push_str(&format!("**依赖**: {}\n", task.dependencies.join(", ")));
+        }
+
+        if !task.subtasks.is_empty() {
+            context.push_str("**子任务**:\n");
+            for sub in &task.subtasks {
+                context.push_str(&format!("- [{}] {}\n", sub.status, sub.title));
+            }
+        }
+
+        Ok(context)
+    }
+
+    /// 更新 agent 的 session_id
+    pub fn update_agent_session(&self, agent_id: &str, session_id: &str) -> Result<(), String> {
+        let hub_path = self.get_hub_path()?;
+        let active_file = hub_path.join("state").join("active-agents.yaml");
+
+        let content = std::fs::read_to_string(&active_file)
+            .map_err(|e| format!("读取 active-agents.yaml 失败: {}", e))?;
+        let mut active_data: ActiveAgentsFile = serde_yaml::from_str(&content)
+            .map_err(|e| format!("解析 active-agents.yaml 失败: {}", e))?;
+
+        if let Some(agent) = active_data.active.iter_mut().find(|a| a.agent_id == agent_id) {
+            agent.session_id = Some(session_id.to_string());
+        }
+
+        let yaml = serde_yaml::to_string(&active_data)
+            .map_err(|e| format!("序列化 active-agents.yaml 失败: {}", e))?;
+        std::fs::write(&active_file, yaml)
+            .map_err(|e| format!("写入 active-agents.yaml 失败: {}", e))?;
+
+        Ok(())
+    }
+
     // ============================================================
     // 事件操作
     // ============================================================
@@ -977,7 +1076,7 @@ impl AgentHubManager {
     // ============================================================
 
     /// 启动任务：更新状态、注册活跃 agent、追加事件
-    pub fn run_task(&self, task_id: &str, agent_id: Option<&str>) -> Result<String, String> {
+    pub fn run_task(&self, task_id: &str, agent_role_id: Option<&str>) -> Result<String, String> {
         let tasks = self.load_tasks()?;
         let task = tasks.iter().find(|t| t.id == task_id)
             .ok_or_else(|| format!("任务 {} 不存在", task_id))?;
@@ -986,22 +1085,29 @@ impl AgentHubManager {
             return Err(format!("任务 {} 已在运行中", task_id));
         }
 
-        let agent_id = agent_id
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| format!("{}-{}", task_id, uuid::Uuid::new_v4().to_string()[..8].to_string()));
+        // 查找 Agent 角色
+        let agent_roles = self.load_agent_roles()?;
+        let agent_role = agent_role_id
+            .and_then(|id| agent_roles.iter().find(|r| r.id == id));
 
-        let context = self.build_context(task_id)?;
+        // 生成 Worker ID
+        let worker_id = format!("{}-{}", task_id, uuid::Uuid::new_v4().to_string()[..8].to_string());
 
+        // 构建上下文（Agent 角色 + 项目 brain + 任务描述）
+        let context = self.build_context_with_agent(task_id, agent_role)?;
+
+        // 更新任务状态
         self.update_task(task_id, &TaskUpdate {
             status: Some(TaskStatus::Running),
-            assigned_agent: Some(Some(agent_id.clone())),
+            assigned_agent: Some(Some(agent_role_id.unwrap_or("default").to_string())),
             ..Default::default()
         })?;
 
         let active_agent = ActiveAgent {
-            agent_id: agent_id.clone(),
-            role: task.assigned_agent.clone().unwrap_or_else(|| "default".to_string()),
+            agent_id: worker_id.clone(),
+            role: agent_role_id.unwrap_or("default").to_string(),
             task_id: task_id.to_string(),
+            session_id: None, // 前端创建 session 后更新
             started_at: Utc::now().to_rfc3339(),
             last_heartbeat: Utc::now().to_rfc3339(),
             status: "running".to_string(),
@@ -1015,7 +1121,7 @@ impl AgentHubManager {
             ts: Utc::now().to_rfc3339(),
             event_type: "task_started".to_string(),
             task_id: Some(task_id.to_string()),
-            agent: Some(agent_id),
+            agent: Some(worker_id),
             message: Some(format!("开始执行任务: {}", task.title)),
             files_changed: None,
         })?;
@@ -1024,32 +1130,62 @@ impl AgentHubManager {
     }
 
     /// 停止 agent
-    pub fn stop_agent(&self, agent_id: &str) -> Result<(), String> {
+    /// 停止 Agent 追踪（不停止 Session，任务回 pending）
+    pub fn stop_agent(&self, agent_id: &str) -> Result<Option<String>, String> {
         let active_agents = self.load_active_agents()?;
         let agent = active_agents.iter().find(|a| a.agent_id == agent_id)
             .ok_or_else(|| format!("Agent {} 不在活跃列表中", agent_id))?
             .clone();
 
+        // 任务回到 pending
         if agent.task_id.starts_with('T') {
             let _ = self.update_task(&agent.task_id, &TaskUpdate {
-                status: Some(TaskStatus::Failed),
-                error: Some(Some("Agent 被手动停止".to_string())),
+                status: Some(TaskStatus::Pending),
                 ..Default::default()
             });
         }
 
+        // 移除活跃 agent
         self.remove_active_agent(agent_id)?;
 
         self.append_event(&HubEvent {
             ts: Utc::now().to_rfc3339(),
             event_type: "agent_stopped".to_string(),
-            task_id: Some(agent.task_id),
+            task_id: Some(agent.task_id.clone()),
             agent: Some(agent_id.to_string()),
-            message: Some(format!("Agent {} 已停止", agent_id)),
+            message: Some(format!("停止追踪 Agent {}，任务回到待处理", agent_id)),
             files_changed: None,
         })?;
 
-        Ok(())
+        // 返回 session_id，让前端决定是否关闭
+        Ok(agent.session_id)
+    }
+
+    /// 终止任务（关闭 Session + 标记失败）
+    pub fn terminate_task(&self, task_id: &str, agent_id: &str, error: &str) -> Result<Option<String>, String> {
+        let active_agents = self.load_active_agents()?;
+        let agent = active_agents.iter().find(|a| a.agent_id == agent_id);
+
+        let session_id = agent.and_then(|a| a.session_id.clone());
+
+        self.update_task(task_id, &TaskUpdate {
+            status: Some(TaskStatus::Failed),
+            error: Some(Some(error.to_string())),
+            ..Default::default()
+        })?;
+
+        self.remove_active_agent(agent_id)?;
+
+        self.append_event(&HubEvent {
+            ts: Utc::now().to_rfc3339(),
+            event_type: "task_terminated".to_string(),
+            task_id: Some(task_id.to_string()),
+            agent: Some(agent_id.to_string()),
+            message: Some(format!("任务 {} 已终止: {}", task_id, error)),
+            files_changed: None,
+        })?;
+
+        Ok(session_id)
     }
 
     /// 更新 agent 心跳

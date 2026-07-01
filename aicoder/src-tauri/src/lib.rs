@@ -1197,22 +1197,6 @@ fn agenthub_build_context(
 }
 
 #[tauri::command]
-fn agenthub_generate_claude_md(
-    state: tauri::State<SharedAppState>,
-) -> Result<String, String> {
-    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
-    manager.generate_claude_md()
-}
-
-#[tauri::command]
-fn agenthub_sync_claude_md(
-    state: tauri::State<SharedAppState>,
-) -> Result<String, String> {
-    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
-    manager.sync_claude_md()
-}
-
-#[tauri::command]
 fn agenthub_load_events(
     state: tauri::State<SharedAppState>,
     limit: Option<usize>,
@@ -1235,10 +1219,10 @@ fn agenthub_run_task(
     app: tauri::AppHandle,
     state: tauri::State<SharedAppState>,
     task_id: String,
-    agent_id: Option<String>,
+    agent_role_id: Option<String>,
 ) -> Result<String, String> {
     let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
-    let context = manager.run_task(&task_id, agent_id.as_deref())?;
+    let context = manager.run_task(&task_id, agent_role_id.as_deref())?;
     let _ = app.emit("agenthub-update", serde_json::json!({"type": "task_started", "taskId": task_id}));
     Ok(context)
 }
@@ -1248,49 +1232,51 @@ fn agenthub_stop_agent(
     app: tauri::AppHandle,
     state: tauri::State<SharedAppState>,
     agent_id: String,
-) -> Result<(), String> {
+) -> Result<Option<String>, String> {
     let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
-    manager.stop_agent(&agent_id)?;
+    let session_id = manager.stop_agent(&agent_id)?;
     let _ = app.emit("agenthub-update", serde_json::json!({"type": "agent_stopped", "agentId": agent_id}));
-    Ok(())
+    Ok(session_id)
 }
 
 #[tauri::command]
-fn agenthub_heartbeat_agent(
-    state: tauri::State<SharedAppState>,
-    agent_id: String,
-    current_action: String,
-) -> Result<(), String> {
-    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
-    manager.heartbeat_agent(&agent_id, &current_action)
-}
-
-#[tauri::command]
-fn agenthub_complete_task(
-    app: tauri::AppHandle,
-    state: tauri::State<SharedAppState>,
-    task_id: String,
-    agent_id: String,
-    result: String,
-) -> Result<(), String> {
-    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
-    manager.complete_task(&task_id, &agent_id, &result)?;
-    let _ = app.emit("agenthub-update", serde_json::json!({"type": "task_completed", "taskId": task_id}));
-    Ok(())
-}
-
-#[tauri::command]
-fn agenthub_fail_task(
+fn agenthub_terminate_task(
     app: tauri::AppHandle,
     state: tauri::State<SharedAppState>,
     task_id: String,
     agent_id: String,
     error: String,
+) -> Result<Option<String>, String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    let session_id = manager.terminate_task(&task_id, &agent_id, &error)?;
+    let _ = app.emit("agenthub-update", serde_json::json!({"type": "task_terminated", "taskId": task_id}));
+    Ok(session_id)
+}
+
+#[tauri::command]
+fn agenthub_update_agent_session(
+    state: tauri::State<SharedAppState>,
+    agent_id: String,
+    session_id: String,
 ) -> Result<(), String> {
     let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
-    manager.fail_task(&task_id, &agent_id, &error)?;
-    let _ = app.emit("agenthub-update", serde_json::json!({"type": "task_failed", "taskId": task_id}));
-    Ok(())
+    manager.update_agent_session(&agent_id, &session_id)
+}
+
+#[tauri::command]
+fn agenthub_generate_claude_md(
+    state: tauri::State<SharedAppState>,
+) -> Result<String, String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.generate_claude_md()
+}
+
+#[tauri::command]
+fn agenthub_sync_claude_md(
+    state: tauri::State<SharedAppState>,
+) -> Result<String, String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.sync_claude_md()
 }
 
 // 主函数
@@ -1500,15 +1486,14 @@ pub fn run() {
             agenthub_load_brain_section,
             agenthub_update_brain_section,
             agenthub_build_context,
-            agenthub_generate_claude_md,
-            agenthub_sync_claude_md,
             agenthub_load_events,
             agenthub_scan_project,
             agenthub_run_task,
             agenthub_stop_agent,
-            agenthub_heartbeat_agent,
-            agenthub_complete_task,
-            agenthub_fail_task,
+            agenthub_terminate_task,
+            agenthub_update_agent_session,
+            agenthub_generate_claude_md,
+            agenthub_sync_claude_md,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react'
-import { Card, Badge, Button, Tag, Space, Tooltip, Empty, message } from 'antd'
+import { Card, Badge, Button, Tag, Space, Tooltip, Empty, Modal, Radio, message } from 'antd'
 import {
   PlusOutlined,
   PlayCircleOutlined,
   ReloadOutlined,
   DeleteOutlined,
+  RobotOutlined,
 } from '@ant-design/icons'
 import { invoke } from '@tauri-apps/api/core'
 import { useAgentHubStore, type Task, type TaskStatus, type Priority } from '../../stores/agentHubStore'
@@ -27,18 +28,34 @@ const priorityColors: Record<Priority, string> = {
 }
 
 const TaskBoard: React.FC = () => {
-  const { tasks, loadTasks, deleteTask, runTask, currentProjectPath, isLoading } = useAgentHubStore()
+  const { tasks, loadTasks, deleteTask, runTask, agentRoles, loadAgentRoles, currentProjectPath, isLoading } = useAgentHubStore()
   const { setActiveSession, fetchSessions } = useSessionStore()
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState<string | null>(null)
+  const [runModalOpen, setRunModalOpen] = useState(false)
+  const [runTaskId, setRunTaskId] = useState<string | null>(null)
+  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null)
 
   useEffect(() => {
     loadTasks()
+    loadAgentRoles()
   }, [])
 
-  const handleRun = async (taskId: string) => {
+  // 点击运行按钮 → 弹出角色选择
+  const handleRunClick = (taskId: string) => {
+    setRunTaskId(taskId)
+    setSelectedRoleId(null)
+    setRunModalOpen(true)
+  }
+
+  // 确认运行 → 执行完整流程
+  const handleRunConfirm = async () => {
+    if (!runTaskId) return
+
     try {
-      // 1. 获取当前项目路径（优先用 AgentHub 的，其次用当前会话的）
+      setRunModalOpen(false)
+
+      // 1. 获取当前项目路径
       const { sessions, activeSessionId } = useSessionStore.getState()
       const activeSession = sessions.find(s => s.id === activeSessionId)
       const projectPath = currentProjectPath || activeSession?.projectPath || ''
@@ -49,33 +66,35 @@ const TaskBoard: React.FC = () => {
       }
 
       // 2. 调用后端 run_task，获取构建的上下文
-      const context = await runTask(taskId)
+      const context = await runTask(runTaskId, selectedRoleId || undefined)
       message.success('任务已启动，正在创建会话...')
 
       // 3. 创建新的 HCLIer 会话
       const session = await invoke<{ id: string; title: string }>('create_session', {
         projectPath,
-        title: `AgentHub: ${taskId}`,
+        title: `AgentHub: ${runTaskId}`,
         sessionType: 'claude',
       })
 
-      // 4. 刷新会话列表（让侧边栏显示新会话）
+      // 4. 更新 Agent 记录的 sessionId
+      const { activeAgents } = useAgentHubStore.getState()
+      const newAgent = activeAgents.find(a => a.taskId === runTaskId)
+      if (newAgent) {
+        await useAgentHubStore.getState().updateAgentSession(newAgent.agentId, session.id)
+      }
+
+      // 5. 刷新会话列表
       await fetchSessions()
 
-      // 5. 切换到新会话
+      // 6. 切换到新会话
       setActiveSession(session.id)
 
-      // 6. 通过自定义事件注入上下文（终端挂载后会监听此事件）
-      // 存储到 sessionStorage，防止页面刷新丢失
+      // 7. 注入上下文
       sessionStorage.setItem(`agenthub-context-${session.id}`, context)
-
-      // 触发自定义事件，通知终端组件注入上下文
-      const injectEvent = new CustomEvent('agenthub-inject-context', {
+      window.dispatchEvent(new CustomEvent('agenthub-inject-context', {
         detail: { sessionId: session.id, context }
-      })
-      window.dispatchEvent(injectEvent)
+      }))
 
-      // 备用方案：延迟注入（如果事件丢失）
       setTimeout(() => {
         const stored = sessionStorage.getItem(`agenthub-context-${session.id}`)
         if (stored) {
@@ -151,7 +170,7 @@ const TaskBoard: React.FC = () => {
                                 style={{ color: '#1890ff' }}
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  handleRun(task.id)
+                                  handleRunClick(task.id)
                                 }}
                               />
                             </Tooltip>
@@ -204,6 +223,54 @@ const TaskBoard: React.FC = () => {
           onClose={() => setSelectedTask(null)}
         />
       )}
+
+      {/* 选择 Agent 角色弹窗 */}
+      <Modal
+        title={
+          <Space>
+            <RobotOutlined />
+            <span>选择 Agent 角色</span>
+          </Space>
+        }
+        open={runModalOpen}
+        onOk={handleRunConfirm}
+        onCancel={() => setRunModalOpen(false)}
+        okText="启动任务"
+        cancelText="取消"
+        destroyOnClose
+      >
+        <div style={{ marginBottom: 12 }}>
+          <span style={{ color: '#8c8c8c' }}>
+            选择一个角色来执行任务 {runTaskId}，或直接启动使用默认角色。
+          </span>
+        </div>
+        <Radio.Group
+          value={selectedRoleId}
+          onChange={(e) => setSelectedRoleId(e.target.value)}
+          style={{ width: '100%' }}
+        >
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <Radio value={null}>
+              <Space>
+                <span>默认角色</span>
+                <Tag>通用</Tag>
+              </Space>
+            </Radio>
+            {agentRoles.map((role) => (
+              <Radio key={role.id} value={role.id}>
+                <Space>
+                  <span>{role.name}</span>
+                  <Tag>{role.id}</Tag>
+                  <Tag color="blue">{role.model}</Tag>
+                  {role.tags?.slice(0, 2).map((tag) => (
+                    <Tag key={tag}>{tag}</Tag>
+                  ))}
+                </Space>
+              </Radio>
+            ))}
+          </Space>
+        </Radio.Group>
+      </Modal>
     </div>
   )
 }

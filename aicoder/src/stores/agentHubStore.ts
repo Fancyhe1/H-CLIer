@@ -48,6 +48,7 @@ export interface AgentRole {
   id: string
   name: string
   description: string
+  prompt: string
   model: string
   tags: string[]
 }
@@ -56,6 +57,7 @@ export interface ActiveAgent {
   agentId: string
   role: string
   taskId: string
+  sessionId: string | null
   startedAt: string
   lastHeartbeat: string
   status: 'running' | 'idle' | 'failed'
@@ -134,7 +136,11 @@ interface AgentHubStore {
   loadEvents: () => Promise<void>
 
   // 任务执行
-  runTask: (taskId: string, agentId?: string) => Promise<string>
+  runTask: (taskId: string, agentRoleId?: string) => Promise<string>
+  stopAgent: (agentId: string) => Promise<string | null>
+  terminateTask: (taskId: string, agentId: string, error: string) => Promise<string | null>
+  completeTask: (taskId: string, agentId: string, result: string) => Promise<void>
+  updateAgentSession: (agentId: string, sessionId: string) => Promise<void>
 }
 
 export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
@@ -403,12 +409,15 @@ export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
   },
 
   // ============================================================
-  // 任务执行（Phase 4 完善）
+  // 任务执行
   // ============================================================
 
-  runTask: async (taskId: string, agentId?: string) => {
+  runTask: async (taskId: string, agentRoleId?: string) => {
     try {
-      const context = await invoke<string>('agenthub_run_task', { taskId, agentId: agentId || null })
+      const context = await invoke<string>('agenthub_run_task', {
+        taskId,
+        agentRoleId: agentRoleId || null,
+      })
       await get().loadTasks()
       await get().loadActiveAgents()
       await get().loadEvents()
@@ -416,6 +425,57 @@ export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
     } catch (e: any) {
       set({ error: String(e) })
       throw e
+    }
+  },
+
+  stopAgent: async (agentId: string) => {
+    try {
+      const sessionId = await invoke<string | null>('agenthub_stop_agent', { agentId })
+      await get().loadTasks()
+      await get().loadActiveAgents()
+      await get().loadEvents()
+      return sessionId
+    } catch (e: any) {
+      set({ error: String(e) })
+      throw e
+    }
+  },
+
+  terminateTask: async (taskId: string, agentId: string, error: string) => {
+    try {
+      const sessionId = await invoke<string | null>('agenthub_terminate_task', {
+        taskId,
+        agentId,
+        error,
+      })
+      await get().loadTasks()
+      await get().loadActiveAgents()
+      await get().loadEvents()
+      return sessionId
+    } catch (e: any) {
+      set({ error: String(e) })
+      throw e
+    }
+  },
+
+  completeTask: async (taskId: string, agentId: string, result: string) => {
+    try {
+      await invoke('agenthub_complete_task', { taskId, agentId, result })
+      await get().loadTasks()
+      await get().loadActiveAgents()
+      await get().loadEvents()
+    } catch (e: any) {
+      set({ error: String(e) })
+      throw e
+    }
+  },
+
+  updateAgentSession: async (agentId: string, sessionId: string) => {
+    try {
+      await invoke('agenthub_update_agent_session', { agentId, sessionId })
+      await get().loadActiveAgents()
+    } catch (e: any) {
+      set({ error: String(e) })
     }
   },
 }))
