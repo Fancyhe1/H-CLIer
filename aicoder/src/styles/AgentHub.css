@@ -12,13 +12,85 @@
 
 /* 项目选择器 */
 .agenthub-project-selector {
-  padding: 8px 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.02);
+  flex-shrink: 0;
 }
 
-.agenthub-project-selector .ant-select {
-  min-width: 200px;
+.project-selector-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.project-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.project-list-loading,
+.project-list-empty {
+  display: flex;
+  justify-content: center;
+  padding: 16px;
+}
+
+.project-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.project-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.project-item-selected {
+  background: rgba(24, 144, 255, 0.08);
+  border-color: rgba(24, 144, 255, 0.3);
+}
+
+.project-item-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.project-item-name {
+  display: flex;
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.project-item-path {
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+.project-item-meta {
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+
+/* 未初始化提示（内联） */
+.agenthub-empty-inline {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px;
 }
 
 .agenthub-panel.agenthub-loading,
