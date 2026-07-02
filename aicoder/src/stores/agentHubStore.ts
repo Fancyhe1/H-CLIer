@@ -284,6 +284,7 @@ export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
     try {
       await invoke('agenthub_delete_task', { id })
       await get().loadTasks()
+      await get().loadActiveAgents()
     } catch (e: any) {
       set({ error: String(e) })
       throw e

@@ -505,6 +505,11 @@ impl AgentHubManager {
         let mut tasks_data: TasksFile = serde_yaml::from_str(&content)
             .map_err(|e| format!("解析 tasks.yaml 失败: {}", e))?;
 
+        // 找到要删除的任务，获取其关联的 agent_id
+        let task_to_delete = tasks_data.tasks.iter().find(|t| t.id == id);
+        let agent_id_to_remove = task_to_delete
+            .and_then(|t| t.assigned_agent.clone());
+
         let original_len = tasks_data.tasks.len();
         tasks_data.tasks.retain(|t| t.id != id);
 
@@ -516,6 +521,11 @@ impl AgentHubManager {
             .map_err(|e| format!("序列化 tasks.yaml 失败: {}", e))?;
         std::fs::write(&tasks_file, yaml)
             .map_err(|e| format!("写入 tasks.yaml 失败: {}", e))?;
+
+        // 同时删除关联的活跃 Agent
+        if let Some(agent_id) = agent_id_to_remove {
+            let _ = self.remove_active_agent(&agent_id);
+        }
 
         // 追加事件
         self.append_event(&HubEvent {
