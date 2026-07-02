@@ -632,20 +632,33 @@ function MultiTerminal() {
 
           // 构建启动命令：claude 或 claude --agent xxx
           const claudeCmd = pendingAgent
-            ? `claude --agent ${pendingAgent}\n`
-            : 'claude\n'
+            ? `claude --agent ${pendingAgent}\r`
+            : 'claude\r'
 
-          // 启动 Claude Code
+          // 启动 Claude Code，等足够时间让它完全启动
           setTimeout(() => {
             invoke('write_to_pty', { ptyId: actualPtyId, data: claudeCmd })
               .catch(e => console.error('启动 Claude Code 失败:', e))
 
-            // 等 Claude Code 启动后注入上下文
+            // 等 Claude Code 完全启动后注入上下文
             if (pendingContext) {
               setTimeout(() => {
-                invoke('write_to_pty', { ptyId: actualPtyId, data: pendingContext + '\n' })
-                  .catch(e => console.error('注入 AgentHub 上下文失败:', e))
-              }, 5000)
+                // 分段发送长文本，避免 PTY 缓冲问题
+                const chunks = pendingContext.match(/.{1,500}/g) || [pendingContext]
+                let delay = 0
+                for (const chunk of chunks) {
+                  setTimeout(() => {
+                    invoke('write_to_pty', { ptyId: actualPtyId, data: chunk })
+                      .catch(e => console.error('注入上下文块失败:', e))
+                  }, delay)
+                  delay += 100
+                }
+                // 最后发送回车提交
+                setTimeout(() => {
+                  invoke('write_to_pty', { ptyId: actualPtyId, data: '\r' })
+                    .catch(e => console.error('发送回车失败:', e))
+                }, delay + 500)
+              }, 10000)
             }
           }, 1500)
         }
