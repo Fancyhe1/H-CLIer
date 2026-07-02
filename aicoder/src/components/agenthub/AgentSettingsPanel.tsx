@@ -49,7 +49,6 @@ const AgentSettingsPanel: React.FC = () => {
     try {
       const values = await form.validateFields()
       const role: AgentRole = {
-        id: editingRole?.id || values.id,
         name: values.name,
         description: values.description || '',
         prompt: values.prompt || '',
@@ -66,9 +65,9 @@ const AgentSettingsPanel: React.FC = () => {
     }
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (name: string) => {
     try {
-      await deleteAgentRole(id)
+      await deleteAgentRole(name)
       message.success('角色已删除')
     } catch (e: any) {
       message.error(`删除失败: ${e}`)
@@ -102,7 +101,7 @@ const AgentSettingsPanel: React.FC = () => {
                   <Popconfirm
                     key="delete"
                     title="确定删除此角色？"
-                    onConfirm={() => handleDelete(role.id)}
+                    onConfirm={() => handleDelete(role.name)}
                     okText="删除"
                     cancelText="取消"
                   >
@@ -114,7 +113,6 @@ const AgentSettingsPanel: React.FC = () => {
                   title={
                     <Space>
                       <Text strong>{role.name}</Text>
-                      <Tag>{role.id}</Tag>
                       <Tag color="blue">{role.model}</Tag>
                     </Space>
                   }
@@ -203,16 +201,6 @@ const AgentSettingsPanel: React.FC = () => {
         maskClosable={false}
       >
         <Form form={form} layout="vertical">
-          {!editingRole && (
-            <Form.Item
-              name="id"
-              label="角色ID"
-              rules={[{ required: true, message: '请输入角色ID' }]}
-            >
-              <Input placeholder="例如：frontend、backend、devops" />
-            </Form.Item>
-          )}
-
           <Form.Item
             name="name"
             label="角色名称"

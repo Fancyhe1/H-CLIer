@@ -275,10 +275,9 @@ const TaskBoard: React.FC = () => {
               </Space>
             </Radio>
             {agentRoles.map((role) => (
-              <Radio key={role.id} value={role.id}>
+              <Radio key={role.name} value={role.name}>
                 <Space>
                   <span>{role.name}</span>
-                  <Tag>{role.id}</Tag>
                   <Tag color="blue">{role.model}</Tag>
                   {role.tags?.slice(0, 2).map((tag) => (
                     <Tag key={tag}>{tag}</Tag>

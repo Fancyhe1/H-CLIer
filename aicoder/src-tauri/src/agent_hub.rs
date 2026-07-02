@@ -152,7 +152,8 @@ pub struct TaskUpdate {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentRole {
-    pub id: String,
+    #[serde(default)]
+    pub id: String,  // 兼容旧数据，新数据用 name 作为标识
     pub name: String,
     #[serde(default)]
     pub description: String,
@@ -605,7 +606,7 @@ impl AgentHubManager {
         let mut agents_data: AgentsFile = serde_yaml::from_str(&content)
             .map_err(|e| format!("解析 registry.yaml 失败: {}", e))?;
 
-        agents_data.agents.retain(|a| a.id != id);
+        agents_data.agents.retain(|a| a.id != id && a.name != id);
 
         let yaml = serde_yaml::to_string(&agents_data)
             .map_err(|e| format!("序列化 registry.yaml 失败: {}", e))?;
@@ -797,8 +798,8 @@ impl AgentHubManager {
         // 1. Agent 角色信息
         if let Some(role) = agent_role {
             context.push_str(&format!(
-                "## 你的角色\n\n你是 **{}**（{}）。\n",
-                role.name, role.id
+                "## 你的角色\n\n你是 **{}**。\n",
+                role.name
             ));
             if !role.description.is_empty() {
                 context.push_str(&format!("{}\n", role.description));
@@ -1514,10 +1515,12 @@ impl AgentHubManager {
         // 查找 Agent 角色
         let agent_roles = self.load_agent_roles()?;
         let agent_role = agent_role_id
-            .and_then(|id| agent_roles.iter().find(|r| r.id == id));
+            .and_then(|id| agent_roles.iter().find(|r| r.id == id || r.name == id));
 
-        // 生成 Worker ID
-        let worker_id = format!("{}-{}", task_id, uuid::Uuid::new_v4().to_string()[..8].to_string());
+        // 使用角色名称作为 Worker ID，没有角色时用 "default"
+        let worker_id = agent_role
+            .map(|r| r.name.clone())
+            .unwrap_or_else(|| "default".to_string());
 
         // 构建上下文（Agent 角色 + 项目 brain + 任务描述）
         let context = self.build_context_with_agent(task_id, agent_role)?;

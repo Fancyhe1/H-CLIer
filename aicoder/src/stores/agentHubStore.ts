@@ -45,7 +45,7 @@ export interface TaskUpdate {
 }
 
 export interface AgentRole {
-  id: string
+  id?: string  // 兼容旧数据，新数据用 name 作为标识
   name: string
   description: string
   prompt: string
