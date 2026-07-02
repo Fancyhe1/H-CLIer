@@ -90,6 +90,12 @@ export interface BrainMeta {
   defaultModel: string
 }
 
+export interface AnalysisManifest {
+  lastAnalysis: string
+  scope: string[]
+  fileHashes: Record<string, string>
+}
+
 export type AgentHubSubPanel = 'tasks' | 'brain' | 'monitor' | 'settings'
 
 // ============================================================
@@ -143,6 +149,13 @@ interface AgentHubStore {
   buildContext: (taskId: string) => Promise<string>
   generateClaudeMd: () => Promise<string>
   syncClaudeMd: () => Promise<string>
+
+  // AI 分析
+  collectRawData: (projectPath: string, scope: string[]) => Promise<string>
+  buildAnalysisPrompt: (projectPath: string, scope: string[], mode: string, rawData: string) => Promise<string>
+  saveAnalysisManifest: (scope: string[], fileHashes: Record<string, string>) => Promise<void>
+  loadAnalysisManifest: () => Promise<AnalysisManifest | null>
+  scanProjectHashes: (projectPath: string) => Promise<Record<string, string>>
 
   // 事件
   loadEvents: () => Promise<void>
@@ -448,6 +461,63 @@ export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
     } catch (e: any) {
       set({ error: String(e) })
       throw e
+    }
+  },
+
+  // ============================================================
+  // AI 分析
+  // ============================================================
+
+  collectRawData: async (projectPath: string, scope: string[]) => {
+    try {
+      const data = await invoke<string>('agenthub_collect_raw_data', { projectPath, scope })
+      return data
+    } catch (e: any) {
+      set({ error: String(e) })
+      throw e
+    }
+  },
+
+  buildAnalysisPrompt: async (projectPath: string, scope: string[], mode: string, rawData: string) => {
+    try {
+      const prompt = await invoke<string>('agenthub_build_analysis_prompt', {
+        projectPath,
+        scope,
+        mode,
+        rawData,
+      })
+      return prompt
+    } catch (e: any) {
+      set({ error: String(e) })
+      throw e
+    }
+  },
+
+  saveAnalysisManifest: async (scope: string[], fileHashes: Record<string, string>) => {
+    try {
+      await invoke('agenthub_save_analysis_manifest', { scope, fileHashes })
+    } catch (e: any) {
+      set({ error: String(e) })
+    }
+  },
+
+  loadAnalysisManifest: async () => {
+    try {
+      const manifest = await invoke<AnalysisManifest | null>('agenthub_load_analysis_manifest')
+      return manifest
+    } catch (e: any) {
+      set({ error: String(e) })
+      return null
+    }
+  },
+
+  scanProjectHashes: async (projectPath: string) => {
+    try {
+      const hashes = await invoke<Record<string, string>>('agenthub_scan_project_hashes', { projectPath })
+      return hashes
+    } catch (e: any) {
+      set({ error: String(e) })
+      return {}
     }
   },
 

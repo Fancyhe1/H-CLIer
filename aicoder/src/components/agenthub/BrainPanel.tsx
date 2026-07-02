@@ -8,10 +8,14 @@ import {
   EyeOutlined,
   EditOutlined,
   FileTextOutlined,
+  RobotOutlined,
 } from '@ant-design/icons'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { invoke } from '@tauri-apps/api/core'
 import { useAgentHubStore } from '../../stores/agentHubStore'
+import { useSessionStore } from '../../stores/sessionStore'
+import AnalysisConfirmModal from './AnalysisConfirmModal'
 
 const { Text } = Typography
 const { TextArea } = Input
@@ -30,12 +34,17 @@ const BrainPanel: React.FC = () => {
     brainMeta,
     brainSections: sections,
     isLoading,
+    currentProjectPath,
     loadBrain,
     loadBrainSection,
     updateBrainSection,
     scanProject,
     generateClaudeMd,
     syncClaudeMd,
+    collectRawData,
+    buildAnalysisPrompt,
+    scanProjectHashes,
+    saveAnalysisManifest,
   } = useAgentHubStore()
 
   const [activeSection, setActiveSection] = useState('architecture')
@@ -45,6 +54,8 @@ const BrainPanel: React.FC = () => {
   const [mode, setMode] = useState<'edit' | 'preview'>('edit')
   const [previewContent, setPreviewContent] = useState('')
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [analysisModalOpen, setAnalysisModalOpen] = useState(false)
+  const { setActiveSession, fetchSessions } = useSessionStore()
 
   useEffect(() => {
     loadBrain()
@@ -108,6 +119,50 @@ const BrainPanel: React.FC = () => {
     }
   }
 
+  const handleAiAnalysis = async (scope: string[], mode: string, customPrompt?: string) => {
+    if (!currentProjectPath) {
+      message.warning('请先选择一个项目')
+      return
+    }
+
+    try {
+      message.loading('正在收集项目数据...', 0)
+
+      // 1. 收集原始数据
+      const rawData = await collectRawData(currentProjectPath, scope)
+
+      // 2. 构建 prompt
+      const prompt = customPrompt
+        ? `${customPrompt}\n\n以下是项目的原始数据：\n\n${rawData}`
+        : await buildAnalysisPrompt(currentProjectPath, scope, mode, rawData)
+
+      message.destroy()
+
+      // 3. 创建 Claude Code 会话
+      const session = await invoke<{ id: string; title: string }>('create_session', {
+        projectPath: currentProjectPath,
+        title: `AgentHub: 项目分析 (${scope.join(', ')})`,
+        sessionType: 'claude',
+      })
+
+      // 4. 刷新会话列表并切换
+      await fetchSessions()
+      setActiveSession(session.id)
+
+      // 5. 存储 prompt，等待 PTY 就绪后注入
+      sessionStorage.setItem(`agenthub-context-${session.id}`, prompt)
+
+      message.success('AI 分析会话已创建，Claude 正在分析项目...')
+
+      // 6. 保存 manifest
+      const hashes = await scanProjectHashes(currentProjectPath!)
+      await saveAnalysisManifest(scope, hashes)
+    } catch (e: any) {
+      message.destroy()
+      message.error(`分析失败: ${e}`)
+    }
+  }
+
   const currentSectionLabel = brainSections.find((s) => s.key === activeSection)?.label || ''
 
   return (
@@ -116,6 +171,9 @@ const BrainPanel: React.FC = () => {
         <Space>
           <Button icon={<ScanOutlined />} onClick={handleScan} loading={isLoading}>
             扫描项目
+          </Button>
+          <Button icon={<RobotOutlined />} onClick={() => setAnalysisModalOpen(true)}>
+            AI 分析
           </Button>
           <Button icon={<ReloadOutlined />} onClick={handleReload}>
             刷新
@@ -249,6 +307,14 @@ const BrainPanel: React.FC = () => {
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{previewContent}</ReactMarkdown>
         </div>
       </Modal>
+
+      {/* AI 分析确认弹窗 */}
+      <AnalysisConfirmModal
+        open={analysisModalOpen}
+        onClose={() => setAnalysisModalOpen(false)}
+        onConfirm={handleAiAnalysis}
+        projectPath={currentProjectPath}
+      />
     </div>
   )
 }

@@ -1284,6 +1284,55 @@ fn agenthub_load_claude_code_agents() -> Result<Vec<agent_hub::ClaudeCodeAgent>,
     agent_hub::load_claude_code_agents()
 }
 
+#[tauri::command]
+fn agenthub_collect_raw_data(
+    state: tauri::State<SharedAppState>,
+    project_path: String,
+    scope: Vec<String>,
+) -> Result<String, String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.collect_project_raw_data(std::path::Path::new(&project_path), &scope)
+}
+
+#[tauri::command]
+fn agenthub_build_analysis_prompt(
+    state: tauri::State<SharedAppState>,
+    project_path: String,
+    scope: Vec<String>,
+    mode: String,
+    raw_data: String,
+) -> Result<String, String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.build_analysis_prompt(std::path::Path::new(&project_path), &scope, &mode, &raw_data)
+}
+
+#[tauri::command]
+fn agenthub_save_analysis_manifest(
+    state: tauri::State<SharedAppState>,
+    scope: Vec<String>,
+    file_hashes: std::collections::HashMap<String, String>,
+) -> Result<(), String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.save_analysis_manifest(&scope, file_hashes)
+}
+
+#[tauri::command]
+fn agenthub_load_analysis_manifest(
+    state: tauri::State<SharedAppState>,
+) -> Result<Option<agent_hub::AnalysisManifest>, String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.load_analysis_manifest()
+}
+
+#[tauri::command]
+fn agenthub_scan_project_hashes(
+    state: tauri::State<SharedAppState>,
+    project_path: String,
+) -> Result<std::collections::HashMap<String, String>, String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    Ok(manager.scan_project_hashes(std::path::Path::new(&project_path)))
+}
+
 // 主函数
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -1504,6 +1553,11 @@ pub fn run() {
             agenthub_generate_claude_md,
             agenthub_sync_claude_md,
             agenthub_load_claude_code_agents,
+            agenthub_collect_raw_data,
+            agenthub_build_analysis_prompt,
+            agenthub_save_analysis_manifest,
+            agenthub_load_analysis_manifest,
+            agenthub_scan_project_hashes,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

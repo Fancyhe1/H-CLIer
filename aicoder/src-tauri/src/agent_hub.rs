@@ -1006,6 +1006,391 @@ impl AgentHubManager {
     }
 
     // ============================================================
+    // 项目深度扫描（收集原始数据，供 AI 分析使用）
+    // ============================================================
+
+    /// 收集项目原始数据（目录结构、关键文件、依赖等）
+    pub fn collect_project_raw_data(&self, project_path: &Path, scope: &[String]) -> Result<String, String> {
+        let mut data = String::new();
+
+        // 1. 目录结构
+        if scope.contains(&"structure".to_string()) {
+            data.push_str("## 目录结构\n\n```\n");
+            data.push_str(&self.build_directory_tree(project_path, 0, 3)?);
+            data.push_str("```\n\n");
+        }
+
+        // 2. 关键文件内容
+        if scope.contains(&"key-files".to_string()) {
+            data.push_str("## 关键文件\n\n");
+            let key_files = self.find_key_files(project_path);
+            for file_path in &key_files {
+                if let Ok(content) = std::fs::read_to_string(file_path) {
+                    let relative = file_path.strip_prefix(project_path)
+                        .unwrap_or(file_path)
+                        .to_string_lossy();
+                    // 限制每个文件最多 200 行
+                    let lines: Vec<&str> = content.lines().collect();
+                    let truncated = if lines.len() > 200 {
+                        format!("{}... ({} 行，已截断)", lines[..200].join("\n"), lines.len())
+                    } else {
+                        content
+                    };
+                    data.push_str(&format!("### {}\n\n```\n{}\n```\n\n", relative, truncated));
+                }
+            }
+        }
+
+        // 3. 依赖信息
+        if scope.contains(&"architecture".to_string()) {
+            data.push_str("## 依赖信息\n\n");
+            data.push_str(&self.collect_dependency_info(project_path));
+            data.push('\n');
+        }
+
+        // 4. Git 状态
+        if scope.contains(&"current".to_string()) {
+            data.push_str("## Git 状态\n\n");
+            data.push_str(&self.collect_git_status(project_path));
+            data.push('\n');
+        }
+
+        Ok(data)
+    }
+
+    /// 构建目录树（递归，限制深度）
+    fn build_directory_tree(&self, path: &Path, depth: usize, max_depth: usize) -> Result<String, String> {
+        if depth > max_depth {
+            return Ok(String::new());
+        }
+
+        let mut tree = String::new();
+        let indent = "  ".repeat(depth);
+
+        let entries = std::fs::read_dir(path)
+            .map_err(|e| format!("读取目录失败: {}", e))?;
+
+        let mut dirs = Vec::new();
+        let mut files = Vec::new();
+
+        for entry in entries {
+            let entry = entry.map_err(|e| format!("读取目录项失败: {}", e))?;
+            let name = entry.file_name().to_string_lossy().to_string();
+
+            // 跳过隐藏目录和常见忽略目录
+            if name.starts_with('.') || name == "node_modules" || name == "target" || name == "__pycache__" {
+                continue;
+            }
+
+            let file_type = entry.file_type().map_err(|e| format!("获取文件类型失败: {}", e))?;
+            if file_type.is_dir() {
+                dirs.push(name);
+            } else if depth < max_depth {
+                files.push(name);
+            }
+        }
+
+        dirs.sort();
+        files.sort();
+
+        for dir in &dirs {
+            tree.push_str(&format!("{}{}/\n", indent, dir));
+            let sub_path = path.join(dir);
+            tree.push_str(&self.build_directory_tree(&sub_path, depth + 1, max_depth)?);
+        }
+
+        if depth < max_depth {
+            for file in &files {
+                tree.push_str(&format!("{}{}\n", indent, file));
+            }
+        }
+
+        Ok(tree)
+    }
+
+    /// 查找关键文件
+    fn find_key_files(&self, project_path: &Path) -> Vec<PathBuf> {
+        let key_patterns = vec![
+            "README.md", "README.rst", "README.txt", "README",
+            "package.json", "Cargo.toml", "pyproject.toml", "requirements.txt",
+            "tsconfig.json", "webpack.config.js", "vite.config.ts", "vite.config.js",
+            ".gitignore", "Dockerfile", "docker-compose.yml",
+            "Makefile", "CMakeLists.txt",
+        ];
+
+        let mut result = Vec::new();
+        for pattern in key_patterns {
+            let path = project_path.join(pattern);
+            if path.exists() {
+                result.push(path);
+            }
+        }
+
+        // 也查找 src/ 下的主要入口文件
+        let src_dir = project_path.join("src");
+        if src_dir.exists() {
+            let entry_files = vec!["main.rs", "lib.rs", "main.ts", "index.ts", "main.py", "__init__.py"];
+            for entry in entry_files {
+                let path = src_dir.join(entry);
+                if path.exists() {
+                    result.push(path);
+                }
+            }
+        }
+
+        result
+    }
+
+    /// 收集依赖信息
+    fn collect_dependency_info(&self, project_path: &Path) -> String {
+        let mut info = String::new();
+
+        // package.json
+        let pkg_path = project_path.join("package.json");
+        if pkg_path.exists() {
+            if let Ok(content) = std::fs::read_to_string(&pkg_path) {
+                if let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&content) {
+                    if let Some(deps) = pkg.get("dependencies").and_then(|d| d.as_object()) {
+                        info.push_str("### npm 依赖\n\n");
+                        for (name, version) in deps {
+                            info.push_str(&format!("- {}: {}\n", name, version));
+                        }
+                        info.push('\n');
+                    }
+                    if let Some(dev_deps) = pkg.get("devDependencies").and_then(|d| d.as_object()) {
+                        info.push_str("### 开发依赖\n\n");
+                        for (name, version) in dev_deps {
+                            info.push_str(&format!("- {}: {}\n", name, version));
+                        }
+                        info.push('\n');
+                    }
+                }
+            }
+        }
+
+        // Cargo.toml
+        let cargo_path = project_path.join("Cargo.toml");
+        if cargo_path.exists() {
+            if let Ok(content) = std::fs::read_to_string(&cargo_path) {
+                info.push_str("### Cargo.toml\n\n```toml\n");
+                info.push_str(&content);
+                info.push_str("\n```\n\n");
+            }
+        }
+
+        // requirements.txt
+        let req_path = project_path.join("requirements.txt");
+        if req_path.exists() {
+            if let Ok(content) = std::fs::read_to_string(&req_path) {
+                info.push_str("### Python 依赖\n\n");
+                for line in content.lines() {
+                    if !line.trim().is_empty() && !line.starts_with('#') {
+                        info.push_str(&format!("- {}\n", line));
+                    }
+                }
+                info.push('\n');
+            }
+        }
+
+        if info.is_empty() {
+            info = "未检测到依赖文件\n".to_string();
+        }
+
+        info
+    }
+
+    /// 收集 Git 状态
+    fn collect_git_status(&self, project_path: &Path) -> String {
+        let mut status = String::new();
+
+        // 当前分支
+        if let Ok(output) = std::process::Command::new("git")
+            .args(["rev-parse", "--abbrev-ref", "HEAD"])
+            .current_dir(project_path)
+            .output()
+        {
+            if let Ok(branch) = String::from_utf8(output.stdout) {
+                status.push_str(&format!("当前分支: {}\n", branch.trim()));
+            }
+        }
+
+        // 最近 5 次提交
+        if let Ok(output) = std::process::Command::new("git")
+            .args(["log", "--oneline", "-5"])
+            .current_dir(project_path)
+            .output()
+        {
+            if let Ok(log) = String::from_utf8(output.stdout) {
+                status.push_str("\n最近提交:\n");
+                status.push_str(&log);
+            }
+        }
+
+        // 未提交的更改
+        if let Ok(output) = std::process::Command::new("git")
+            .args(["status", "--short"])
+            .current_dir(project_path)
+            .output()
+        {
+            if let Ok(status_output) = String::from_utf8(output.stdout) {
+                if !status_output.trim().is_empty() {
+                    status.push_str("\n未提交的更改:\n");
+                    status.push_str(&status_output);
+                }
+            }
+        }
+
+        if status.is_empty() {
+            status = "非 Git 仓库或 Git 不可用\n".to_string();
+        }
+
+        status
+    }
+
+    /// 保存分析 manifest
+    pub fn save_analysis_manifest(&self, scope: &[String], file_hashes: std::collections::HashMap<String, String>) -> Result<(), String> {
+        let hub_path = self.get_hub_path()?;
+        let manifest_path = hub_path.join("brain").join(".analysis-manifest.yaml");
+
+        let manifest = AnalysisManifest {
+            last_analysis: Utc::now().to_rfc3339(),
+            scope: scope.to_vec(),
+            file_hashes,
+        };
+
+        let yaml = serde_yaml::to_string(&manifest)
+            .map_err(|e| format!("序列化 manifest 失败: {}", e))?;
+        std::fs::write(&manifest_path, yaml)
+            .map_err(|e| format!("写入 manifest 失败: {}", e))?;
+
+        Ok(())
+    }
+
+    /// 读取分析 manifest
+    pub fn load_analysis_manifest(&self) -> Result<Option<AnalysisManifest>, String> {
+        let hub_path = self.get_hub_path()?;
+        let manifest_path = hub_path.join("brain").join(".analysis-manifest.yaml");
+
+        if !manifest_path.exists() {
+            return Ok(None);
+        }
+
+        let content = std::fs::read_to_string(&manifest_path)
+            .map_err(|e| format!("读取 manifest 失败: {}", e))?;
+        let manifest: AnalysisManifest = serde_yaml::from_str(&content)
+            .map_err(|e| format!("解析 manifest 失败: {}", e))?;
+
+        Ok(Some(manifest))
+    }
+
+    /// 构建 AI 分析 prompt
+    pub fn build_analysis_prompt(&self, project_path: &Path, scope: &[String], mode: &str, raw_data: &str) -> Result<String, String> {
+        let mut prompt = String::new();
+
+        let project_name = project_path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| "Unknown".to_string());
+
+        prompt.push_str(&format!("请分析项目 \"{}\"，", project_name));
+
+        // 根据模式调整指令
+        match mode {
+            "full" => {
+                prompt.push_str("生成完整的项目大脑文档。\n\n");
+            }
+            "incremental" => {
+                // 读取现有 brain 内容作为参考
+                let existing = self.read_existing_brain()?;
+                if !existing.is_empty() {
+                    prompt.push_str("以下是现有的分析结果，请在此基础上更新（只修改需要更新的部分）：\n\n");
+                    prompt.push_str(&existing);
+                    prompt.push_str("\n\n---\n\n以下是项目的当前数据：\n\n");
+                } else {
+                    prompt.push_str("生成完整的项目大脑文档。\n\n");
+                }
+            }
+            _ => {
+                prompt.push_str("生成项目大脑文档。\n\n");
+            }
+        }
+
+        // 添加范围说明
+        prompt.push_str("请将分析结果写入以下文件（使用 Write 工具）：\n\n");
+        prompt.push_str("写入目录：.agent-hub/brain/\n\n");
+
+        if scope.contains(&"structure".to_string()) {
+            prompt.push_str("- structure.md：目录结构和每个目录的职责说明\n");
+        }
+        if scope.contains(&"architecture".to_string()) {
+            prompt.push_str("- architecture.md：项目架构概述，包括技术栈、框架选择、设计模式\n");
+        }
+        if scope.contains(&"conventions".to_string()) {
+            prompt.push_str("- conventions.md：代码规范，包括命名规则、文件组织、编码风格\n");
+        }
+        if scope.contains(&"key-files".to_string()) {
+            prompt.push_str("- key-files.md：关键文件的功能说明和使用方式\n");
+        }
+
+        prompt.push_str("\n要求：\n");
+        prompt.push_str("- 内容要具体、实用，不要泛泛而谈\n");
+        prompt.push_str("- 使用中文撰写\n");
+        prompt.push_str("- 使用 Markdown 格式\n");
+        prompt.push_str("- 对于代码规范，给出具体的例子\n\n");
+
+        // 添加原始数据
+        prompt.push_str("以下是项目的原始数据：\n\n");
+        prompt.push_str(raw_data);
+
+        Ok(prompt)
+    }
+
+    /// 读取现有 brain 内容（用于增量分析）
+    fn read_existing_brain(&self) -> Result<String, String> {
+        let hub_path = self.get_hub_path()?;
+        let mut content = String::new();
+
+        let sections = ["structure", "architecture", "conventions", "key-files"];
+        for section in &sections {
+            let file_path = hub_path.join("brain").join(format!("{}.md", section));
+            if file_path.exists() {
+                if let Ok(file_content) = std::fs::read_to_string(&file_path) {
+                    if !file_content.trim().is_empty() {
+                        content.push_str(&format!("### {}\n\n{}\n\n", section, file_content));
+                    }
+                }
+            }
+        }
+
+        Ok(content)
+    }
+
+    /// 计算文件 hash（用于增量分析）
+    pub fn compute_file_hash(&self, path: &Path) -> String {
+        if let Ok(content) = std::fs::read_to_string(path) {
+            use std::hash::{Hash, Hasher};
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            content.hash(&mut hasher);
+            format!("{:x}", hasher.finish())
+        } else {
+            String::new()
+        }
+    }
+
+    /// 扫描项目并计算关键文件 hash
+    pub fn scan_project_hashes(&self, project_path: &Path) -> std::collections::HashMap<String, String> {
+        let mut hashes = std::collections::HashMap::new();
+        let key_files = self.find_key_files(project_path);
+        for file_path in &key_files {
+            if let Ok(relative) = file_path.strip_prefix(project_path) {
+                let hash = self.compute_file_hash(file_path);
+                hashes.insert(relative.to_string_lossy().to_string(), hash);
+            }
+        }
+        hashes
+    }
+
+    // ============================================================
     // 项目大脑 - CLAUDE.md 生成
     // ============================================================
 
@@ -1317,6 +1702,16 @@ pub struct ClaudeCodeAgent {
     pub tools: Vec<String>,
     #[serde(default)]
     pub source: String,  // "claude-code" 或 "agent-hub"
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalysisManifest {
+    pub last_analysis: String,
+    #[serde(default)]
+    pub scope: Vec<String>,
+    #[serde(default)]
+    pub file_hashes: std::collections::HashMap<String, String>,
 }
 
 /// 读取 Claude Code 的 agents 目录
