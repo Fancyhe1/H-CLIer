@@ -754,6 +754,21 @@ fn create_http_client() -> reqwest::Client {
         .unwrap_or_default()
 }
 
+// 细化 reqwest 错误信息
+fn classify_reqwest_error(e: &reqwest::Error) -> String {
+    if e.is_timeout() {
+        "连接超时（30秒未响应）".to_string()
+    } else if e.is_connect() {
+        "连接失败：无法连接到服务器，请检查网络".to_string()
+    } else if e.is_request() {
+        format!("请求错误：{}", e)
+    } else if let Some(status) = e.status() {
+        format!("HTTP 错误：{}", status)
+    } else {
+        format!("网络错误：{}", e)
+    }
+}
+
 #[tauri::command]
 async fn check_github_update() -> Result<UpdateInfo, String> {
     let client = create_http_client();
@@ -763,11 +778,17 @@ async fn check_github_update() -> Result<UpdateInfo, String> {
         .header("User-Agent", "H-CLIer-App/1.0")
         .send()
         .await
-        .map_err(|e| format!("网络请求失败: {}", e))?;
+        .map_err(|e| classify_reqwest_error(&e))?;
 
     if !response.status().is_success() {
         let status = response.status();
-        return Err(format!("GitHub API 请求失败: HTTP {}", status));
+        return Err(if status.as_u16() == 403 {
+            "GitHub API 请求被拒绝（403），可能请求过于频繁".to_string()
+        } else if status.as_u16() == 404 {
+            "GitHub API 请求失败（404），仓库可能不存在".to_string()
+        } else {
+            format!("GitHub API 请求失败：HTTP {}", status)
+        });
     }
 
     let release: GitHubRelease = response
@@ -820,31 +841,48 @@ async fn download_update(url: String, app_handle: tauri::AppHandle) -> Result<St
             .await
         {
             Ok(response) => {
-                if !response.status().is_success() {
-                    last_err = format!("下载失败: HTTP {}", response.status());
+                let status = response.status();
+                if !status.is_success() {
+                    last_err = if status.as_u16() == 403 {
+                        "下载失败：访问被拒绝（403），可能需要登录或链接已过期".to_string()
+                    } else if status.as_u16() == 404 {
+                        "下载失败：文件不存在（404），版本可能已删除".to_string()
+                    } else if status.as_u16() == 429 {
+                        "下载失败：请求过于频繁（429），请稍后再试".to_string()
+                    } else {
+                        format!("下载失败：HTTP {}", status)
+                    };
                     continue;
                 }
 
                 match response.bytes().await {
                     Ok(bytes) => {
+                        if bytes.is_empty() {
+                            last_err = "下载失败：服务器返回空内容".to_string();
+                            continue;
+                        }
                         std::fs::write(&file_path, &bytes)
-                            .map_err(|e| format!("保存文件失败: {}", e))?;
+                            .map_err(|e| format!("保存文件失败：{}", e))?;
                         return Ok(file_path.to_string_lossy().to_string());
                     }
                     Err(e) => {
-                        last_err = format!("读取下载内容失败: {}", e);
+                        last_err = if e.is_body() {
+                            "下载中断：连接在传输数据时断开".to_string()
+                        } else {
+                            format!("读取下载内容失败：{}", e)
+                        };
                         continue;
                     }
                 }
             }
             Err(e) => {
-                last_err = format!("下载失败: {}", e);
+                last_err = classify_reqwest_error(&e);
                 continue;
             }
         }
     }
 
-    Err(format!("下载失败（已重试3次）: {}", last_err))
+    Err(format!("下载失败（已重试3次）：{}", last_err))
 }
 
 #[tauri::command]
