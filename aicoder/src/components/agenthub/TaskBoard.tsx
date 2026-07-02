@@ -105,6 +105,7 @@ const TaskBoard: React.FC = () => {
       sessionStorage.setItem(`agenthub-context-${session.id}`, context)
       if (ccAgentName) {
         sessionStorage.setItem(`agenthub-agent-${session.id}`, ccAgentName)
+        console.log('[AgentHub] 存储 agent:', ccAgentName, 'session:', session.id)
       }
     } catch (e: any) {
       message.error(`启动失败: ${e}`)

@@ -624,6 +624,7 @@ function MultiTerminal() {
         // 检查是否有 AgentHub 待注入的上下文
         const pendingContext = sessionStorage.getItem(`agenthub-context-${session.id}`)
         const pendingAgent = sessionStorage.getItem(`agenthub-agent-${session.id}`)
+        console.log('[AgentHub Inject] session:', session.id, 'agent:', pendingAgent, 'context:', pendingContext ? 'yes' : 'no')
 
         if (pendingContext || pendingAgent) {
           // 立即清理 sessionStorage，防止重复注入
