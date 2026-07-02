@@ -624,9 +624,12 @@ function MultiTerminal() {
         // 检查是否有 AgentHub 待注入的上下文
         const pendingContext = sessionStorage.getItem(`agenthub-context-${session.id}`)
         const pendingAgent = sessionStorage.getItem(`agenthub-agent-${session.id}`)
-        console.log('[AgentHub] session.id:', session.id, 'pendingAgent:', pendingAgent, 'pendingContext:', pendingContext ? 'yes' : 'no')
 
         if (pendingContext || pendingAgent) {
+          // 立即清理 sessionStorage，防止重复注入
+          sessionStorage.removeItem(`agenthub-context-${session.id}`)
+          sessionStorage.removeItem(`agenthub-agent-${session.id}`)
+
           // 构建启动命令：claude 或 claude --agent xxx
           const claudeCmd = pendingAgent
             ? `claude --agent ${pendingAgent}\n`
@@ -637,17 +640,11 @@ function MultiTerminal() {
             invoke('write_to_pty', { ptyId: actualPtyId, data: claudeCmd })
               .catch(e => console.error('启动 Claude Code 失败:', e))
 
-            // 清理 agent 标记
-            if (pendingAgent) {
-              sessionStorage.removeItem(`agenthub-agent-${session.id}`)
-            }
-
             // 等 Claude Code 启动后注入上下文
             if (pendingContext) {
               setTimeout(() => {
                 invoke('write_to_pty', { ptyId: actualPtyId, data: pendingContext + '\n' })
                   .catch(e => console.error('注入 AgentHub 上下文失败:', e))
-                sessionStorage.removeItem(`agenthub-context-${session.id}`)
               }, 5000)
             }
           }, 1500)

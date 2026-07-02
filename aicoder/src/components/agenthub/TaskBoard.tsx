@@ -101,24 +101,11 @@ const TaskBoard: React.FC = () => {
       // 7. 切换到新会话
       setActiveSession(session.id)
 
-      // 8. 注入上下文
+      // 8. 存储上下文（MultiTerminal 会在 PTY 就绪后读取并注入）
       sessionStorage.setItem(`agenthub-context-${session.id}`, context)
       if (ccAgentName) {
         sessionStorage.setItem(`agenthub-agent-${session.id}`, ccAgentName)
-        console.log('[AgentHub] 存储 agent:', ccAgentName, 'session.id:', session.id)
       }
-      window.dispatchEvent(new CustomEvent('agenthub-inject-context', {
-        detail: { sessionId: session.id, context }
-      }))
-
-      setTimeout(() => {
-        const stored = sessionStorage.getItem(`agenthub-context-${session.id}`)
-        if (stored) {
-          window.dispatchEvent(new CustomEvent('agenthub-inject-context', {
-            detail: { sessionId: session.id, context: stored }
-          }))
-        }
-      }, 3000)
     } catch (e: any) {
       message.error(`启动失败: ${e}`)
     }
