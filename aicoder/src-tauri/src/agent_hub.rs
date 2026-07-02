@@ -347,11 +347,15 @@ impl AgentHubManager {
         self.hub_path = Some(project_path.join(".agent-hub"));
     }
 
-    /// 获取 .agent-hub 路径，未初始化则返回错误
+    /// 获取 .agent-hub 路径，未初始化或目录已删除则返回错误
     fn get_hub_path(&self) -> Result<&PathBuf, String> {
-        self.hub_path.as_ref().ok_or_else(|| {
+        let path = self.hub_path.as_ref().ok_or_else(|| {
             "AgentHub 未初始化，请先调用 agenthub_init".to_string()
-        })
+        })?;
+        if !path.exists() {
+            return Err("AGENTHUB_DIR_DELETED".to_string());
+        }
+        Ok(path)
     }
 
     // ============================================================

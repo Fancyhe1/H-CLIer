@@ -232,7 +232,12 @@ export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
       const tasks = await invoke<Task[]>('agenthub_load_tasks')
       set({ tasks })
     } catch (e: any) {
-      set({ error: String(e) })
+      const err = String(e)
+      if (err.includes('AGENTHUB_DIR_DELETED')) {
+        set({ isInitialized: false, tasks: [], activeAgents: [], events: [], brainMeta: null })
+      } else {
+        set({ error: err })
+      }
     }
   },
 
@@ -294,7 +299,11 @@ export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
       const agentRoles = await invoke<AgentRole[]>('agenthub_load_agent_roles')
       set({ agentRoles })
     } catch (e: any) {
-      set({ error: String(e) })
+      if (String(e).includes('AGENTHUB_DIR_DELETED')) {
+        set({ isInitialized: false, agentRoles: [] })
+      } else {
+        set({ error: String(e) })
+      }
     }
   },
 
@@ -336,7 +345,11 @@ export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
       const activeAgents = await invoke<ActiveAgent[]>('agenthub_load_active_agents')
       set({ activeAgents })
     } catch (e: any) {
-      set({ error: String(e) })
+      if (String(e).includes('AGENTHUB_DIR_DELETED')) {
+        set({ isInitialized: false, activeAgents: [] })
+      } else {
+        set({ error: String(e) })
+      }
     }
   },
 
@@ -446,7 +459,11 @@ export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
       const events = await invoke<HubEvent[]>('agenthub_load_events', { limit: 100 })
       set({ events })
     } catch (e: any) {
-      set({ error: String(e) })
+      if (String(e).includes('AGENTHUB_DIR_DELETED')) {
+        set({ isInitialized: false, events: [] })
+      } else {
+        set({ error: String(e) })
+      }
     }
   },
 
