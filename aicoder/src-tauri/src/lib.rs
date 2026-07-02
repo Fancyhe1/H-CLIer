@@ -748,6 +748,7 @@ fn is_newer_version(current: &str, remote: &str) -> bool {
 // 创建 HTTP 客户端，支持系统代理和超时
 fn create_http_client() -> reqwest::Client {
     reqwest::Client::builder()
+        .proxy(reqwest::Proxy::system())  // 使用系统代理
         .timeout(std::time::Duration::from_secs(30))
         .redirect(reqwest::redirect::Policy::limited(5))
         .build()
