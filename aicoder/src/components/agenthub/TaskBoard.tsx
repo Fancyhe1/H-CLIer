@@ -81,10 +81,11 @@ const TaskBoard: React.FC = () => {
 
       message.success('任务已启动，正在创建会话...')
 
-      // 4. 创建新的 HCLIer 会话
+      // 4. 创建新的 HCLIer 会话（用任务标题作为会话名称）
+      const taskTitle = tasks.find(t => t.id === runTaskId)?.title || runTaskId
       const session = await invoke<{ id: string; title: string }>('create_session', {
         projectPath,
-        title: `AgentHub: ${runTaskId}`,
+        title: `AgentHub: ${taskTitle}`,
         sessionType: 'claude',
       })
 
@@ -105,6 +106,7 @@ const TaskBoard: React.FC = () => {
       sessionStorage.setItem(`agenthub-context-${session.id}`, context)
       if (ccAgentName) {
         sessionStorage.setItem(`agenthub-agent-${session.id}`, ccAgentName)
+        console.log('[AgentHub] 存储 agent:', ccAgentName, 'session:', session.id)
       }
     } catch (e: any) {
       message.error(`启动失败: ${e}`)
@@ -274,10 +276,9 @@ const TaskBoard: React.FC = () => {
               </Space>
             </Radio>
             {agentRoles.map((role) => (
-              <Radio key={role.id} value={role.id}>
+              <Radio key={role.name} value={role.name}>
                 <Space>
                   <span>{role.name}</span>
-                  <Tag>{role.id}</Tag>
                   <Tag color="blue">{role.model}</Tag>
                   {role.tags?.slice(0, 2).map((tag) => (
                     <Tag key={tag}>{tag}</Tag>
