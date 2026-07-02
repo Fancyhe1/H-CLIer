@@ -747,12 +747,28 @@ fn is_newer_version(current: &str, remote: &str) -> bool {
 
 // 创建 HTTP 客户端，支持系统代理和超时
 fn create_http_client() -> reqwest::Client {
-    reqwest::Client::builder()
-        .proxy(reqwest::Proxy::system())  // 使用系统代理
+    let mut builder = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
-        .redirect(reqwest::redirect::Policy::limited(5))
-        .build()
-        .unwrap_or_default()
+        .redirect(reqwest::redirect::Policy::limited(5));
+
+    // 读取系统代理环境变量
+    if let Ok(proxy) = std::env::var("HTTP_PROXY").or_else(|_| std::env::var("http_proxy")) {
+        if let Ok(p) = reqwest::Proxy::http(&proxy) {
+            builder = builder.proxy(p);
+        }
+    }
+    if let Ok(proxy) = std::env::var("HTTPS_PROXY").or_else(|_| std::env::var("https_proxy")) {
+        if let Ok(p) = reqwest::Proxy::https(&proxy) {
+            builder = builder.proxy(p);
+        }
+    }
+    if let Ok(proxy) = std::env::var("ALL_PROXY").or_else(|_| std::env::var("all_proxy")) {
+        if let Ok(p) = reqwest::Proxy::all(&proxy) {
+            builder = builder.proxy(p);
+        }
+    }
+
+    builder.build().unwrap_or_default()
 }
 
 // 细化 reqwest 错误信息
