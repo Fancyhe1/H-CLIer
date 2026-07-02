@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { Card, Tabs, Button, Input, Space, Tag, Typography, Spin, Descriptions, message, Modal, Tooltip } from 'antd'
 import {
   SaveOutlined,
@@ -13,6 +13,7 @@ import {
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import { useAgentHubStore } from '../../stores/agentHubStore'
 import { useSessionStore } from '../../stores/sessionStore'
 import AnalysisConfirmModal from './AnalysisConfirmModal'
@@ -55,12 +56,33 @@ const BrainPanel: React.FC = () => {
   const [previewContent, setPreviewContent] = useState('')
   const [previewOpen, setPreviewOpen] = useState(false)
   const [analysisModalOpen, setAnalysisModalOpen] = useState(false)
+  const analysisSessionIdRef = useRef<string | null>(null)
   const { setActiveSession, fetchSessions } = useSessionStore()
 
   useEffect(() => {
     loadBrain()
     loadBrainSection('architecture')
   }, [])
+
+  // 监听 Claude Stop hook，分析完成后自动刷新 brain 数据
+  useEffect(() => {
+    const unlisten = listen('claude-hook-notification', (event) => {
+      const payload = event.payload as {
+        hook_event_name?: string
+        session_id?: string
+      }
+
+      if (payload.hook_event_name === 'Stop' && payload.session_id === analysisSessionIdRef.current) {
+        // 分析会话完成，刷新 brain 数据
+        message.success('AI 分析完成，正在加载结果...')
+        loadBrain()
+        loadBrainSection(activeSection)
+        analysisSessionIdRef.current = null
+      }
+    })
+
+    return () => { unlisten.then(fn => fn()) }
+  }, [activeSection])
 
   useEffect(() => {
     const content = sections[activeSection] || ''
@@ -154,7 +176,10 @@ const BrainPanel: React.FC = () => {
 
       message.success('AI 分析会话已创建，Claude 正在分析项目...')
 
-      // 6. 保存 manifest
+      // 6. 记录分析会话 ID，用于检测完成
+      analysisSessionIdRef.current = session.id
+
+      // 7. 保存 manifest
       const hashes = await scanProjectHashes(currentProjectPath!)
       await saveAnalysisManifest(scope, hashes)
     } catch (e: any) {
