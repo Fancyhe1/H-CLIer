@@ -623,45 +623,26 @@ function MultiTerminal() {
 
         // 检查是否有 AgentHub 待注入的上下文
         const pendingContext = sessionStorage.getItem(`agenthub-context-${session.id}`)
-        const pendingAgent = sessionStorage.getItem(`agenthub-agent-${session.id}`)
-        console.log('[AgentHub Inject] session:', session.id, 'agent:', pendingAgent, 'context:', pendingContext ? 'yes' : 'no')
-
-        if (pendingContext || pendingAgent) {
-          // 立即清理 sessionStorage，防止重复注入
+        if (pendingContext) {
           sessionStorage.removeItem(`agenthub-context-${session.id}`)
-          sessionStorage.removeItem(`agenthub-agent-${session.id}`)
 
-          // 构建启动命令：claude 或 claude --agent xxx
-          const claudeCmd = pendingAgent
-            ? `claude --agent ${pendingAgent}\r`
-            : 'claude\r'
-
-          // 启动 Claude Code，等足够时间让它完全启动
+          // 等 Claude Code 完全启动后注入上下文（分段发送）
           setTimeout(() => {
-            invoke('write_to_pty', { ptyId: actualPtyId, data: claudeCmd })
-              .catch(e => console.error('启动 Claude Code 失败:', e))
-
-            // 等 Claude Code 完全启动后注入上下文
-            if (pendingContext) {
+            const chunks = pendingContext.match(/.{1,500}/g) || [pendingContext]
+            let delay = 0
+            for (const chunk of chunks) {
               setTimeout(() => {
-                // 分段发送长文本，避免 PTY 缓冲问题
-                const chunks = pendingContext.match(/.{1,500}/g) || [pendingContext]
-                let delay = 0
-                for (const chunk of chunks) {
-                  setTimeout(() => {
-                    invoke('write_to_pty', { ptyId: actualPtyId, data: chunk })
-                      .catch(e => console.error('注入上下文块失败:', e))
-                  }, delay)
-                  delay += 100
-                }
-                // 最后发送回车提交
-                setTimeout(() => {
-                  invoke('write_to_pty', { ptyId: actualPtyId, data: '\r' })
-                    .catch(e => console.error('发送回车失败:', e))
-                }, delay + 500)
-              }, 10000)
+                invoke('write_to_pty', { ptyId: actualPtyId, data: chunk })
+                  .catch(e => console.error('注入上下文块失败:', e))
+              }, delay)
+              delay += 100
             }
-          }, 1500)
+            // 最后发送回车提交
+            setTimeout(() => {
+              invoke('write_to_pty', { ptyId: actualPtyId, data: '\r' })
+                .catch(e => console.error('发送回车失败:', e))
+            }, delay + 500)
+          }, 10000)
         }
 
         // 处理用户输入（含 /branch 检测）
@@ -790,18 +771,23 @@ function MultiTerminal() {
           const claudeCmd = currentConfig?.claude?.cli_path || 'claude'
           const claudeArgs = currentConfig?.claude?.default_args || []
 
+          // 检查是否有 AgentHub 的 agent 参数
+          const pendingAgent = sessionStorage.getItem(`agenthub-agent-${activeSessionId}`)
+          if (pendingAgent) {
+            sessionStorage.removeItem(`agenthub-agent-${activeSessionId}`)
+          }
+          const agentArg = pendingAgent ? `--agent ${pendingAgent}` : ''
+
           // 根据会话是否存在决定使用 --resume 还是 --session-id
           let cmd: string
           if (sessionExists) {
             // 会话已存在，使用 --resume 恢复
-            cmd = claudeArgs.length > 0
-              ? `${claudeCmd} --resume "${cliSessionId}" ${claudeArgs.join(' ')}\r`
-              : `${claudeCmd} --resume "${cliSessionId}"\r`
+            const parts = [claudeCmd, '--resume', `"${cliSessionId}"`, agentArg, ...claudeArgs].filter(Boolean)
+            cmd = parts.join(' ') + '\r'
           } else {
             // 会话不存在，使用 --session-id 创建
-            cmd = claudeArgs.length > 0
-              ? `${claudeCmd} --session-id "${cliSessionId}" ${claudeArgs.join(' ')}\r`
-              : `${claudeCmd} --session-id "${cliSessionId}"\r`
+            const parts = [claudeCmd, '--session-id', `"${cliSessionId}"`, agentArg, ...claudeArgs].filter(Boolean)
+            cmd = parts.join(' ') + '\r'
           }
 
           await invoke('write_to_pty', { ptyId: actualPtyId, data: cmd })
