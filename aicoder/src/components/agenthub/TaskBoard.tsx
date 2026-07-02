@@ -81,10 +81,11 @@ const TaskBoard: React.FC = () => {
 
       message.success('任务已启动，正在创建会话...')
 
-      // 4. 创建新的 HCLIer 会话
+      // 4. 创建新的 HCLIer 会话（用任务标题作为会话名称）
+      const taskTitle = tasks.find(t => t.id === runTaskId)?.title || runTaskId
       const session = await invoke<{ id: string; title: string }>('create_session', {
         projectPath,
-        title: `AgentHub: ${runTaskId}`,
+        title: `AgentHub: ${taskTitle}`,
         sessionType: 'claude',
       })
 
