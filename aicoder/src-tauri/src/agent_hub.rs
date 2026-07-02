@@ -246,11 +246,17 @@ struct ActiveAgentsFile {
 
 pub struct AgentHubManager {
     hub_path: Option<PathBuf>,
+    global_config_path: Option<PathBuf>,  // 全局配置目录（存储共享的 agent 角色）
 }
 
 impl AgentHubManager {
     pub fn new() -> Self {
-        Self { hub_path: None }
+        Self { hub_path: None, global_config_path: None }
+    }
+
+    /// 设置全局配置目录
+    pub fn set_global_config_path(&mut self, path: PathBuf) {
+        self.global_config_path = Some(path);
     }
 
     /// 初始化 AgentHub 目录结构
@@ -528,9 +534,18 @@ impl AgentHubManager {
     // Agent 角色操作
     // ============================================================
 
+    /// 获取全局 agent 角色配置文件路径
+    fn get_global_registry_path(&self) -> Result<PathBuf, String> {
+        let config_path = self.global_config_path.as_ref()
+            .ok_or("全局配置路径未设置")?;
+        let agents_dir = config_path.join("agents");
+        std::fs::create_dir_all(&agents_dir)
+            .map_err(|e| format!("创建 agents 目录失败: {}", e))?;
+        Ok(agents_dir.join("registry.yaml"))
+    }
+
     pub fn load_agent_roles(&self) -> Result<Vec<AgentRole>, String> {
-        let hub_path = self.get_hub_path()?;
-        let registry_file = hub_path.join("agents").join("registry.yaml");
+        let registry_file = self.get_global_registry_path()?;
 
         if !registry_file.exists() {
             return Ok(vec![]);
@@ -546,8 +561,7 @@ impl AgentHubManager {
     }
 
     pub fn save_agent_role(&self, role: &AgentRole) -> Result<(), String> {
-        let hub_path = self.get_hub_path()?;
-        let registry_file = hub_path.join("agents").join("registry.yaml");
+        let registry_file = self.get_global_registry_path()?;
 
         let mut agents_data = if registry_file.exists() {
             let content = std::fs::read_to_string(&registry_file)
@@ -574,8 +588,7 @@ impl AgentHubManager {
     }
 
     pub fn delete_agent_role(&self, id: &str) -> Result<(), String> {
-        let hub_path = self.get_hub_path()?;
-        let registry_file = hub_path.join("agents").join("registry.yaml");
+        let registry_file = self.get_global_registry_path()?;
 
         let content = std::fs::read_to_string(&registry_file)
             .map_err(|e| format!("读取 registry.yaml 失败: {}", e))?;

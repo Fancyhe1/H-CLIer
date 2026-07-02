@@ -1344,8 +1344,12 @@ pub fn run() {
                 ..Default::default()
             };
 
-            // 初始化 AgentHub 管理器
-            let agent_hub_manager = agent_hub::AgentHubManager::new();
+            // 初始化 AgentHub 管理器（全局配置目录用于存储共享的 agent 角色）
+            let mut agent_hub_manager = agent_hub::AgentHubManager::new();
+            if let Ok(global_config) = app_handle.path().app_config_dir() {
+                std::fs::create_dir_all(&global_config).ok();
+                agent_hub_manager.set_global_config_path(global_config);
+            }
 
             let app_state = Arc::new(AppState {
                 session_manager: Mutex::new(session_manager),
