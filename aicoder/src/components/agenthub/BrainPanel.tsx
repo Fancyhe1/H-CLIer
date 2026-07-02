@@ -57,6 +57,7 @@ const BrainPanel: React.FC = () => {
   const [previewOpen, setPreviewOpen] = useState(false)
   const [analysisModalOpen, setAnalysisModalOpen] = useState(false)
   const analysisSessionIdRef = useRef<string | null>(null)
+  const analysisScopeRef = useRef<string[]>([])
   const { setActiveSession, fetchSessions } = useSessionStore()
 
   useEffect(() => {
@@ -77,7 +78,16 @@ const BrainPanel: React.FC = () => {
         message.success('AI 分析完成，正在加载结果...')
         loadBrain()
         loadBrainSection(activeSection)
+
+        // 保存 manifest（记录分析完成的时间和范围）
+        if (currentProjectPath && analysisScopeRef.current.length > 0) {
+          scanProjectHashes(currentProjectPath).then((hashes) => {
+            saveAnalysisManifest(analysisScopeRef.current, hashes)
+          })
+        }
+
         analysisSessionIdRef.current = null
+        analysisScopeRef.current = []
       }
     })
 
@@ -176,12 +186,9 @@ const BrainPanel: React.FC = () => {
 
       message.success('AI 分析会话已创建，Claude 正在分析项目...')
 
-      // 6. 记录分析会话 ID，用于检测完成
+      // 6. 记录分析会话 ID 和范围，用于检测完成
       analysisSessionIdRef.current = session.id
-
-      // 7. 保存 manifest
-      const hashes = await scanProjectHashes(currentProjectPath!)
-      await saveAnalysisManifest(scope, hashes)
+      analysisScopeRef.current = scope
     } catch (e: any) {
       message.destroy()
       message.error(`分析失败: ${e}`)
