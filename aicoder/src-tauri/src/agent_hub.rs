@@ -814,25 +814,20 @@ impl AgentHubManager {
             context.push('\n');
         }
 
-        // 2. 项目 brain
-        let sections = ["architecture", "decisions", "conventions"];
-        for section in &sections {
-            if let Ok(content) = self.load_brain_section(section) {
+        // 2. 项目 brain（6 个部分）
+        let section_labels = [
+            ("architecture", "架构概述"),
+            ("structure", "目录结构"),
+            ("decisions", "技术决策"),
+            ("conventions", "代码规范"),
+            ("other", "其他补充"),
+            ("state/current", "当前状态"),
+        ];
+        for (key, label) in &section_labels {
+            if let Ok(content) = self.load_brain_section(key) {
                 if !content.trim().is_empty() {
-                    context.push_str(&format!("## {}\n\n{}\n\n", section, content));
+                    context.push_str(&format!("## {}\n\n{}\n\n", label, content));
                 }
-            }
-        }
-
-        if let Ok(state) = self.load_brain_section("state/current") {
-            if !state.trim().is_empty() {
-                context.push_str(&format!("## 当前状态\n\n{}\n\n", state));
-            }
-        }
-
-        if let Ok(blockers) = self.load_brain_section("state/blockers") {
-            if !blockers.trim().is_empty() {
-                context.push_str(&format!("## 已知阻塞项\n\n{}\n\n", blockers));
             }
         }
 
@@ -1320,24 +1315,31 @@ impl AgentHubManager {
         prompt.push_str("请将分析结果写入以下文件（使用 Write 工具）：\n\n");
         prompt.push_str("写入目录：.agent-hub/brain/\n\n");
 
-        if scope.contains(&"structure".to_string()) {
-            prompt.push_str("- structure.md：目录结构和每个目录的职责说明\n");
-        }
         if scope.contains(&"architecture".to_string()) {
-            prompt.push_str("- architecture.md：项目架构概述，包括技术栈、框架选择、设计模式\n");
+            prompt.push_str("- architecture.md：项目架构概述，包括技术栈、框架选择、设计模式、系统架构图\n");
+        }
+        if scope.contains(&"structure".to_string()) {
+            prompt.push_str("- structure.md：目录结构，列出主要目录和每个目录的职责说明\n");
+        }
+        if scope.contains(&"decisions".to_string()) {
+            prompt.push_str("- decisions.md：技术决策记录，记录关键技术选型的理由和权衡\n");
         }
         if scope.contains(&"conventions".to_string()) {
-            prompt.push_str("- conventions.md：代码规范，包括命名规则、文件组织、编码风格\n");
+            prompt.push_str("- conventions.md：代码规范，包括命名规则、文件组织、编码风格，给出具体例子\n");
         }
-        if scope.contains(&"key-files".to_string()) {
-            prompt.push_str("- key-files.md：关键文件的功能说明和使用方式\n");
+        if scope.contains(&"other".to_string()) {
+            prompt.push_str("- other.md：其他补充信息，如特殊说明、注意事项、已知问题等\n");
+        }
+        if scope.contains(&"current".to_string()) {
+            prompt.push_str("- state/current.md：当前项目状态，包括开发进度、活跃分支、最近变更\n");
         }
 
         prompt.push_str("\n要求：\n");
         prompt.push_str("- 内容要具体、实用，不要泛泛而谈\n");
         prompt.push_str("- 使用中文撰写\n");
         prompt.push_str("- 使用 Markdown 格式\n");
-        prompt.push_str("- 对于代码规范，给出具体的例子\n\n");
+        prompt.push_str("- 对于代码规范，给出具体的例子\n");
+        prompt.push_str("- 每个文件独立完整，可以单独阅读\n\n");
 
         // 添加原始数据
         prompt.push_str("以下是项目的原始数据：\n\n");
@@ -1421,12 +1423,15 @@ impl AgentHubManager {
 
         let sections_to_include = [
             ("architecture", "架构概述"),
-            ("conventions", "代码规范"),
+            ("structure", "目录结构"),
             ("decisions", "技术决策"),
+            ("conventions", "代码规范"),
             ("other", "其他补充"),
+            ("state/current", "当前状态"),
         ];
 
         for (section_key, section_title) in &sections_to_include {
+            // 支持嵌套路径，如 state/current.md
             let section_file = hub_path.join("brain").join(format!("{}.md", section_key));
             if section_file.exists() {
                 if let Ok(content) = std::fs::read_to_string(&section_file) {
@@ -1434,26 +1439,6 @@ impl AgentHubManager {
                     if !trimmed.is_empty() {
                         md.push_str(&format!("## {}\n\n{}\n\n", section_title, trimmed));
                     }
-                }
-            }
-        }
-
-        let state_file = hub_path.join("brain").join("state").join("current.md");
-        if state_file.exists() {
-            if let Ok(content) = std::fs::read_to_string(&state_file) {
-                let trimmed = content.trim();
-                if !trimmed.is_empty() {
-                    md.push_str(&format!("## 当前状态\n\n{}\n\n", trimmed));
-                }
-            }
-        }
-
-        let blockers_file = hub_path.join("brain").join("state").join("blockers.md");
-        if blockers_file.exists() {
-            if let Ok(content) = std::fs::read_to_string(&blockers_file) {
-                let trimmed = content.trim();
-                if !trimmed.is_empty() {
-                    md.push_str(&format!("## 已知阻塞项\n\n{}\n\n", trimmed));
                 }
             }
         }

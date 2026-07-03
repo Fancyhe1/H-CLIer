@@ -14,10 +14,11 @@ interface AnalysisConfirmModalProps {
 }
 
 const scopeOptions = [
-  { value: 'structure', label: '目录结构', description: '分析项目目录组织和各目录职责' },
   { value: 'architecture', label: '架构概述', description: '技术栈、框架选择、设计模式' },
+  { value: 'structure', label: '目录结构', description: '项目目录组织和各目录职责' },
+  { value: 'decisions', label: '技术决策', description: '技术选型理由、架构决策记录' },
   { value: 'conventions', label: '代码规范', description: '命名规则、编码风格、文件组织' },
-  { value: 'key-files', label: '关键文件', description: '入口文件、配置文件的功能说明' },
+  { value: 'other', label: '其他补充', description: '特殊说明、注意事项、补充信息' },
   { value: 'current', label: '当前状态', description: 'Git 分支、最近提交、未完成工作' },
 ]
 
