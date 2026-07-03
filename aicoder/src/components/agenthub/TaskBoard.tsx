@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Card, Badge, Button, Tag, Space, Tooltip, Empty, Modal, Radio, Typography, message } from 'antd'
+import { Card, Badge, Button, Tag, Space, Tooltip, Empty, Modal, Radio, Checkbox, Typography, message } from 'antd'
 
 const { Text } = Typography
 import {
@@ -38,6 +38,9 @@ const TaskBoard: React.FC = () => {
   const [runModalOpen, setRunModalOpen] = useState(false)
   const [runTaskId, setRunTaskId] = useState<string | null>(null)
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null)
+  const [selectedBrainSections, setSelectedBrainSections] = useState<string[]>([
+    'architecture', 'conventions', 'state/current',
+  ])
 
   useEffect(() => {
     loadTasks()
@@ -77,7 +80,7 @@ const TaskBoard: React.FC = () => {
         : null
 
       // 3. 调用后端 run_task，获取构建的上下文
-      const context = await runTask(runTaskId, agentRoleId)
+      const context = await runTask(runTaskId, agentRoleId, selectedBrainSections)
 
       message.success('任务已启动，正在创建会话...')
 
@@ -247,7 +250,7 @@ const TaskBoard: React.FC = () => {
         title={
           <Space>
             <RobotOutlined />
-            <span>选择 Agent 角色</span>
+            <span>运行任务</span>
           </Space>
         }
         open={runModalOpen}
@@ -257,55 +260,82 @@ const TaskBoard: React.FC = () => {
         cancelText="取消"
         destroyOnClose
         maskClosable={false}
+        width={480}
       >
-        <div style={{ marginBottom: 12 }}>
-          <span style={{ color: '#8c8c8c' }}>
-            选择一个角色来执行任务 {runTaskId}，或直接启动使用默认角色。
-          </span>
-        </div>
-        <Radio.Group
-          value={selectedRoleId}
-          onChange={(e) => setSelectedRoleId(e.target.value)}
-          style={{ width: '100%' }}
-        >
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <Radio value={null}>
-              <Space>
-                <span>默认角色</span>
-                <Tag>通用</Tag>
-              </Space>
-            </Radio>
-            {agentRoles.map((role) => (
-              <Radio key={role.name} value={role.name}>
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 8, fontWeight: 500 }}>选择 Agent 角色</div>
+          <Radio.Group
+            value={selectedRoleId}
+            onChange={(e) => setSelectedRoleId(e.target.value)}
+            style={{ width: '100%' }}
+          >
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Radio value={null}>
                 <Space>
-                  <span>{role.name}</span>
-                  <Tag color="blue">{role.model}</Tag>
-                  {role.tags?.slice(0, 2).map((tag) => (
-                    <Tag key={tag}>{tag}</Tag>
-                  ))}
+                  <span>默认角色</span>
+                  <Tag>通用</Tag>
                 </Space>
               </Radio>
-            ))}
-            {claudeCodeAgents.length > 0 && (
-              <>
-                <div style={{ marginTop: 8, marginBottom: 4 }}>
-                  <Text type="secondary" style={{ fontSize: 12 }}>Claude Code 内置 Agent</Text>
-                </div>
-                {claudeCodeAgents.map((agent) => (
-                  <Radio key={`cc-${agent.name}`} value={`cc-${agent.name}`}>
-                    <Space>
-                      <span>{agent.name}</span>
-                      <Tag color="cyan">Claude Code</Tag>
-                      {agent.tools?.length > 0 && (
-                        <Tag>{agent.tools.length} 工具</Tag>
-                      )}
-                    </Space>
-                  </Radio>
-                ))}
-              </>
-            )}
+              {agentRoles.map((role) => (
+                <Radio key={role.name} value={role.name}>
+                  <Space>
+                    <span>{role.name}</span>
+                    <Tag color="blue">{role.model}</Tag>
+                    {role.tags?.slice(0, 2).map((tag) => (
+                      <Tag key={tag}>{tag}</Tag>
+                    ))}
+                  </Space>
+                </Radio>
+              ))}
+              {claudeCodeAgents.length > 0 && (
+                <>
+                  <div style={{ marginTop: 8, marginBottom: 4 }}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>Claude Code 内置 Agent</Text>
+                  </div>
+                  {claudeCodeAgents.map((agent) => (
+                    <Radio key={`cc-${agent.name}`} value={`cc-${agent.name}`}>
+                      <Space>
+                        <span>{agent.name}</span>
+                        <Tag color="cyan">Claude Code</Tag>
+                        {agent.tools?.length > 0 && (
+                          <Tag>{agent.tools.length} 工具</Tag>
+                        )}
+                      </Space>
+                    </Radio>
+                  ))}
+                </>
+              )}
+            </Space>
+          </Radio.Group>
+        </div>
+
+        <div style={{ marginBottom: 8, fontWeight: 500 }}>注入项目大脑内容</div>
+        <div style={{ color: '#8c8c8c', fontSize: 12, marginBottom: 8 }}>
+          选择要注入到会话中的项目知识，让 Agent 了解项目背景
+        </div>
+        <Checkbox.Group
+          value={selectedBrainSections}
+          onChange={(values) => setSelectedBrainSections(values as string[])}
+        >
+          <Space direction="vertical">
+            <Checkbox value="architecture">架构概述</Checkbox>
+            <Checkbox value="structure">目录结构</Checkbox>
+            <Checkbox value="conventions">代码规范</Checkbox>
+            <Checkbox value="decisions">技术决策</Checkbox>
+            <Checkbox value="other">其他补充</Checkbox>
+            <Checkbox value="state/current">当前状态</Checkbox>
           </Space>
-        </Radio.Group>
+        </Checkbox.Group>
+        <div style={{ marginTop: 4 }}>
+          <Button
+            type="link"
+            size="small"
+            style={{ padding: 0, fontSize: 12 }}
+            onClick={() => setSelectedBrainSections([])}
+          >
+            全部取消
+          </Button>
+        </div>
       </Modal>
     </div>
   )

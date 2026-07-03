@@ -1323,9 +1323,14 @@ fn agenthub_run_task(
     state: tauri::State<SharedAppState>,
     task_id: String,
     agent_role_id: Option<String>,
+    brain_sections: Option<Vec<String>>,
 ) -> Result<String, String> {
     let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
-    let context = manager.run_task(&task_id, agent_role_id.as_deref())?;
+    let context = manager.run_task(
+        &task_id,
+        agent_role_id.as_deref(),
+        brain_sections.as_deref(),
+    )?;
     let _ = app.emit("agenthub-update", serde_json::json!({"type": "task_started", "taskId": task_id}));
     Ok(context)
 }

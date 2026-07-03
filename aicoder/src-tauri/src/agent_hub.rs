@@ -792,7 +792,7 @@ impl AgentHubManager {
     }
 
     /// 构建包含 Agent 角色信息的上下文
-    pub fn build_context_with_agent(&self, task_id: &str, agent_role: Option<&AgentRole>) -> Result<String, String> {
+    pub fn build_context_with_agent(&self, task_id: &str, agent_role: Option<&AgentRole>, brain_sections: Option<&[String]>) -> Result<String, String> {
         let mut context = String::new();
 
         // 1. Agent 角色信息
@@ -814,7 +814,7 @@ impl AgentHubManager {
             context.push('\n');
         }
 
-        // 2. 项目 brain（6 个部分）
+        // 2. 项目 brain（可选择性注入）
         let section_labels = [
             ("architecture", "架构概述"),
             ("structure", "目录结构"),
@@ -824,6 +824,12 @@ impl AgentHubManager {
             ("state/current", "当前状态"),
         ];
         for (key, label) in &section_labels {
+            // 如果指定了 brain_sections，只注入选中的部分
+            if let Some(ref sections) = brain_sections {
+                if !sections.iter().any(|s| s == *key) {
+                    continue;
+                }
+            }
             if let Ok(content) = self.load_brain_section(key) {
                 if !content.trim().is_empty() {
                     context.push_str(&format!("## {}\n\n{}\n\n", label, content));
@@ -1488,7 +1494,7 @@ impl AgentHubManager {
     // ============================================================
 
     /// 启动任务：更新状态、注册活跃 agent、追加事件
-    pub fn run_task(&self, task_id: &str, agent_role_id: Option<&str>) -> Result<String, String> {
+    pub fn run_task(&self, task_id: &str, agent_role_id: Option<&str>, brain_sections: Option<&[String]>) -> Result<String, String> {
         let tasks = self.load_tasks()?;
         let task = tasks.iter().find(|t| t.id == task_id)
             .ok_or_else(|| format!("任务 {} 不存在", task_id))?;
@@ -1508,7 +1514,7 @@ impl AgentHubManager {
             .unwrap_or_else(|| "default".to_string());
 
         // 构建上下文（Agent 角色 + 项目 brain + 任务描述）
-        let context = self.build_context_with_agent(task_id, agent_role)?;
+        let context = self.build_context_with_agent(task_id, agent_role, brain_sections)?;
 
         // 1. 先创建 Agent（状态为 ready）
         let active_agent = ActiveAgent {
