@@ -9,11 +9,13 @@ import {
   FolderOpenOutlined,
   CheckCircleOutlined,
   PlusOutlined,
+  MailOutlined,
 } from '@ant-design/icons'
 import { invoke } from '@tauri-apps/api/core'
 import TaskBoard from './TaskBoard'
 import BrainPanel from './BrainPanel'
 import AgentMonitor from './AgentMonitor'
+import MessagePanel from './MessagePanel'
 import AgentSettingsPanel from './AgentSettingsPanel'
 import { useAgentHubStore } from '../../stores/agentHubStore'
 import { useSessionStore } from '../../stores/sessionStore'
@@ -281,6 +283,15 @@ const AgentHubPanel: React.FC = () => {
         </span>
       ),
       children: <AgentMonitor />,
+    },
+    {
+      key: 'messages',
+      label: (
+        <span>
+          <MailOutlined /> 消息
+        </span>
+      ),
+      children: <MessagePanel />,
     },
     {
       key: 'settings',

@@ -1441,6 +1441,73 @@ fn agenthub_scan_project_hashes(
     Ok(manager.scan_project_hashes(std::path::Path::new(&project_path)))
 }
 
+// Agent 间消息通信命令
+
+#[tauri::command]
+fn agenthub_send_message(
+    app: tauri::AppHandle,
+    state: tauri::State<SharedAppState>,
+    from: String,
+    to: String,
+    action: String,
+    content: String,
+    task_id: Option<String>,
+    context: Option<serde_json::Value>,
+) -> Result<agent_hub::Message, String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    let msg = manager.send_message(
+        &from,
+        &to,
+        &action,
+        &content,
+        task_id.as_deref(),
+        context,
+    )?;
+    let _ = app.emit("agenthub-message", serde_json::json!({
+        "type": "new_message",
+        "from": msg.from,
+        "to": msg.to,
+    }));
+    Ok(msg)
+}
+
+#[tauri::command]
+fn agenthub_get_messages(
+    state: tauri::State<SharedAppState>,
+    agent_id: Option<String>,
+    limit: Option<usize>,
+) -> Result<Vec<agent_hub::Message>, String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.get_messages(agent_id.as_deref(), limit.unwrap_or(50))
+}
+
+#[tauri::command]
+fn agenthub_get_unread_messages(
+    state: tauri::State<SharedAppState>,
+    agent_id: String,
+) -> Result<Vec<agent_hub::Message>, String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.get_unread_messages(&agent_id)
+}
+
+#[tauri::command]
+fn agenthub_mark_message_read(
+    state: tauri::State<SharedAppState>,
+    message_id: String,
+) -> Result<(), String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.mark_message_read(&message_id)
+}
+
+#[tauri::command]
+fn agenthub_build_message_context(
+    state: tauri::State<SharedAppState>,
+    agent_id: String,
+) -> Result<String, String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.build_message_context(&agent_id)
+}
+
 // 主函数
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -1666,6 +1733,11 @@ pub fn run() {
             agenthub_save_analysis_manifest,
             agenthub_load_analysis_manifest,
             agenthub_scan_project_hashes,
+            agenthub_send_message,
+            agenthub_get_messages,
+            agenthub_get_unread_messages,
+            agenthub_mark_message_read,
+            agenthub_build_message_context,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

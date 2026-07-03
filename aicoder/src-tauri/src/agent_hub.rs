@@ -236,6 +236,24 @@ struct AgentsFile {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Message {
+    pub id: String,
+    pub from: String,
+    pub to: String,
+    #[serde(default)]
+    pub task_id: Option<String>,
+    #[serde(default)]
+    pub action: String,  // delegate, review, help, handoff, notify, decision
+    pub content: String,
+    #[serde(default)]
+    pub context: Option<serde_json::Value>,
+    pub ts: String,
+    #[serde(default)]
+    pub read: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct ActiveAgentsFile {
     #[serde(default)]
     active: Vec<ActiveAgent>,
@@ -1677,6 +1695,198 @@ impl AgentHubManager {
             .map_err(|e| format!("写入 active-agents.yaml 失败: {}", e))?;
 
         Ok(())
+    }
+
+    // ============================================================
+    // Agent 间消息通信
+    // ============================================================
+
+    /// 发送消息
+    pub fn send_message(
+        &self,
+        from: &str,
+        to: &str,
+        action: &str,
+        content: &str,
+        task_id: Option<&str>,
+        context: Option<serde_json::Value>,
+    ) -> Result<Message, String> {
+        let hub_path = self.get_hub_path()?;
+        let messages_file = hub_path.join("state").join("messages.jsonl");
+
+        let message = Message {
+            id: format!("msg-{}", uuid::Uuid::new_v4().to_string()[..8].to_string()),
+            from: from.to_string(),
+            to: to.to_string(),
+            task_id: task_id.map(|s| s.to_string()),
+            action: action.to_string(),
+            content: content.to_string(),
+            context,
+            ts: Utc::now().to_rfc3339(),
+            read: false,
+        };
+
+        let json_line = serde_json::to_string(&message)
+            .map_err(|e| format!("序列化消息失败: {}", e))?;
+
+        use std::io::Write;
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&messages_file)
+            .map_err(|e| format!("打开 messages.jsonl 失败: {}", e))?;
+
+        writeln!(file, "{}", json_line)
+            .map_err(|e| format!("写入消息失败: {}", e))?;
+
+        // 追加事件
+        self.append_event(&HubEvent {
+            ts: Utc::now().to_rfc3339(),
+            event_type: "message_sent".to_string(),
+            task_id: task_id.map(|s| s.to_string()),
+            agent: Some(from.to_string()),
+            message: Some(format!("{} → {}: {}", from, to, content)),
+            files_changed: None,
+        })?;
+
+        Ok(message)
+    }
+
+    /// 获取消息列表
+    pub fn get_messages(&self, agent_id: Option<&str>, limit: usize) -> Result<Vec<Message>, String> {
+        let hub_path = self.get_hub_path()?;
+        let messages_file = hub_path.join("state").join("messages.jsonl");
+
+        if !messages_file.exists() {
+            return Ok(vec![]);
+        }
+
+        let content = std::fs::read_to_string(&messages_file)
+            .map_err(|e| format!("读取 messages.jsonl 失败: {}", e))?;
+
+        let mut messages: Vec<Message> = Vec::new();
+        for line in content.lines() {
+            if line.trim().is_empty() {
+                continue;
+            }
+            if let Ok(msg) = serde_json::from_str::<Message>(line) {
+                // 如果指定了 agent_id，只返回发送给该 agent 的消息
+                if let Some(agent) = agent_id {
+                    if msg.to != agent && msg.from != agent {
+                        continue;
+                    }
+                }
+                messages.push(msg);
+            }
+        }
+
+        // 按时间倒序
+        messages.reverse();
+        messages.truncate(limit);
+
+        Ok(messages)
+    }
+
+    /// 获取指定 agent 的未读消息
+    pub fn get_unread_messages(&self, agent_id: &str) -> Result<Vec<Message>, String> {
+        let hub_path = self.get_hub_path()?;
+        let messages_file = hub_path.join("state").join("messages.jsonl");
+
+        if !messages_file.exists() {
+            return Ok(vec![]);
+        }
+
+        let content = std::fs::read_to_string(&messages_file)
+            .map_err(|e| format!("读取 messages.jsonl 失败: {}", e))?;
+
+        let mut messages: Vec<Message> = Vec::new();
+        for line in content.lines() {
+            if line.trim().is_empty() {
+                continue;
+            }
+            if let Ok(msg) = serde_json::from_str::<Message>(line) {
+                if msg.to == agent_id && !msg.read {
+                    messages.push(msg);
+                }
+            }
+        }
+
+        Ok(messages)
+    }
+
+    /// 标记消息为已读
+    pub fn mark_message_read(&self, message_id: &str) -> Result<(), String> {
+        let hub_path = self.get_hub_path()?;
+        let messages_file = hub_path.join("state").join("messages.jsonl");
+
+        if !messages_file.exists() {
+            return Ok(());
+        }
+
+        let content = std::fs::read_to_string(&messages_file)
+            .map_err(|e| format!("读取 messages.jsonl 失败: {}", e))?;
+
+        let mut messages: Vec<Message> = Vec::new();
+        for line in content.lines() {
+            if line.trim().is_empty() {
+                continue;
+            }
+            if let Ok(mut msg) = serde_json::from_str::<Message>(line) {
+                if msg.id == message_id {
+                    msg.read = true;
+                }
+                messages.push(msg);
+            }
+        }
+
+        // 重写文件
+        let mut new_content = String::new();
+        for msg in &messages {
+            if let Ok(json) = serde_json::to_string(msg) {
+                new_content.push_str(&json);
+                new_content.push('\n');
+            }
+        }
+
+        std::fs::write(&messages_file, new_content)
+            .map_err(|e| format!("写入 messages.jsonl 失败: {}", e))?;
+
+        Ok(())
+    }
+
+    /// 构建消息上下文（用于注入到 agent 会话）
+    pub fn build_message_context(&self, agent_id: &str) -> Result<String, String> {
+        let messages = self.get_unread_messages(agent_id)?;
+
+        if messages.is_empty() {
+            return Ok(String::new());
+        }
+
+        let mut context = String::new();
+        context.push_str(&format!("## 收到的消息（共 {} 条未读）\n\n", messages.len()));
+
+        for msg in &messages {
+            context.push_str(&format!(
+                "### 来自 {}\n**动作**: {}\n**内容**:\n{}\n\n",
+                msg.from, msg.action, msg.content
+            ));
+
+            if let Some(ref ctx) = msg.context {
+                if let Some(obj) = ctx.as_object() {
+                    for (key, value) in obj {
+                        context.push_str(&format!("**{}**: {}\n", key, value));
+                    }
+                    context.push('\n');
+                }
+            }
+        }
+
+        // 标记为已读
+        for msg in &messages {
+            let _ = self.mark_message_read(&msg.id);
+        }
+
+        Ok(context)
     }
 }
 

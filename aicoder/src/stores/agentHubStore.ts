@@ -96,7 +96,19 @@ export interface AnalysisManifest {
   fileHashes: Record<string, string>
 }
 
-export type AgentHubSubPanel = 'tasks' | 'brain' | 'monitor' | 'settings'
+export interface Message {
+  id: string
+  from: string
+  to: string
+  taskId?: string
+  action: string
+  content: string
+  context?: Record<string, any>
+  ts: string
+  read: boolean
+}
+
+export type AgentHubSubPanel = 'tasks' | 'brain' | 'monitor' | 'messages' | 'settings'
 
 // ============================================================
 // Store 定义
@@ -109,6 +121,7 @@ interface AgentHubStore {
   claudeCodeAgents: ClaudeCodeAgent[]
   activeAgents: ActiveAgent[]
   events: HubEvent[]
+  messages: Message[]
   brainMeta: BrainMeta | null
   brainSections: Record<string, string>
   isInitialized: boolean
@@ -166,6 +179,11 @@ interface AgentHubStore {
   terminateTask: (taskId: string, agentId: string, error: string) => Promise<string | null>
   completeTask: (taskId: string, agentId: string, result: string) => Promise<void>
   updateAgentSession: (agentId: string, sessionId: string) => Promise<void>
+
+  // 消息通信
+  loadMessages: (agentId?: string) => Promise<void>
+  sendMessage: (from: string, to: string, action: string, content: string, taskId?: string) => Promise<void>
+  markMessageRead: (messageId: string) => Promise<void>
 }
 
 export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
@@ -174,6 +192,7 @@ export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
   agentRoles: [],
   claudeCodeAgents: [],
   activeAgents: [],
+  messages: [],
   events: [],
   brainMeta: null,
   brainSections: {},
@@ -605,6 +624,53 @@ export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
     try {
       await invoke('agenthub_update_agent_session', { agentId, sessionId })
       await get().loadActiveAgents()
+    } catch (e: any) {
+      set({ error: String(e) })
+    }
+  },
+
+  // ============================================================
+  // 消息通信
+  // ============================================================
+
+  loadMessages: async (agentId?: string) => {
+    try {
+      const messages = await invoke<Message[]>('agenthub_get_messages', {
+        agentId: agentId || null,
+        limit: 50,
+      })
+      set({ messages })
+    } catch (e: any) {
+      set({ error: String(e) })
+    }
+  },
+
+  sendMessage: async (from: string, to: string, action: string, content: string, taskId?: string) => {
+    try {
+      await invoke('agenthub_send_message', {
+        from,
+        to,
+        action,
+        content,
+        taskId: taskId || null,
+        context: null,
+      })
+      await get().loadMessages()
+      await get().loadEvents()
+    } catch (e: any) {
+      set({ error: String(e) })
+      throw e
+    }
+  },
+
+  markMessageRead: async (messageId: string) => {
+    try {
+      await invoke('agenthub_mark_message_read', { messageId })
+      set((state) => ({
+        messages: state.messages.map((m) =>
+          m.id === messageId ? { ...m, read: true } : m
+        ),
+      }))
     } catch (e: any) {
       set({ error: String(e) })
     }
