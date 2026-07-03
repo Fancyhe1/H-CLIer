@@ -242,6 +242,10 @@ const TaskBoard: React.FC = () => {
         <TaskDetail
           taskId={selectedTask}
           onClose={() => setSelectedTask(null)}
+          onRun={(taskId) => {
+            setSelectedTask(null)
+            handleRunClick(taskId)
+          }}
         />
       )}
 

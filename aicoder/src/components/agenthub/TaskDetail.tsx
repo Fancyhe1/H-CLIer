@@ -12,6 +12,7 @@ import {
   Typography,
   Divider,
   List,
+  Modal,
 } from 'antd'
 import {
   EditOutlined,
@@ -27,6 +28,7 @@ const { Text, Paragraph } = Typography
 interface TaskDetailProps {
   taskId: string
   onClose: () => void
+  onRun?: (taskId: string) => void
 }
 
 const priorityColors: Record<Priority, string> = {
@@ -46,7 +48,7 @@ const statusLabels: Record<TaskStatus, { text: string; color: string }> = {
   blocked: { text: '阻塞', color: 'warning' },
 }
 
-const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, onClose }) => {
+const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, onClose, onRun }) => {
   const { tasks, updateTask, deleteTask, buildContext } = useAgentHubStore()
   const [editing, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState('')
@@ -65,6 +67,9 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, onClose }) => {
     return null
   }
 
+  // 检查是否有未保存的修改
+  const hasUnsavedChanges = editing && (editTitle !== task.title || editDesc !== task.description)
+
   const handleSave = async () => {
     try {
       await updateTask(taskId, {
@@ -76,6 +81,26 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, onClose }) => {
     } catch (e: any) {
       message.error(`保存失败: ${e}`)
     }
+  }
+
+  const handleRun = async () => {
+    // 如果有未保存的修改，先确认保存
+    if (hasUnsavedChanges) {
+      Modal.confirm({
+        title: '未保存的修改',
+        content: '你有未保存的标题或描述修改，是否先保存？',
+        okText: '保存',
+        cancelText: '不保存',
+        onOk: async () => {
+          await handleSave()
+        },
+        onCancel: () => {
+          setEditing(false)
+        },
+      })
+      return
+    }
+    onRun?.(taskId)
   }
 
   const handleStatusChange = async (status: TaskStatus) => {
@@ -280,7 +305,7 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, onClose }) => {
             <Button
               type="primary"
               icon={<PlayCircleOutlined />}
-              onClick={() => handleStatusChange('running')}
+              onClick={handleRun}
             >
               启动任务
             </Button>
