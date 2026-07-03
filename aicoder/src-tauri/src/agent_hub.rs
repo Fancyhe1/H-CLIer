@@ -583,8 +583,8 @@ impl AgentHubManager {
             AgentsFile { agents: vec![] }
         };
 
-        // 更新或插入
-        if let Some(existing) = agents_data.agents.iter_mut().find(|a| a.id == role.id) {
+        // 更新或插入（用 name 作为标识）
+        if let Some(existing) = agents_data.agents.iter_mut().find(|a| a.name == role.name) {
             *existing = role.clone();
         } else {
             agents_data.agents.push(role.clone());
