@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react'
-import { Tabs, Alert, Button, Space, Typography, Tag, Select, Tooltip } from 'antd'
+import { Tabs, Alert, Button, Space, Typography, Tag, Select, Tooltip, message } from 'antd'
 import {
   DashboardOutlined,
   ProjectOutlined,
@@ -124,12 +124,25 @@ const AgentHubPanel: React.FC = () => {
   }
 
   const handleRefresh = async () => {
-    await Promise.all([
-      loadTasks(),
-      loadAgentRoles(),
-      loadActiveAgents(),
-      loadEvents(),
-    ])
+    if (!selectedPath) return
+
+    // 先检查目录是否存在
+    const isInit = await checkInitialized(selectedPath)
+    setInitStatus((prev) => ({ ...prev, [selectedPath]: isInit }))
+
+    if (isInit) {
+      // 目录正常，加载数据
+      await setProject(selectedPath)
+      await Promise.all([
+        loadTasks(),
+        loadAgentRoles(),
+        loadActiveAgents(),
+        loadEvents(),
+      ])
+    } else {
+      // 目录不存在或不完整，重置状态，显示初始化按钮
+      message.warning('AgentHub 目录不存在或不完整，请重新初始化')
+    }
   }
 
   const handleBrowse = async () => {
