@@ -745,13 +745,93 @@ fn is_newer_version(current: &str, remote: &str) -> bool {
     false
 }
 
+// 读取 Windows 系统代理设置
+#[cfg(target_os = "windows")]
+fn get_windows_proxy() -> Option<String> {
+    use winreg::enums::*;
+    use winreg::RegKey;
+
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let internet_settings = hkcu.open_subkey_with_flags(
+        "Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
+        KEY_READ,
+    ).ok()?;
+
+    let proxy_enable: u32 = internet_settings.get_value("ProxyEnable").unwrap_or(0);
+    if proxy_enable == 0 {
+        return None;
+    }
+
+    let proxy_server: String = internet_settings.get_value("ProxyServer").unwrap_or_default();
+    if proxy_server.is_empty() {
+        return None;
+    }
+
+    // 确保有协议前缀
+    if proxy_server.starts_with("http://") || proxy_server.starts_with("https://") || proxy_server.starts_with("socks") {
+        Some(proxy_server)
+    } else {
+        Some(format!("http://{}", proxy_server))
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn get_windows_proxy() -> Option<String> {
+    None
+}
+
 // 创建 HTTP 客户端，支持系统代理和超时
 fn create_http_client() -> reqwest::Client {
-    reqwest::Client::builder()
+    let mut builder = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
-        .redirect(reqwest::redirect::Policy::limited(5))
-        .build()
-        .unwrap_or_default()
+        .redirect(reqwest::redirect::Policy::limited(5));
+
+    // 读取系统代理环境变量
+    let mut has_proxy = false;
+    if let Ok(proxy) = std::env::var("HTTP_PROXY").or_else(|_| std::env::var("http_proxy")) {
+        if let Ok(p) = reqwest::Proxy::http(&proxy) {
+            builder = builder.proxy(p);
+            has_proxy = true;
+        }
+    }
+    if let Ok(proxy) = std::env::var("HTTPS_PROXY").or_else(|_| std::env::var("https_proxy")) {
+        if let Ok(p) = reqwest::Proxy::https(&proxy) {
+            builder = builder.proxy(p);
+            has_proxy = true;
+        }
+    }
+    if let Ok(proxy) = std::env::var("ALL_PROXY").or_else(|_| std::env::var("all_proxy")) {
+        if let Ok(p) = reqwest::Proxy::all(&proxy) {
+            builder = builder.proxy(p);
+            has_proxy = true;
+        }
+    }
+
+    // 如果没有环境变量，尝试读取 Windows 系统代理
+    if !has_proxy {
+        if let Some(proxy) = get_windows_proxy() {
+            if let Ok(p) = reqwest::Proxy::all(&proxy) {
+                builder = builder.proxy(p);
+            }
+        }
+    }
+
+    builder.build().unwrap_or_default()
+}
+
+// 细化 reqwest 错误信息
+fn classify_reqwest_error(e: &reqwest::Error) -> String {
+    if e.is_timeout() {
+        "连接超时（30秒未响应）".to_string()
+    } else if e.is_connect() {
+        "连接失败：无法连接到服务器，请检查网络".to_string()
+    } else if e.is_request() {
+        format!("请求错误：{}", e)
+    } else if let Some(status) = e.status() {
+        format!("HTTP 错误：{}", status)
+    } else {
+        format!("网络错误：{}", e)
+    }
 }
 
 #[tauri::command]
@@ -763,11 +843,17 @@ async fn check_github_update() -> Result<UpdateInfo, String> {
         .header("User-Agent", "H-CLIer-App/1.0")
         .send()
         .await
-        .map_err(|e| format!("网络请求失败: {}", e))?;
+        .map_err(|e| classify_reqwest_error(&e))?;
 
     if !response.status().is_success() {
         let status = response.status();
-        return Err(format!("GitHub API 请求失败: HTTP {}", status));
+        return Err(if status.as_u16() == 403 {
+            "GitHub API 请求被拒绝（403），可能请求过于频繁".to_string()
+        } else if status.as_u16() == 404 {
+            "GitHub API 请求失败（404），仓库可能不存在".to_string()
+        } else {
+            format!("GitHub API 请求失败：HTTP {}", status)
+        });
     }
 
     let release: GitHubRelease = response
@@ -820,31 +906,48 @@ async fn download_update(url: String, app_handle: tauri::AppHandle) -> Result<St
             .await
         {
             Ok(response) => {
-                if !response.status().is_success() {
-                    last_err = format!("下载失败: HTTP {}", response.status());
+                let status = response.status();
+                if !status.is_success() {
+                    last_err = if status.as_u16() == 403 {
+                        "下载失败：访问被拒绝（403），可能需要登录或链接已过期".to_string()
+                    } else if status.as_u16() == 404 {
+                        "下载失败：文件不存在（404），版本可能已删除".to_string()
+                    } else if status.as_u16() == 429 {
+                        "下载失败：请求过于频繁（429），请稍后再试".to_string()
+                    } else {
+                        format!("下载失败：HTTP {}", status)
+                    };
                     continue;
                 }
 
                 match response.bytes().await {
                     Ok(bytes) => {
+                        if bytes.is_empty() {
+                            last_err = "下载失败：服务器返回空内容".to_string();
+                            continue;
+                        }
                         std::fs::write(&file_path, &bytes)
-                            .map_err(|e| format!("保存文件失败: {}", e))?;
+                            .map_err(|e| format!("保存文件失败：{}", e))?;
                         return Ok(file_path.to_string_lossy().to_string());
                     }
                     Err(e) => {
-                        last_err = format!("读取下载内容失败: {}", e);
+                        last_err = if e.is_body() {
+                            "下载中断：连接在传输数据时断开".to_string()
+                        } else {
+                            format!("读取下载内容失败：{}", e)
+                        };
                         continue;
                     }
                 }
             }
             Err(e) => {
-                last_err = format!("下载失败: {}", e);
+                last_err = classify_reqwest_error(&e);
                 continue;
             }
         }
     }
 
-    Err(format!("下载失败（已重试3次）: {}", last_err))
+    Err(format!("下载失败（已重试3次）：{}", last_err))
 }
 
 #[tauri::command]
@@ -1220,9 +1323,14 @@ fn agenthub_run_task(
     state: tauri::State<SharedAppState>,
     task_id: String,
     agent_role_id: Option<String>,
+    brain_sections: Option<Vec<String>>,
 ) -> Result<String, String> {
     let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
-    let context = manager.run_task(&task_id, agent_role_id.as_deref())?;
+    let context = manager.run_task(
+        &task_id,
+        agent_role_id.as_deref(),
+        brain_sections.as_deref(),
+    )?;
     let _ = app.emit("agenthub-update", serde_json::json!({"type": "task_started", "taskId": task_id}));
     Ok(context)
 }

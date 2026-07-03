@@ -161,7 +161,7 @@ interface AgentHubStore {
   loadEvents: () => Promise<void>
 
   // 任务执行
-  runTask: (taskId: string, agentRoleId?: string) => Promise<string>
+  runTask: (taskId: string, agentRoleId?: string, brainSections?: string[]) => Promise<string>
   stopAgent: (agentId: string) => Promise<string | null>
   terminateTask: (taskId: string, agentId: string, error: string) => Promise<string | null>
   completeTask: (taskId: string, agentId: string, result: string) => Promise<void>
@@ -542,11 +542,12 @@ export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
   // 任务执行
   // ============================================================
 
-  runTask: async (taskId: string, agentRoleId?: string) => {
+  runTask: async (taskId: string, agentRoleId?: string, brainSections?: string[]) => {
     try {
       const context = await invoke<string>('agenthub_run_task', {
         taskId,
         agentRoleId: agentRoleId || null,
+        brainSections: brainSections && brainSections.length > 0 ? brainSections : null,
       })
       await get().loadTasks()
       await get().loadActiveAgents()

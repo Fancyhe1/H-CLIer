@@ -1,13 +1,11 @@
 import React, { useEffect, useState, useRef } from 'react'
-import { Card, Tabs, Button, Input, Space, Tag, Typography, Spin, Descriptions, message, Modal, Tooltip } from 'antd'
+import { Card, Tabs, Button, Input, Space, Tag, Typography, Spin, Descriptions, message } from 'antd'
 import {
   SaveOutlined,
   ScanOutlined,
   ReloadOutlined,
-  SyncOutlined,
   EyeOutlined,
   EditOutlined,
-  FileTextOutlined,
   RobotOutlined,
 } from '@ant-design/icons'
 import ReactMarkdown from 'react-markdown'
@@ -40,8 +38,6 @@ const BrainPanel: React.FC = () => {
     loadBrainSection,
     updateBrainSection,
     scanProject,
-    generateClaudeMd,
-    syncClaudeMd,
     collectRawData,
     buildAnalysisPrompt,
     scanProjectHashes,
@@ -53,8 +49,6 @@ const BrainPanel: React.FC = () => {
   const [saving, setSaving] = useState(false)
   const [loadingSection, setLoadingSection] = useState(false)
   const [mode, setMode] = useState<'edit' | 'preview'>('edit')
-  const [previewContent, setPreviewContent] = useState('')
-  const [previewOpen, setPreviewOpen] = useState(false)
   const [analysisModalOpen, setAnalysisModalOpen] = useState(false)
   const analysisSessionIdRef = useRef<string | null>(null)
   const analysisScopeRef = useRef<string[]>([])
@@ -132,25 +126,6 @@ const BrainPanel: React.FC = () => {
     await loadBrainSection(activeSection)
   }
 
-  const handlePreviewClaudeMd = async () => {
-    try {
-      const content = await generateClaudeMd()
-      setPreviewContent(content)
-      setPreviewOpen(true)
-    } catch (e: any) {
-      message.error(`生成预览失败: ${e}`)
-    }
-  }
-
-  const handleSyncClaudeMd = async () => {
-    try {
-      await syncClaudeMd()
-      message.success('CLAUDE.md 已同步到项目根目录')
-    } catch (e: any) {
-      message.error(`同步失败: ${e}`)
-    }
-  }
-
   const handleAiAnalysis = async (scope: string[], mode: string, customPrompt?: string) => {
     if (!currentProjectPath) {
       message.warning('请先选择一个项目')
@@ -210,16 +185,6 @@ const BrainPanel: React.FC = () => {
           <Button icon={<ReloadOutlined />} onClick={handleReload}>
             刷新
           </Button>
-          <Tooltip title="预览将生成的 CLAUDE.md 内容">
-            <Button icon={<EyeOutlined />} onClick={handlePreviewClaudeMd}>
-              预览 CLAUDE.md
-            </Button>
-          </Tooltip>
-          <Tooltip title="将 brain 内容同步生成到项目根目录的 CLAUDE.md">
-            <Button type="primary" icon={<SyncOutlined />} onClick={handleSyncClaudeMd}>
-              同步 CLAUDE.md
-            </Button>
-          </Tooltip>
         </Space>
       </div>
 
@@ -307,38 +272,6 @@ const BrainPanel: React.FC = () => {
           </div>
         )}
       </Card>
-
-      {/* CLAUDE.md 预览弹窗 */}
-      <Modal
-        title={
-          <Space>
-            <FileTextOutlined />
-            <span>CLAUDE.md 预览</span>
-          </Space>
-        }
-        open={previewOpen}
-        onCancel={() => setPreviewOpen(false)}
-        width={700}
-        footer={
-          <Space>
-            <Button onClick={() => setPreviewOpen(false)}>关闭</Button>
-            <Button
-              type="primary"
-              icon={<SyncOutlined />}
-              onClick={async () => {
-                await handleSyncClaudeMd()
-                setPreviewOpen(false)
-              }}
-            >
-              确认同步到项目
-            </Button>
-          </Space>
-        }
-      >
-        <div className="claude-md-preview">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{previewContent}</ReactMarkdown>
-        </div>
-      </Modal>
 
       {/* AI 分析确认弹窗 */}
       <AnalysisConfirmModal
