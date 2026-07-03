@@ -2095,6 +2095,334 @@ impl AgentHubManager {
 
         Ok(created_tasks)
     }
+
+    /// 启动工作流：创建任务链并启动第一个节点
+    pub fn start_workflow(
+        &self,
+        workflow_id: &str,
+        variables: &std::collections::HashMap<String, String>,
+    ) -> Result<Vec<Task>, String> {
+        // 1. 创建所有任务
+        let tasks = self.create_tasks_from_workflow(workflow_id, variables)?;
+
+        // 2. 找到第一个节点（没有入边的节点）
+        let workflows = self.load_workflows()?;
+        let workflow = workflows.iter().find(|w| w.id == workflow_id)
+            .ok_or_else(|| format!("工作流 {} 不存在", workflow_id))?;
+
+        let nodes_with_incoming: Vec<String> = workflow.edges.iter()
+            .map(|e| e.to.clone())
+            .collect();
+
+        let first_node = workflow.nodes.iter()
+            .find(|n| !nodes_with_incoming.contains(&n.id));
+
+        // 3. 启动第一个任务
+        if let Some(first) = first_node {
+            if let Some(task) = tasks.iter().find(|t| t.assigned_agent.as_deref() == Some(&first.role)) {
+                self.update_task(&task.id, &TaskUpdate {
+                    status: Some(TaskStatus::Ready),
+                    ..Default::default()
+                })?;
+            }
+        }
+
+        // 4. 保存工作流运行状态
+        let run_id = format!("run-{}", uuid::Uuid::new_v4().to_string()[..8].to_string());
+        let mut node_states = std::collections::HashMap::new();
+        for node in &workflow.nodes {
+            let status = if Some(node.id) == first_node.map(|n| &n.id) {
+                "active".to_string()
+            } else {
+                "pending".to_string()
+            };
+            node_states.insert(node.id.clone(), status);
+        }
+
+        let run = WorkflowRun {
+            id: run_id,
+            workflow_id: workflow_id.to_string(),
+            status: "running".to_string(),
+            started_at: Utc::now().to_rfc3339(),
+            completed_at: None,
+            node_states,
+            variables: variables.clone(),
+        };
+
+        self.save_workflow_run(&run)?;
+
+        Ok(tasks)
+    }
+
+    /// 处理任务完成：根据工作流规则决定下一步
+    pub fn handle_task_completed(&self, task_id: &str) -> Result<Option<String>, String> {
+        let tasks = self.load_tasks()?;
+        let task = tasks.iter().find(|t| t.id == task_id)
+            .ok_or_else(|| format!("任务 {} 不存在", task_id))?;
+
+        // 检查任务是否属于某个工作流
+        let workflow_tag = task.tags.iter().find(|t| !t.starts_with("workflow")).cloned();
+        if workflow_tag.is_none() {
+            return Ok(None); // 不属于任何工作流
+        }
+
+        // 找到对应的工作流
+        let workflows = self.load_workflows()?;
+        let workflow = workflows.iter().find(|w| {
+            task.tags.contains(&w.id)
+        });
+
+        if let Some(workflow) = workflow {
+            // 找到当前任务对应的节点
+            let current_node = workflow.nodes.iter().find(|n| {
+                task.assigned_agent.as_deref() == Some(&n.role)
+            });
+
+            if let Some(current_node) = current_node {
+                // 找到从当前节点出发的边，条件为 "completed"
+                let next_edges: Vec<_> = workflow.edges.iter()
+                    .filter(|e| e.from == current_node.id && e.condition == "completed")
+                    .collect();
+
+                if let Some(next_edge) = next_edges.first() {
+                    // 找到下一个节点
+                    let next_node = workflow.nodes.iter().find(|n| n.id == next_edge.to);
+
+                    if let Some(next_node) = next_node {
+                        // 创建下一个任务
+                        let existing_ids: Vec<String> = tasks.iter().map(|t| t.id.clone()).collect();
+                        let mut next_num = 1;
+                        while existing_ids.contains(&format!("T{:03}", next_num)) {
+                            next_num += 1;
+                        }
+                        let next_task_id = format!("T{:03}", next_num);
+
+                        let next_task = Task {
+                            id: next_task_id.clone(),
+                            title: next_node.task_template.clone(),
+                            description: next_node.description.clone(),
+                            status: TaskStatus::Ready,
+                            priority: Priority::Medium,
+                            assigned_agent: Some(next_node.role.clone()),
+                            dependencies: vec![task_id.to_string()],
+                            tags: vec!["workflow".to_string(), workflow.id.clone()],
+                            subtasks: vec![],
+                            created: Utc::now().to_rfc3339(),
+                            updated: None,
+                            started_at: Some(Utc::now().to_rfc3339()),
+                            completed_at: None,
+                            result: None,
+                            error: None,
+                            retry_count: 0,
+                        };
+
+                        self.create_task(&next_task)?;
+
+                        // 更新工作流运行状态
+                        self.update_workflow_run_node(&workflow.id, &current_node.id, "completed")?;
+                        self.update_workflow_run_node(&workflow.id, &next_node.id, "active")?;
+
+                        // 追加事件
+                        self.append_event(&HubEvent {
+                            ts: Utc::now().to_rfc3339(),
+                            event_type: "workflow_next".to_string(),
+                            task_id: Some(next_task_id.clone()),
+                            agent: Some(next_node.role.clone()),
+                            message: Some(format!(
+                                "工作流 '{}': 任务 {} 完成，启动下一个任务 {}",
+                                workflow.name, task_id, next_task_id
+                            )),
+                            files_changed: None,
+                        })?;
+
+                        return Ok(Some(next_task_id));
+                    }
+                }
+
+                // 没有下一个节点，工作流完成
+                self.update_workflow_run_node(&workflow.id, &current_node.id, "completed")?;
+                self.complete_workflow_run(&workflow.id)?;
+
+                self.append_event(&HubEvent {
+                    ts: Utc::now().to_rfc3339(),
+                    event_type: "workflow_completed".to_string(),
+                    task_id: None,
+                    agent: None,
+                    message: Some(format!("工作流 '{}' 已完成", workflow.name)),
+                    files_changed: None,
+                })?;
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// 处理消息驱动的任务路由
+    pub fn handle_message_routing(&self, message: &Message) -> Result<Option<String>, String> {
+        // 检查发送方的任务是否属于某个工作流
+        let tasks = self.load_tasks()?;
+        let sender_task = tasks.iter().find(|t| {
+            t.assigned_agent.as_deref() == Some(&message.from) && t.status.as_str() == "running"
+        });
+
+        if let Some(task) = sender_task {
+            let workflows = self.load_workflows()?;
+            let workflow = workflows.iter().find(|w| task.tags.contains(&w.id));
+
+            if let Some(workflow) = workflow {
+                let current_node = workflow.nodes.iter().find(|n| {
+                    task.assigned_agent.as_deref() == Some(&n.role)
+                });
+
+                if let Some(current_node) = current_node {
+                    // 根据消息动作找对应的边
+                    let matching_edge = workflow.edges.iter().find(|e| {
+                        e.from == current_node.id && e.action == message.action
+                    });
+
+                    if let Some(edge) = matching_edge {
+                        let next_node = workflow.nodes.iter().find(|n| n.id == edge.to);
+
+                        if let Some(next_node) = next_node {
+                            // 创建下一个任务，将消息内容作为上下文
+                            let existing_ids: Vec<String> = tasks.iter().map(|t| t.id.clone()).collect();
+                            let mut next_num = 1;
+                            while existing_ids.contains(&format!("T{:03}", next_num)) {
+                                next_num += 1;
+                            }
+                            let next_task_id = format!("T{:03}", next_num);
+
+                            let description = format!(
+                                "来自 {} 的消息：\n\n{}",
+                                message.from, message.content
+                            );
+
+                            let next_task = Task {
+                                id: next_task_id.clone(),
+                                title: next_node.task_template.clone(),
+                                description,
+                                status: TaskStatus::Ready,
+                                priority: Priority::Medium,
+                                assigned_agent: Some(next_node.role.clone()),
+                                dependencies: vec![task.id.clone()],
+                                tags: vec!["workflow".to_string(), workflow.id.clone()],
+                                subtasks: vec![],
+                                created: Utc::now().to_rfc3339(),
+                                updated: None,
+                                started_at: Some(Utc::now().to_rfc3339()),
+                                completed_at: None,
+                                result: None,
+                                error: None,
+                                retry_count: 0,
+                            };
+
+                            self.create_task(&next_task)?;
+
+                            self.append_event(&HubEvent {
+                                ts: Utc::now().to_rfc3339(),
+                                event_type: "workflow_message_route".to_string(),
+                                task_id: Some(next_task_id.clone()),
+                                agent: Some(next_node.role.clone()),
+                                message: Some(format!(
+                                    "工作流 '{}': {} 发送 {} 消息，触发任务 {}",
+                                    workflow.name, message.from, message.action, next_task_id
+                                )),
+                                files_changed: None,
+                            })?;
+
+                            return Ok(Some(next_task_id));
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// 保存工作流运行状态
+    fn save_workflow_run(&self, run: &WorkflowRun) -> Result<(), String> {
+        let hub_path = self.get_hub_path()?;
+        let runs_dir = hub_path.join("workflows").join("runs");
+        std::fs::create_dir_all(&runs_dir)
+            .map_err(|e| format!("创建 runs 目录失败: {}", e))?;
+
+        let run_file = runs_dir.join(format!("{}.yaml", run.id));
+        let yaml = serde_yaml::to_string(run)
+            .map_err(|e| format!("序列化运行状态失败: {}", e))?;
+        std::fs::write(&run_file, yaml)
+            .map_err(|e| format!("写入运行状态失败: {}", e))?;
+
+        Ok(())
+    }
+
+    /// 更新工作流运行中节点的状态
+    fn update_workflow_run_node(&self, workflow_id: &str, node_id: &str, status: &str) -> Result<(), String> {
+        let hub_path = self.get_hub_path()?;
+        let runs_dir = hub_path.join("workflows").join("runs");
+
+        if !runs_dir.exists() {
+            return Ok(());
+        }
+
+        // 找到最新的运行记录
+        let entries = std::fs::read_dir(&runs_dir)
+            .map_err(|e| format!("读取 runs 目录失败: {}", e))?;
+
+        let mut latest_run: Option<WorkflowRun> = None;
+        for entry in entries {
+            let entry = entry.map_err(|e| format!("读取目录项失败: {}", e))?;
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("yaml") {
+                if let Ok(content) = std::fs::read_to_string(&path) {
+                    if let Ok(run) = serde_yaml::from_str::<WorkflowRun>(&content) {
+                        if run.workflow_id == workflow_id && run.status == "running" {
+                            latest_run = Some(run);
+                        }
+                    }
+                }
+            }
+        }
+
+        if let Some(mut run) = latest_run {
+            run.node_states.insert(node_id.to_string(), status.to_string());
+            self.save_workflow_run(&run)?;
+        }
+
+        Ok(())
+    }
+
+    /// 完成工作流运行
+    fn complete_workflow_run(&self, workflow_id: &str) -> Result<(), String> {
+        let hub_path = self.get_hub_path()?;
+        let runs_dir = hub_path.join("workflows").join("runs");
+
+        if !runs_dir.exists() {
+            return Ok(());
+        }
+
+        let entries = std::fs::read_dir(&runs_dir)
+            .map_err(|e| format!("读取 runs 目录失败: {}", e))?;
+
+        for entry in entries {
+            let entry = entry.map_err(|e| format!("读取目录项失败: {}", e))?;
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("yaml") {
+                if let Ok(content) = std::fs::read_to_string(&path) {
+                    if let Ok(mut run) = serde_yaml::from_str::<WorkflowRun>(&content) {
+                        if run.workflow_id == workflow_id && run.status == "running" {
+                            run.status = "completed".to_string();
+                            run.completed_at = Some(Utc::now().to_rfc3339());
+                            self.save_workflow_run(&run)?;
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
 
 // ============================================================

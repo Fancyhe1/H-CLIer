@@ -1546,6 +1546,33 @@ fn agenthub_create_tasks_from_workflow(
     manager.create_tasks_from_workflow(&workflow_id, &variables)
 }
 
+#[tauri::command]
+fn agenthub_start_workflow(
+    app: tauri::AppHandle,
+    state: tauri::State<SharedAppState>,
+    workflow_id: String,
+    variables: std::collections::HashMap<String, String>,
+) -> Result<Vec<agent_hub::Task>, String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    let tasks = manager.start_workflow(&workflow_id, &variables)?;
+    let _ = app.emit("agenthub-update", serde_json::json!({"type": "workflow_started", "workflowId": workflow_id}));
+    Ok(tasks)
+}
+
+#[tauri::command]
+fn agenthub_handle_task_completed(
+    app: tauri::AppHandle,
+    state: tauri::State<SharedAppState>,
+    task_id: String,
+) -> Result<Option<String>, String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    let next_task_id = manager.handle_task_completed(&task_id)?;
+    if next_task_id.is_some() {
+        let _ = app.emit("agenthub-update", serde_json::json!({"type": "workflow_next", "taskId": task_id}));
+    }
+    Ok(next_task_id)
+}
+
 // 主函数
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -1780,6 +1807,8 @@ pub fn run() {
             agenthub_save_workflow,
             agenthub_delete_workflow,
             agenthub_create_tasks_from_workflow,
+            agenthub_start_workflow,
+            agenthub_handle_task_completed,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

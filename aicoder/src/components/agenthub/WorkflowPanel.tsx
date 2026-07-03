@@ -35,7 +35,7 @@ const WorkflowPanel: React.FC = () => {
     loadAgentRoles,
     saveWorkflow,
     deleteWorkflow,
-    createTasksFromWorkflow,
+    startWorkflow,
   } = useAgentHubStore()
 
   const [modalOpen, setModalOpen] = useState(false)
@@ -124,11 +124,11 @@ const WorkflowPanel: React.FC = () => {
   const handleRunConfirm = async () => {
     if (!runWorkflowId) return
     try {
-      const tasks = await createTasksFromWorkflow(runWorkflowId, runVariables)
-      message.success(`已创建 ${tasks.length} 个任务`)
+      const tasks = await startWorkflow(runWorkflowId, runVariables)
+      message.success(`工作流已启动，创建了 ${tasks.length} 个任务`)
       setRunModalOpen(false)
     } catch (e: any) {
-      message.error(`创建任务失败: ${e}`)
+      message.error(`启动工作流失败: ${e}`)
     }
   }
 

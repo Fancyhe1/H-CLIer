@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { invoke } from '@tauri-apps/api/core'
+import { message } from 'antd'
 
 // ============================================================
 // 类型定义
@@ -218,6 +219,8 @@ interface AgentHubStore {
   saveWorkflow: (workflow: Workflow) => Promise<void>
   deleteWorkflow: (id: string) => Promise<void>
   createTasksFromWorkflow: (workflowId: string, variables: Record<string, string>) => Promise<Task[]>
+  startWorkflow: (workflowId: string, variables: Record<string, string>) => Promise<Task[]>
+  handleTaskCompleted: (taskId: string) => Promise<string | null>
 }
 
 export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
@@ -341,6 +344,15 @@ export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
     try {
       await invoke('agenthub_update_task', { id, updates })
       await get().loadTasks()
+      await get().loadActiveAgents()
+
+      // 如果任务状态变为 done，触发工作流路由
+      if (updates.status === 'done') {
+        const nextTaskId = await get().handleTaskCompleted(id)
+        if (nextTaskId) {
+          message.info(`工作流自动启动下一个任务: ${nextTaskId}`)
+        }
+      }
     } catch (e: any) {
       set({ error: String(e) })
       throw e
@@ -755,6 +767,34 @@ export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
     } catch (e: any) {
       set({ error: String(e) })
       throw e
+    }
+  },
+
+  startWorkflow: async (workflowId: string, variables: Record<string, string>) => {
+    try {
+      const tasks = await invoke<Task[]>('agenthub_start_workflow', {
+        workflowId,
+        variables,
+      })
+      await get().loadTasks()
+      await get().loadActiveAgents()
+      await get().loadEvents()
+      return tasks
+    } catch (e: any) {
+      set({ error: String(e) })
+      throw e
+    }
+  },
+
+  handleTaskCompleted: async (taskId: string) => {
+    try {
+      const nextTaskId = await invoke<string | null>('agenthub_handle_task_completed', { taskId })
+      await get().loadTasks()
+      await get().loadEvents()
+      return nextTaskId
+    } catch (e: any) {
+      set({ error: String(e) })
+      return null
     }
   },
 }))
