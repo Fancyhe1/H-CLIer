@@ -108,7 +108,34 @@ export interface Message {
   read: boolean
 }
 
-export type AgentHubSubPanel = 'tasks' | 'brain' | 'monitor' | 'messages' | 'settings'
+export interface WorkflowNode {
+  id: string
+  role: string
+  taskTemplate: string
+  description: string
+  autoStart: boolean
+}
+
+export interface WorkflowEdge {
+  from: string
+  to: string
+  action: string
+  condition: string
+  description: string
+}
+
+export interface Workflow {
+  id: string
+  name: string
+  description: string
+  nodes: WorkflowNode[]
+  edges: WorkflowEdge[]
+  variables: Record<string, string>
+  created: string
+  updated: string | null
+}
+
+export type AgentHubSubPanel = 'tasks' | 'brain' | 'monitor' | 'messages' | 'workflows' | 'settings'
 
 // ============================================================
 // Store 定义
@@ -184,6 +211,13 @@ interface AgentHubStore {
   loadMessages: (agentId?: string) => Promise<void>
   sendMessage: (from: string, to: string, action: string, content: string, taskId?: string) => Promise<void>
   markMessageRead: (messageId: string) => Promise<void>
+
+  // 工作流
+  workflows: Workflow[]
+  loadWorkflows: () => Promise<void>
+  saveWorkflow: (workflow: Workflow) => Promise<void>
+  deleteWorkflow: (id: string) => Promise<void>
+  createTasksFromWorkflow: (workflowId: string, variables: Record<string, string>) => Promise<Task[]>
 }
 
 export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
@@ -193,6 +227,7 @@ export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
   claudeCodeAgents: [],
   activeAgents: [],
   messages: [],
+  workflows: [],
   events: [],
   brainMeta: null,
   brainSections: {},
@@ -673,6 +708,53 @@ export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
       }))
     } catch (e: any) {
       set({ error: String(e) })
+    }
+  },
+
+  // ============================================================
+  // 工作流
+  // ============================================================
+
+  loadWorkflows: async () => {
+    try {
+      const workflows = await invoke<Workflow[]>('agenthub_load_workflows')
+      set({ workflows })
+    } catch (e: any) {
+      set({ error: String(e) })
+    }
+  },
+
+  saveWorkflow: async (workflow: Workflow) => {
+    try {
+      await invoke('agenthub_save_workflow', { workflow })
+      await get().loadWorkflows()
+    } catch (e: any) {
+      set({ error: String(e) })
+      throw e
+    }
+  },
+
+  deleteWorkflow: async (id: string) => {
+    try {
+      await invoke('agenthub_delete_workflow', { id })
+      await get().loadWorkflows()
+    } catch (e: any) {
+      set({ error: String(e) })
+      throw e
+    }
+  },
+
+  createTasksFromWorkflow: async (workflowId: string, variables: Record<string, string>) => {
+    try {
+      const tasks = await invoke<Task[]>('agenthub_create_tasks_from_workflow', {
+        workflowId,
+        variables,
+      })
+      await get().loadTasks()
+      return tasks
+    } catch (e: any) {
+      set({ error: String(e) })
+      throw e
     }
   },
 }))

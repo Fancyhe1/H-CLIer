@@ -253,6 +253,73 @@ pub struct Message {
     pub read: bool,
 }
 
+// ============================================================
+// 工作流定义
+// ============================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowNode {
+    pub id: String,
+    pub role: String,           // Agent 角色名称
+    pub task_template: String,  // 任务模板，支持 {variable} 占位符
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub auto_start: bool,       // 是否自动启动
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowEdge {
+    pub from: String,           // 源节点 ID
+    pub to: String,             // 目标节点 ID
+    pub action: String,         // 动作类型：review, delegate, help, handoff
+    pub condition: String,      // 触发条件：completed, failed, needs_changes
+    #[serde(default)]
+    pub description: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Workflow {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub nodes: Vec<WorkflowNode>,
+    #[serde(default)]
+    pub edges: Vec<WorkflowEdge>,
+    #[serde(default)]
+    pub variables: std::collections::HashMap<String, String>,  // 模板变量
+    pub created: String,
+    #[serde(default)]
+    pub updated: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct WorkflowsFile {
+    version: u32,
+    #[serde(default)]
+    workflows: Vec<Workflow>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowRun {
+    pub id: String,
+    pub workflow_id: String,
+    pub status: String,         // running, completed, failed
+    pub started_at: String,
+    #[serde(default)]
+    pub completed_at: Option<String>,
+    #[serde(default)]
+    pub node_states: std::collections::HashMap<String, String>,  // node_id -> status
+    #[serde(default)]
+    pub variables: std::collections::HashMap<String, String>,    // 运行时变量
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct ActiveAgentsFile {
     #[serde(default)]
@@ -1887,6 +1954,146 @@ impl AgentHubManager {
         }
 
         Ok(context)
+    }
+
+    // ============================================================
+    // 工作流管理
+    // ============================================================
+
+    fn get_workflows_path(&self) -> Result<PathBuf, String> {
+        let hub_path = self.get_hub_path()?;
+        let workflows_dir = hub_path.join("workflows");
+        std::fs::create_dir_all(&workflows_dir)
+            .map_err(|e| format!("创建 workflows 目录失败: {}", e))?;
+        Ok(workflows_dir.join("workflows.yaml"))
+    }
+
+    /// 加载所有工作流
+    pub fn load_workflows(&self) -> Result<Vec<Workflow>, String> {
+        let workflows_file = self.get_workflows_path()?;
+
+        if !workflows_file.exists() {
+            return Ok(vec![]);
+        }
+
+        let content = std::fs::read_to_string(&workflows_file)
+            .map_err(|e| format!("读取 workflows.yaml 失败: {}", e))?;
+
+        let data: WorkflowsFile = serde_yaml::from_str(&content)
+            .map_err(|e| format!("解析 workflows.yaml 失败: {}", e))?;
+
+        Ok(data.workflows)
+    }
+
+    /// 保存工作流（创建或更新）
+    pub fn save_workflow(&self, workflow: &Workflow) -> Result<(), String> {
+        let workflows_file = self.get_workflows_path()?;
+
+        let mut data = if workflows_file.exists() {
+            let content = std::fs::read_to_string(&workflows_file)
+                .map_err(|e| format!("读取 workflows.yaml 失败: {}", e))?;
+            serde_yaml::from_str::<WorkflowsFile>(&content)
+                .map_err(|e| format!("解析 workflows.yaml 失败: {}", e))?
+        } else {
+            WorkflowsFile { version: 1, workflows: vec![] }
+        };
+
+        // 更新或插入
+        if let Some(existing) = data.workflows.iter_mut().find(|w| w.id == workflow.id) {
+            *existing = workflow.clone();
+        } else {
+            data.workflows.push(workflow.clone());
+        }
+
+        let yaml = serde_yaml::to_string(&data)
+            .map_err(|e| format!("序列化 workflows.yaml 失败: {}", e))?;
+        std::fs::write(&workflows_file, yaml)
+            .map_err(|e| format!("写入 workflows.yaml 失败: {}", e))?;
+
+        Ok(())
+    }
+
+    /// 删除工作流
+    pub fn delete_workflow(&self, id: &str) -> Result<(), String> {
+        let workflows_file = self.get_workflows_path()?;
+
+        let content = std::fs::read_to_string(&workflows_file)
+            .map_err(|e| format!("读取 workflows.yaml 失败: {}", e))?;
+        let mut data: WorkflowsFile = serde_yaml::from_str(&content)
+            .map_err(|e| format!("解析 workflows.yaml 失败: {}", e))?;
+
+        data.workflows.retain(|w| w.id != id);
+
+        let yaml = serde_yaml::to_string(&data)
+            .map_err(|e| format!("序列化 workflows.yaml 失败: {}", e))?;
+        std::fs::write(&workflows_file, yaml)
+            .map_err(|e| format!("写入 workflows.yaml 失败: {}", e))?;
+
+        Ok(())
+    }
+
+    /// 从工作流创建任务链
+    pub fn create_tasks_from_workflow(
+        &self,
+        workflow_id: &str,
+        variables: &std::collections::HashMap<String, String>,
+    ) -> Result<Vec<Task>, String> {
+        let workflows = self.load_workflows()?;
+        let workflow = workflows.iter().find(|w| w.id == workflow_id)
+            .ok_or_else(|| format!("工作流 {} 不存在", workflow_id))?;
+
+        let mut created_tasks = Vec::new();
+        let now = Utc::now().to_rfc3339();
+
+        for node in &workflow.nodes {
+            // 替换模板变量
+            let mut title = node.task_template.clone();
+            for (key, value) in variables {
+                title = title.replace(&format!("{{{}}}", key), value);
+            }
+
+            // 生成任务 ID
+            let existing_ids: Vec<String> = self.load_tasks()?.iter().map(|t| t.id.clone()).collect();
+            let mut next_num = 1;
+            while existing_ids.contains(&format!("T{:03}", next_num)) {
+                next_num += 1;
+            }
+            let task_id = format!("T{:03}", next_num);
+
+            let task = Task {
+                id: task_id.clone(),
+                title: title.clone(),
+                description: node.description.clone(),
+                status: TaskStatus::Pending,
+                priority: Priority::Medium,
+                assigned_agent: Some(node.role.clone()),
+                dependencies: vec![],
+                tags: vec!["workflow".to_string(), workflow_id.to_string()],
+                subtasks: vec![],
+                created: now.clone(),
+                updated: None,
+                started_at: None,
+                completed_at: None,
+                result: None,
+                error: None,
+                retry_count: 0,
+            };
+
+            self.create_task(&task)?;
+            created_tasks.push(task);
+        }
+
+        // 追加事件
+        self.append_event(&HubEvent {
+            ts: now,
+            event_type: "workflow_started".to_string(),
+            task_id: None,
+            agent: None,
+            message: Some(format!("从工作流 '{}' 创建了 {} 个任务", workflow.name, created_tasks.len())),
+            files_changed: None,
+        })?;
+
+        Ok(created_tasks)
     }
 }
 

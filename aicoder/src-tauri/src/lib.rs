@@ -1508,6 +1508,44 @@ fn agenthub_build_message_context(
     manager.build_message_context(&agent_id)
 }
 
+// 工作流命令
+
+#[tauri::command]
+fn agenthub_load_workflows(
+    state: tauri::State<SharedAppState>,
+) -> Result<Vec<agent_hub::Workflow>, String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.load_workflows()
+}
+
+#[tauri::command]
+fn agenthub_save_workflow(
+    state: tauri::State<SharedAppState>,
+    workflow: agent_hub::Workflow,
+) -> Result<(), String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.save_workflow(&workflow)
+}
+
+#[tauri::command]
+fn agenthub_delete_workflow(
+    state: tauri::State<SharedAppState>,
+    id: String,
+) -> Result<(), String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.delete_workflow(&id)
+}
+
+#[tauri::command]
+fn agenthub_create_tasks_from_workflow(
+    state: tauri::State<SharedAppState>,
+    workflow_id: String,
+    variables: std::collections::HashMap<String, String>,
+) -> Result<Vec<agent_hub::Task>, String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.create_tasks_from_workflow(&workflow_id, &variables)
+}
+
 // 主函数
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -1738,6 +1776,10 @@ pub fn run() {
             agenthub_get_unread_messages,
             agenthub_mark_message_read,
             agenthub_build_message_context,
+            agenthub_load_workflows,
+            agenthub_save_workflow,
+            agenthub_delete_workflow,
+            agenthub_create_tasks_from_workflow,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

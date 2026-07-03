@@ -10,12 +10,14 @@ import {
   CheckCircleOutlined,
   PlusOutlined,
   MailOutlined,
+  BranchesOutlined,
 } from '@ant-design/icons'
 import { invoke } from '@tauri-apps/api/core'
 import TaskBoard from './TaskBoard'
 import BrainPanel from './BrainPanel'
 import AgentMonitor from './AgentMonitor'
 import MessagePanel from './MessagePanel'
+import WorkflowPanel from './WorkflowPanel'
 import AgentSettingsPanel from './AgentSettingsPanel'
 import { useAgentHubStore } from '../../stores/agentHubStore'
 import { useSessionStore } from '../../stores/sessionStore'
@@ -292,6 +294,15 @@ const AgentHubPanel: React.FC = () => {
         </span>
       ),
       children: <MessagePanel />,
+    },
+    {
+      key: 'workflows',
+      label: (
+        <span>
+          <BranchesOutlined /> 工作流
+        </span>
+      ),
+      children: <WorkflowPanel />,
     },
     {
       key: 'settings',
