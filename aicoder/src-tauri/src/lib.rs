@@ -789,21 +789,18 @@ fn create_http_client() -> reqwest::Client {
     // 读取系统代理环境变量
     let mut has_proxy = false;
     if let Ok(proxy) = std::env::var("HTTP_PROXY").or_else(|_| std::env::var("http_proxy")) {
-        println!("[Proxy] HTTP_PROXY: {}", proxy);
         if let Ok(p) = reqwest::Proxy::http(&proxy) {
             builder = builder.proxy(p);
             has_proxy = true;
         }
     }
     if let Ok(proxy) = std::env::var("HTTPS_PROXY").or_else(|_| std::env::var("https_proxy")) {
-        println!("[Proxy] HTTPS_PROXY: {}", proxy);
         if let Ok(p) = reqwest::Proxy::https(&proxy) {
             builder = builder.proxy(p);
             has_proxy = true;
         }
     }
     if let Ok(proxy) = std::env::var("ALL_PROXY").or_else(|_| std::env::var("all_proxy")) {
-        println!("[Proxy] ALL_PROXY: {}", proxy);
         if let Ok(p) = reqwest::Proxy::all(&proxy) {
             builder = builder.proxy(p);
             has_proxy = true;
@@ -813,16 +810,10 @@ fn create_http_client() -> reqwest::Client {
     // 如果没有环境变量，尝试读取 Windows 系统代理
     if !has_proxy {
         if let Some(proxy) = get_windows_proxy() {
-            println!("[Proxy] Windows 系统代理: {}", proxy);
             if let Ok(p) = reqwest::Proxy::all(&proxy) {
                 builder = builder.proxy(p);
-                has_proxy = true;
             }
         }
-    }
-
-    if !has_proxy {
-        println!("[Proxy] 未检测到代理设置");
     }
 
     builder.build().unwrap_or_default()
