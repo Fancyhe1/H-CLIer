@@ -84,25 +84,23 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, onClose, onRun }) => {
   }
 
   const handleRun = async () => {
-    // 如果有未保存的修改，先确认
+    // 如果有未保存的修改，先确认保存
     if (hasUnsavedChanges) {
       Modal.confirm({
         title: '未保存的修改',
         content: '你有未保存的标题或描述修改，是否先保存？',
-        okText: '保存并启动',
-        cancelText: '不保存直接启动',
+        okText: '保存',
+        cancelText: '不保存',
         onOk: async () => {
           await handleSave()
-          onRun?.(taskId)
         },
         onCancel: () => {
           setEditing(false)
-          onRun?.(taskId)
         },
       })
-    } else {
-      onRun?.(taskId)
+      return
     }
+    onRun?.(taskId)
   }
 
   const handleStatusChange = async (status: TaskStatus) => {
