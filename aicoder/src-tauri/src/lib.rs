@@ -745,6 +745,41 @@ fn is_newer_version(current: &str, remote: &str) -> bool {
     false
 }
 
+// 读取 Windows 系统代理设置
+#[cfg(target_os = "windows")]
+fn get_windows_proxy() -> Option<String> {
+    use winreg::enums::*;
+    use winreg::RegKey;
+
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let internet_settings = hkcu.open_subkey_with_flags(
+        "Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
+        KEY_READ,
+    ).ok()?;
+
+    let proxy_enable: u32 = internet_settings.get_value("ProxyEnable").unwrap_or(0);
+    if proxy_enable == 0 {
+        return None;
+    }
+
+    let proxy_server: String = internet_settings.get_value("ProxyServer").unwrap_or_default();
+    if proxy_server.is_empty() {
+        return None;
+    }
+
+    // 确保有协议前缀
+    if proxy_server.starts_with("http://") || proxy_server.starts_with("https://") || proxy_server.starts_with("socks") {
+        Some(proxy_server)
+    } else {
+        Some(format!("http://{}", proxy_server))
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn get_windows_proxy() -> Option<String> {
+    None
+}
+
 // 创建 HTTP 客户端，支持系统代理和超时
 fn create_http_client() -> reqwest::Client {
     let mut builder = reqwest::Client::builder()
@@ -774,8 +809,20 @@ fn create_http_client() -> reqwest::Client {
             has_proxy = true;
         }
     }
+
+    // 如果没有环境变量，尝试读取 Windows 系统代理
     if !has_proxy {
-        println!("[Proxy] 未检测到代理环境变量");
+        if let Some(proxy) = get_windows_proxy() {
+            println!("[Proxy] Windows 系统代理: {}", proxy);
+            if let Ok(p) = reqwest::Proxy::all(&proxy) {
+                builder = builder.proxy(p);
+                has_proxy = true;
+            }
+        }
+    }
+
+    if !has_proxy {
+        println!("[Proxy] 未检测到代理设置");
     }
 
     builder.build().unwrap_or_default()

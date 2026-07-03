@@ -45,6 +45,7 @@ futures = "0.3"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.58", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation"] }
+winreg = "0.52"
 
 [features]
 default = ["custom-protocol"]
