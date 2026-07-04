@@ -2131,7 +2131,8 @@ impl AgentHubManager {
         let run_id = format!("run-{}", uuid::Uuid::new_v4().to_string()[..8].to_string());
         let mut node_states = std::collections::HashMap::new();
         for node in &workflow.nodes {
-            let status = if Some(node.id) == first_node.map(|n| &n.id) {
+            let is_first = first_node.map(|n| n.id.as_str()) == Some(node.id.as_str());
+            let status = if is_first {
                 "active".to_string()
             } else {
                 "pending".to_string()
