@@ -1294,9 +1294,17 @@ fn agenthub_update_brain_section(
 fn agenthub_build_context(
     state: tauri::State<SharedAppState>,
     task_id: String,
+    agent_role_id: Option<String>,
+    brain_sections: Option<Vec<String>>,
 ) -> Result<String, String> {
     let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
-    manager.build_context(&task_id)
+    if let Some(role_id) = agent_role_id {
+        let roles = manager.load_agent_roles()?;
+        let role = roles.iter().find(|r| r.id == role_id || r.name == role_id);
+        manager.build_context_with_agent(&task_id, role, brain_sections.as_deref())
+    } else {
+        manager.build_context_with_agent(&task_id, None, brain_sections.as_deref())
+    }
 }
 
 #[tauri::command]

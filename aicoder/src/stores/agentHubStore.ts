@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { invoke } from '@tauri-apps/api/core'
 import { message } from 'antd'
+import { useSessionStore } from './sessionStore'
 
 // ============================================================
 // 类型定义
@@ -790,7 +791,61 @@ export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
     try {
       const nextTaskId = await invoke<string | null>('agenthub_handle_task_completed', { taskId })
       await get().loadTasks()
+      await get().loadActiveAgents()
       await get().loadEvents()
+
+      // 如果有下一个任务，自动创建会话
+      if (nextTaskId) {
+        const tasks = get().tasks
+        const nextTask = tasks.find(t => t.id === nextTaskId)
+        if (nextTask && nextTask.status === 'ready') {
+          // 延迟一下等待数据刷新
+          setTimeout(async () => {
+            try {
+              const { currentProjectPath } = get()
+              const { fetchSessions, setActiveSession } = useSessionStore.getState()
+
+              const projectPath = currentProjectPath || ''
+              if (!projectPath) return
+
+              // 构建上下文
+              const context = await invoke<string>('agenthub_build_context', {
+                taskId: nextTaskId,
+                agentRoleId: nextTask.assignedAgent || null,
+                brainSections: null,
+              })
+
+              // 创建会话
+              const session = await invoke<{ id: string; title: string }>('create_session', {
+                projectPath,
+                title: `Workflow: ${nextTask.title}`,
+                sessionType: 'claude',
+              })
+
+              // 更新 agent 的 sessionId
+              const { activeAgents, updateAgentSession } = get()
+              const agent = activeAgents.find(a => a.taskId === nextTaskId)
+              if (agent) {
+                await updateAgentSession(agent.agentId, session.id)
+              }
+
+              await fetchSessions()
+              setActiveSession(session.id)
+
+              // 存储上下文
+              sessionStorage.setItem(`agenthub-context-${session.id}`, context)
+              if (nextTask.assignedAgent) {
+                sessionStorage.setItem(`agenthub-agent-${session.id}`, nextTask.assignedAgent)
+              }
+
+              message.info(`工作流自动启动任务: ${nextTask.title}`)
+            } catch (e) {
+              console.error('自动创建会话失败:', e)
+            }
+          }, 1000)
+        }
+      }
+
       return nextTaskId
     } catch (e: any) {
       set({ error: String(e) })

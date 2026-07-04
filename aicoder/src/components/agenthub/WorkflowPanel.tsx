@@ -23,7 +23,9 @@ import {
   PlayCircleOutlined,
   NodeIndexOutlined,
 } from '@ant-design/icons'
-import { useAgentHubStore, type Workflow, type WorkflowNode, type WorkflowEdge } from '../../stores/agentHubStore'
+import { invoke } from '@tauri-apps/api/core'
+import { useAgentHubStore, type Workflow, type WorkflowNode, type WorkflowEdge, type Task } from '../../stores/agentHubStore'
+import { useSessionStore } from '../../stores/sessionStore'
 
 const { Text, Paragraph } = Typography
 
@@ -124,11 +126,69 @@ const WorkflowPanel: React.FC = () => {
   const handleRunConfirm = async () => {
     if (!runWorkflowId) return
     try {
+      // 1. 启动工作流（创建任务链 + 标记第一个为 ready）
       const tasks = await startWorkflow(runWorkflowId, runVariables)
       message.success(`工作流已启动，创建了 ${tasks.length} 个任务`)
+
+      // 2. 找到 ready 状态的任务，自动创建会话
+      const readyTask = tasks.find(t => t.status === 'ready')
+      if (readyTask) {
+        await autoCreateSession(readyTask)
+      }
+
       setRunModalOpen(false)
     } catch (e: any) {
       message.error(`启动工作流失败: ${e}`)
+    }
+  }
+
+  // 自动为任务创建会话并注入上下文
+  const autoCreateSession = async (task: Task) => {
+    try {
+      const { currentProjectPath } = useAgentHubStore.getState()
+      const { fetchSessions, setActiveSession } = useSessionStore.getState()
+
+      const projectPath = currentProjectPath || ''
+      if (!projectPath) {
+        message.warning('未检测到项目路径')
+        return
+      }
+
+      // 1. 构建上下文（包含 agent 角色信息）
+      const context = await invoke<string>('agenthub_build_context', {
+        taskId: task.id,
+        agentRoleId: task.assignedAgent || null,
+        brainSections: null, // 注入所有 brain 内容
+      })
+
+      // 2. 创建会话
+      const session = await invoke<{ id: string; title: string }>('create_session', {
+        projectPath,
+        title: `Workflow: ${task.title}`,
+        sessionType: 'claude',
+      })
+
+      // 3. 更新 agent 记录的 sessionId
+      const { activeAgents, updateAgentSession } = useAgentHubStore.getState()
+      const agent = activeAgents.find(a => a.taskId === task.id)
+      if (agent) {
+        await updateAgentSession(agent.agentId, session.id)
+      }
+
+      // 4. 刷新会话列表并切换
+      await fetchSessions()
+      setActiveSession(session.id)
+
+      // 5. 存储上下文，等待 PTY 就绪后注入
+      sessionStorage.setItem(`agenthub-context-${session.id}`, context)
+      // 存储 agent 名称（用于 --agent 参数）
+      if (task.assignedAgent) {
+        sessionStorage.setItem(`agenthub-agent-${session.id}`, task.assignedAgent)
+      }
+
+      message.info(`已为任务 ${task.id} 创建会话，等待 Claude 启动...`)
+    } catch (e: any) {
+      message.error(`创建会话失败: ${e}`)
     }
   }
 
