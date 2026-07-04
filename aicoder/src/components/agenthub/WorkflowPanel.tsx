@@ -126,18 +126,26 @@ const WorkflowPanel: React.FC = () => {
   const handleRunConfirm = async () => {
     if (!runWorkflowId) return
     try {
+      console.log('[Workflow] 启动工作流:', runWorkflowId, '变量:', runVariables)
+
       // 1. 启动工作流（创建任务链 + 标记第一个为 ready）
       const tasks = await startWorkflow(runWorkflowId, runVariables)
+      console.log('[Workflow] 创建的任务:', tasks)
       message.success(`工作流已启动，创建了 ${tasks.length} 个任务`)
 
       // 2. 找到 ready 状态的任务，自动创建会话
       const readyTask = tasks.find(t => t.status === 'ready')
+      console.log('[Workflow] Ready 任务:', readyTask)
+
       if (readyTask) {
         await autoCreateSession(readyTask)
+      } else {
+        console.warn('[Workflow] 没有找到 ready 状态的任务')
       }
 
       setRunModalOpen(false)
     } catch (e: any) {
+      console.error('[Workflow] 启动失败:', e)
       message.error(`启动工作流失败: ${e}`)
     }
   }
@@ -147,6 +155,8 @@ const WorkflowPanel: React.FC = () => {
     try {
       const { currentProjectPath } = useAgentHubStore.getState()
       const { fetchSessions, setActiveSession } = useSessionStore.getState()
+
+      console.log('[Workflow] 自动创建会话, task:', task.id, 'projectPath:', currentProjectPath, 'agent:', task.assignedAgent)
 
       const projectPath = currentProjectPath || ''
       if (!projectPath) {
