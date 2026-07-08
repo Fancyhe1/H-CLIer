@@ -14,75 +14,16 @@ interface TerminalInstance {
   ptyId: string
   unlisten: () => void
   sessionId: string
-  // 用于标记此终端是否应该在收到输出时标记未读
+  // 用于标记此终端是否在后台运行（hook 通知时据此决定是否标记未读）
   shouldMarkUnread: boolean
+  // shouldMarkUnread 变为 true 的时间戳（用于过滤旧输出）
+  unreadMarkedAt?: number
+  // 后台输出停止检测定时器
+  bgOutputTimer?: ReturnType<typeof setTimeout>
   // 初始化状态：pending=等待中, initializing=初始化中, ready=就绪, error=错误, destroying=销毁中
   initializationState: 'pending' | 'initializing' | 'ready' | 'error' | 'destroying'
   // 初始化超时定时器
   initTimeout?: ReturnType<typeof setTimeout>
-}
-
-// 剥离ANSI转义序列，检查是否包含有意义的可见文本
-function stripAnsi(str: string): string {
-  return str
-    .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')   // CSI序列（颜色、光标移动等）
-    .replace(/\x1b\][^\x07]*\x07/g, '')       // OSC序列
-    .replace(/\x1b[()][AB012]/g, '')          // 字符集选择
-    .replace(/\x1b\[\?25[hl]/g, '')           // 光标显示/隐藏
-    .replace(/\x1b\[\?1049[hl]/g, '')         // 备选屏幕缓冲区
-    .replace(/\x1b[>=]/g, '')                 // 应用/普通键盘模式
-    .replace(/\x1b[78]/g, '')                 // 保存/恢复光标
-    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '') // 控制字符（保留\n和\r）
-    .trim()
-}
-
-// 检查剥离ANSI后的文本是否只是Claude Code的噪音输出（非真正的回复）
-// 返回 true 表示是噪音，应该忽略
-function isClaudeCodeNoise(text: string): boolean {
-  if (!text) return true
-
-  // 移除空白和换行后检查
-  const compact = text.replace(/[\s\r\n]+/g, ' ').trim()
-  if (!compact) return true
-
-  // 含有 Claude Code TUI 专用状态字符（※ recap、✻ thinking 等）
-  // 这些字符永远不会出现在真实回复内容中，只要有就过滤
-  if (/[※✻✶✢]/.test(compact)) return true
-
-  // 纯噪音模式：整个内容只包含这些
-  const pureNoisePatterns = [
-    /^[\s─═╭╰│╮╯❯·•○◦●]+$/,                    // 纯边框/选择/动画字符
-    /^\s*[\$#>]\s*$/,                             // 只有提示符
-    /^\s*@\s*$/,                                  // 只有@符号
-  ]
-
-  if (pureNoisePatterns.some((p) => p.test(compact))) return true
-
-  // 包含噪音关键词的模式（需要匹配完整关键词，避免误判）
-  const noiseKeywordPatterns = [
-    /\brecap\b/i,                                 // recap 摘要
-    /\bCompacting\b/i,                            // 压缩提示
-    /disable\s+recaps/i,                          // 配置提示
-    /Worked\s+for\s+\d/i,                         // 时间提示（如 "Worked for 5 min"）
-    /\bShimmying\b/i,                             // 动画文字
-    /\(thinking\)/i,                              // thinking 标记
-    /esc\s*to\s*interrupt/i,                      // 中断提示
-    /\?\s*for\s*shortcuts/i,                      // 快捷键提示
-    /main-assistant/i,                            // 状态栏
-    /ClaudeCodev\d+/i,                            // 版本信息
-    /Claude\s*Code\s*v\d+/i,                      // 版本信息变体
-    /API\s*Usage/i,                               // API使用
-    /\bLoading\b|加载中/i,                         // 加载提示
-    /Please\s+wait|请稍候/i,                       // 等待提示
-    /^\s*exit\s*$/i,                              // exit 命令
-    /^\s*clear\s*$/i,                             // clear 命令
-    /Auto-update\s+failed/i,                      // 自动更新失败
-    /claude\.exe\s+in\s+use/i,                    // claude.exe 被占用
-    /close\s+other.*Claude\s+Code/i,              // 关闭其他 Claude Code 会话
-    /Run\s+\/doctor/i,                            // 运行 /doctor 提示
-  ]
-
-  return noiseKeywordPatterns.some((pattern) => pattern.test(compact))
 }
 
 // 检测 /branch 创建的新会话并自动导入
@@ -279,6 +220,60 @@ function MultiTerminal() {
     return () => { unlisten.then(fn => fn()) }
   }, [])
 
+  // 监听 Claude Code hook 通知
+  useEffect(() => {
+    const unlisten = listen('claude-hook-notification', (event) => {
+      const payload = event.payload as {
+        hook_event_name?: string
+        matcher?: string
+        message?: string
+        session_id?: string
+      }
+
+      const isPermissionEvent = payload.matcher === 'permission_prompt' || payload.matcher === 'elicitation_dialog'
+      const isStopEvent = payload.hook_event_name === 'Stop'
+
+      if (!isPermissionEvent && !isStopEvent) return
+
+      const activeSessionId = useSessionStore.getState().activeSessionId
+
+      // Notification 事件：仅处理在软件中已打开终端的会话
+      if (isPermissionEvent) {
+        if (payload.session_id) {
+          const sessions = useSessionStore.getState().sessions
+          const matchedSession = sessions.find(s =>
+            s.cliSessionId === payload.session_id ||
+            s.id === payload.session_id
+          )
+          if (matchedSession && terminalsRef.current.has(matchedSession.id)) {
+            useSessionStore.getState().setHasUnread(matchedSession.id, true)
+            return
+          }
+        }
+        const terminals = terminalsRef.current
+        terminals.forEach((instance, sessionId) => {
+          if (instance.shouldMarkUnread) {
+            useSessionStore.getState().setHasUnread(sessionId, true)
+          }
+        })
+      }
+      // Stop 事件：窗口可见时跳过前台会话，窗口不可见时处理所有会话
+      else if (isStopEvent && payload.session_id) {
+        const sessions = useSessionStore.getState().sessions
+        const matchedSession = sessions.find(s =>
+          s.cliSessionId === payload.session_id ||
+          s.id === payload.session_id
+        )
+        if (matchedSession && terminalsRef.current.has(matchedSession.id)) {
+          if (!document.hidden && matchedSession.id === activeSessionId) return
+          useSessionStore.getState().setHasUnread(matchedSession.id, true)
+        }
+      }
+    })
+
+    return () => { unlisten.then(fn => fn()) }
+  }, [])
+
   // 当 activeSessionId 变为 null 时，确保没有终端显示
   useEffect(() => {
     if (!activeSessionId) {
@@ -293,68 +288,50 @@ function MultiTerminal() {
     }
   }, [activeSessionId])
 
-  // 窗口可见性冷却机制：切回窗口后短暂忽略输出，避免 TUI 重绘触发误报
-  const lastVisibleTimeRef = useRef(Date.now())
-  const COOLDOWN_MS = 5000  // 切回窗口后5秒内忽略输出
-
-  // 辅助函数：标记所有终端为可检测未读
-  const markAllTerminalsMarkable = () => {
-    terminalsRef.current.forEach((instance) => {
-      instance.shouldMarkUnread = true
+  // 辅助函数：更新终端的监控状态
+  // 当前显示的会话不监控（用户正在看），其他会话都监控
+  const updateTerminalMonitoring = () => {
+    const current = useSessionStore.getState().activeSessionId
+    terminalsRef.current.forEach((instance, id) => {
+      if (id === current) {
+        // 当前显示的会话：停止监控
+        instance.shouldMarkUnread = false
+        instance.unreadMarkedAt = undefined
+        if (instance.bgOutputTimer) {
+          clearTimeout(instance.bgOutputTimer)
+          instance.bgOutputTimer = undefined
+        }
+      } else if (!instance.shouldMarkUnread) {
+        // 后台会话：开始监控（仅从非监控状态转为监控状态时设置时间戳）
+        instance.shouldMarkUnread = true
+        instance.unreadMarkedAt = Date.now()
+      }
     })
   }
 
-  // 辅助函数：窗口变为可见时的处理
-  const handleWindowVisible = () => {
-    lastVisibleTimeRef.current = Date.now()  // 记录冷却起点
-    const current = useSessionStore.getState().activeSessionId
-    if (current) {
-      const instance = terminalsRef.current.get(current)
-      if (instance) instance.shouldMarkUnread = false
-      useSessionStore.getState().setHasUnread(current, false)
-    }
-  }
-
-  // 辅助函数：窗口变为不可见时的处理
-  const handleWindowHidden = () => {
-    markAllTerminalsMarkable()
-  }
-
-  // 监听窗口焦点变化（Tauri 原生事件）
+  // 监听窗口焦点变化
   useEffect(() => {
     const unlisten = listen<boolean>('tauri://focus-changed', (event) => {
       if (event.payload) {
-        handleWindowVisible()
-      } else {
-        handleWindowHidden()
+        const current = useSessionStore.getState().activeSessionId
+        if (current) useSessionStore.getState().setHasUnread(current, false)
       }
+      updateTerminalMonitoring()
     })
     return () => { unlisten.then(fn => fn()) }
   }, [])
 
-  // 监听页面可见性变化（补充：最小化、被遮挡等场景）
+  // 监听页面可见性变化
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.hidden) {
-        handleWindowHidden()
-      } else {
-        handleWindowVisible()
+      if (!document.hidden) {
+        const current = useSessionStore.getState().activeSessionId
+        if (current) useSessionStore.getState().setHasUnread(current, false)
       }
+      updateTerminalMonitoring()
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
-  }, [])
-
-  // 监听窗口 blur/focus 事件（浏览器原生，额外保障）
-  useEffect(() => {
-    const handleBlur = () => handleWindowHidden()
-    const handleFocus = () => handleWindowVisible()
-    window.addEventListener('blur', handleBlur)
-    window.addEventListener('focus', handleFocus)
-    return () => {
-      window.removeEventListener('blur', handleBlur)
-      window.removeEventListener('focus', handleFocus)
-    }
   }, [])
 
   // 等待容器有正确尺寸的辅助函数
@@ -513,14 +490,11 @@ function MultiTerminal() {
         // 生成 PTY ID（使用 session ID）
         const ptyId = activeSessionId
 
-        // 先设置事件监听器（在 PTY 创建之前）
-        // 使用延迟标记策略
-        // 原理：输出开始时不标记，等输出停止3秒后才标记未读
-        // 需要累积足够的可见文本（>30字符）才算真实回复，过滤 TUI 重绘噪音
+        // 设置 PTY 输出监听器
+        // 负责终端渲染 + 后台会话输出停止检测（用于标记未读）
         const mySessionId = activeSessionId
-        let outputTimer: ReturnType<typeof setTimeout> | null = null
-        let visibleTextLength = 0  // 累积可见文本长度
-        const MIN_VISIBLE_LENGTH = 30  // 最少需要30个可见字符才算真实回复
+        const BG_IDLE_TIMEOUT = 5000
+
         const unlisten = await listen<string>(`pty-output-${ptyId}`, (event) => {
           // 解码 hex 编码的数据
           let data = event.payload
@@ -531,9 +505,7 @@ function MultiTerminal() {
               for (let i = 0; i < hexStr.length; i += 2) {
                 const hexByte = hexStr.substring(i, i + 2)
                 const byte = parseInt(hexByte, 16)
-                if (!isNaN(byte)) {
-                  bytes.push(byte)
-                }
+                if (!isNaN(byte)) bytes.push(byte)
               }
               if (bytes.length > 0) {
                 data = new TextDecoder('utf-8').decode(new Uint8Array(bytes))
@@ -549,32 +521,21 @@ function MultiTerminal() {
 
           term.write(data)
 
-          // 如果这个终端需要标记未读（后台运行），且有新输出
-          const instance = terminalsRef.current.get(mySessionId)
-          if (!instance || !instance.shouldMarkUnread) return
-          // 冷却期：窗口刚变为可见时忽略输出，避免 TUI 重绘触发误报
-          if (Date.now() - lastVisibleTimeRef.current < COOLDOWN_MS) return
-          if (data) {
-            // 剥离ANSI转义序列，检查是否包含有意义的可见文本
-            const visibleContent = stripAnsi(data)
-            if (!visibleContent) return // 纯转义序列，忽略
-            if (isClaudeCodeNoise(visibleContent)) return // Claude Code噪音输出，忽略
-
-            // 累积可见文本长度
-            visibleTextLength += visibleContent.length
-
-            // 每次收到有意义的输出都重置定时器
-            if (outputTimer) {
-              clearTimeout(outputTimer)
-            }
-            // 输出停止3秒后才标记未读
-            outputTimer = setTimeout(() => {
-              const currentInstance = terminalsRef.current.get(mySessionId)
-              if (currentInstance && currentInstance.shouldMarkUnread && visibleTextLength >= MIN_VISIBLE_LENGTH) {
+          // 后台会话：输出停止检测（仅对非活跃会话生效）
+          const currentActive = useSessionStore.getState().activeSessionId
+          const inst = terminalsRef.current.get(mySessionId)
+          if (inst && inst.shouldMarkUnread && inst.unreadMarkedAt
+              && mySessionId !== currentActive
+              && Date.now() > inst.unreadMarkedAt) {
+            if (inst.bgOutputTimer) clearTimeout(inst.bgOutputTimer)
+            inst.bgOutputTimer = setTimeout(() => {
+              const cur = terminalsRef.current.get(mySessionId)
+              const curActive = useSessionStore.getState().activeSessionId
+              if (cur && cur.shouldMarkUnread && mySessionId !== curActive) {
                 useSessionStore.getState().setHasUnread(mySessionId, true)
               }
-              visibleTextLength = 0  // 重置累积器
-            }, 3000)
+              if (cur) cur.bgOutputTimer = undefined
+            }, BG_IDLE_TIMEOUT)
           }
         })
 
@@ -884,12 +845,8 @@ function MultiTerminal() {
   const showTerminal = useCallback((sessionId: string) => {
     if (!containerRef.current) return
 
-    // 把所有其他终端设置为"标记未读"模式（它们在后台运行）
-    terminalsRef.current.forEach((instance, id) => {
-      if (id !== sessionId) {
-        instance.shouldMarkUnread = true
-      }
-    })
+    // 更新监控状态（当前显示的停止监控，后台的开始监控）
+    updateTerminalMonitoring()
 
     const children = containerRef.current.children
     for (let i = 0; i < children.length; i++) {
@@ -900,8 +857,6 @@ function MultiTerminal() {
     // 调整大小 - 使用多重延迟确保容器已有正确尺寸
     const instance = terminalsRef.current.get(sessionId)
     if (instance && instance.initializationState === 'ready') {
-      instance.shouldMarkUnread = false  // 当前显示的终端不标记未读
-
       // 定义一个函数来 fit 并同步 PTY 尺寸
       const fitAndSync = async () => {
         try {
