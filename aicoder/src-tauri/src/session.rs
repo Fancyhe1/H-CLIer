@@ -150,15 +150,15 @@ impl SessionManager {
 
         let now = Utc::now();
 
-        // 计算最大 sort_order
-        let max_sort_order: i64 = self.conn
+        // 计算最小 sort_order，新会话排在最前面
+        let min_sort_order: i64 = self.conn
             .query_row(
-                "SELECT COALESCE(MAX(sort_order), 0) FROM sessions WHERE is_active = 1",
+                "SELECT COALESCE(MIN(sort_order), 0) FROM sessions WHERE is_active = 1",
                 [],
                 |row| row.get(0),
             )
             .unwrap_or(0);
-        let sort_order = max_sort_order + 1;
+        let sort_order = min_sort_order - 1;
 
         self.conn.execute(
             r#"
