@@ -20,8 +20,10 @@ import {
   PlayCircleOutlined,
   CopyOutlined,
   CheckCircleOutlined,
+  EyeOutlined,
 } from '@ant-design/icons'
 import { useAgentHubStore, type Priority, type TaskStatus } from '../../stores/agentHubStore'
+import ContextPreviewModal from './ContextPreviewModal'
 
 const { Text, Paragraph } = Typography
 
@@ -53,6 +55,7 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, onClose, onRun }) => {
   const [editing, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState('')
   const [editDesc, setEditDesc] = useState('')
+  const [previewOpen, setPreviewOpen] = useState(false)
 
   const task = tasks.find((t) => t.id === taskId)
 
@@ -135,6 +138,7 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, onClose, onRun }) => {
   const stInfo = statusLabels[task.status]
 
   return (
+    <>
     <Drawer
       title={
         editing ? (
@@ -301,6 +305,12 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, onClose, onRun }) => {
 
       <div className="task-detail-actions">
         <Space>
+          <Button
+            icon={<EyeOutlined />}
+            onClick={() => setPreviewOpen(true)}
+          >
+            预览上下文
+          </Button>
           {(task.status === 'pending' || task.status === 'assigned' || task.status === 'blocked' || task.status === 'failed') && (
             <Button
               type="primary"
@@ -332,6 +342,13 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, onClose, onRun }) => {
         </Space>
       </div>
     </Drawer>
+
+    <ContextPreviewModal
+      open={previewOpen}
+      onClose={() => setPreviewOpen(false)}
+      taskId={taskId}
+    />
+    </>
   )
 }
 

@@ -1308,6 +1308,34 @@ fn agenthub_build_context(
 }
 
 #[tauri::command]
+fn agenthub_build_context_with_paths(
+    state: tauri::State<SharedAppState>,
+    task_id: String,
+    agent_role_id: Option<String>,
+    brain_sections: Option<Vec<String>>,
+) -> Result<String, String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    let agent_roles = manager.load_agent_roles()?;
+    let agent_role = agent_role_id
+        .as_deref()
+        .and_then(|id| agent_roles.iter().find(|r| r.id == id || r.name == id));
+    manager.build_context_with_paths(
+        &task_id,
+        agent_role,
+        brain_sections.as_deref(),
+    )
+}
+
+#[tauri::command]
+fn agenthub_get_brain_section_content(
+    state: tauri::State<SharedAppState>,
+    section: String,
+) -> Result<String, String> {
+    let manager = state.agent_hub_manager.lock().map_err(|e| e.to_string())?;
+    manager.load_brain_section(&section)
+}
+
+#[tauri::command]
 fn agenthub_load_events(
     state: tauri::State<SharedAppState>,
     limit: Option<usize>,
@@ -1792,6 +1820,8 @@ pub fn run() {
             agenthub_load_brain_section,
             agenthub_update_brain_section,
             agenthub_build_context,
+            agenthub_build_context_with_paths,
+            agenthub_get_brain_section_content,
             agenthub_load_events,
             agenthub_scan_project,
             agenthub_run_task,

@@ -950,6 +950,93 @@ impl AgentHubManager {
         Ok(context)
     }
 
+    /// 构建包含文件路径引用的上下文（不嵌入文件内容，让 agent 自己读取）
+    pub fn build_context_with_paths(&self, task_id: &str, agent_role: Option<&AgentRole>, brain_sections: Option<&[String]>) -> Result<String, String> {
+        let mut context = String::new();
+
+        // 1. Agent 角色信息
+        if let Some(role) = agent_role {
+            context.push_str(&format!(
+                "## 你的角色\n\n你是 **{}**。\n",
+                role.name
+            ));
+            if !role.description.is_empty() {
+                context.push_str(&format!("{}\n", role.description));
+            }
+            if !role.prompt.is_empty() {
+                context.push_str(&format!("\n{}\n", role.prompt));
+            }
+            if !role.tags.is_empty() {
+                context.push_str(&format!("\n技能标签: {}\n", role.tags.join(", ")));
+            }
+            context.push_str(&format!("默认模型: {}\n", role.model));
+            context.push('\n');
+        }
+
+        // 2. 项目 brain（以文件路径引用方式注入）
+        let section_labels = [
+            ("architecture", "架构概述"),
+            ("structure", "目录结构"),
+            ("decisions", "技术决策"),
+            ("conventions", "代码规范"),
+            ("other", "其他补充"),
+            ("state/current", "当前状态"),
+        ];
+        let mut path_refs: Vec<String> = Vec::new();
+        for (key, label) in &section_labels {
+            if let Some(ref sections) = brain_sections {
+                if !sections.iter().any(|s| s == *key) {
+                    continue;
+                }
+            }
+            let file_path = format!(".agent-hub/brain/{}.md", key);
+            // 检查文件是否存在且非空
+            let hub_path = self.get_hub_path()?;
+            let section_file = hub_path.join("brain").join(format!("{}.md", key));
+            if section_file.exists() {
+                if let Ok(content) = std::fs::read_to_string(&section_file) {
+                    if !content.trim().is_empty() {
+                        path_refs.push(format!("- {}: @{}", label, file_path));
+                    }
+                }
+            }
+        }
+        if !path_refs.is_empty() {
+            context.push_str("## 项目知识\n\n请阅读以下文件了解项目背景：\n");
+            for path_ref in &path_refs {
+                context.push_str(&format!("{}\n", path_ref));
+            }
+            context.push('\n');
+        }
+
+        // 3. 任务描述
+        let tasks = self.load_tasks()?;
+        let task = tasks.iter().find(|t| t.id == task_id)
+            .ok_or_else(|| format!("任务 {} 不存在", task_id))?;
+
+        context.push_str(&format!(
+            "## 当前任务\n\n**ID**: {}\n**标题**: {}\n**描述**: {}\n**优先级**: {}\n",
+            task.id, task.title, task.description, task.priority.as_str()
+        ));
+
+        if !task.tags.is_empty() {
+            context.push_str(&format!("**标签**: {}\n", task.tags.join(", ")));
+        }
+
+        if !task.dependencies.is_empty() {
+            context.push_str(&format!("**依赖**: {}\n", task.dependencies.join(", ")));
+        }
+
+        if !task.subtasks.is_empty() {
+            context.push_str("**子任务**:\n");
+            for sub in &task.subtasks {
+                context.push_str(&format!("- [{}] {}\n", sub.status, sub.title));
+            }
+        }
+
+        Ok(context)
+    }
+
     /// 更新 agent 的 session_id
     pub fn update_agent_session(&self, agent_id: &str, session_id: &str) -> Result<(), String> {
         let hub_path = self.get_hub_path()?;

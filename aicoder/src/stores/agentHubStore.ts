@@ -189,6 +189,8 @@ interface AgentHubStore {
   updateBrainSection: (section: string, content: string) => Promise<void>
   scanProject: () => Promise<void>
   buildContext: (taskId: string) => Promise<string>
+  buildContextWithPaths: (taskId: string, agentRoleId?: string, brainSections?: string[]) => Promise<string>
+  getBrainSectionContent: (section: string) => Promise<string>
   generateClaudeMd: () => Promise<string>
   syncClaudeMd: () => Promise<string>
 
@@ -508,6 +510,30 @@ export const useAgentHubStore = create<AgentHubStore>((set, get) => ({
     } catch (e: any) {
       set({ error: String(e) })
       throw e
+    }
+  },
+
+  buildContextWithPaths: async (taskId: string, agentRoleId?: string, brainSections?: string[]) => {
+    try {
+      const context = await invoke<string>('agenthub_build_context_with_paths', {
+        taskId,
+        agentRoleId: agentRoleId || null,
+        brainSections: brainSections && brainSections.length > 0 ? brainSections : null,
+      })
+      return context
+    } catch (e: any) {
+      set({ error: String(e) })
+      throw e
+    }
+  },
+
+  getBrainSectionContent: async (section: string) => {
+    try {
+      const content = await invoke<string>('agenthub_get_brain_section_content', { section })
+      return content
+    } catch (e: any) {
+      set({ error: String(e) })
+      return ''
     }
   },
 

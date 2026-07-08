@@ -541,3 +541,36 @@
   height: 100%;
   overflow-y: auto;
 }
+
+/* ============================================================
+   上下文预览弹窗
+   ============================================================ */
+
+.context-preview-config {
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.context-preview-config .config-row {
+  display: flex;
+  gap: 12px;
+}
+
+.context-preview-config .config-item {
+  flex: 1;
+}
+
+.context-preview-area {
+  margin-top: 16px;
+}
+
+.context-preview-area .ant-input-textarea {
+  border-radius: 6px;
+}
+
+.context-preview-area .ant-input-textarea:focus,
+.context-preview-area .ant-input-textarea-focused {
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
