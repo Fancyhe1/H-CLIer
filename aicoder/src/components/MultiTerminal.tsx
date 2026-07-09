@@ -521,6 +521,11 @@ function MultiTerminal() {
 
           term.write(data)
 
+          // 过滤 Claude Code 的 recap/compacting 等 TUI 噪音，避免误触发未读
+          if (/[※✻✶✢]/.test(data) || /\brecap\b/i.test(data) || /\bCompacting\b/i.test(data)) {
+            return
+          }
+
           // 后台会话：输出停止检测（仅对非活跃会话生效）
           const currentActive = useSessionStore.getState().activeSessionId
           const inst = terminalsRef.current.get(mySessionId)
