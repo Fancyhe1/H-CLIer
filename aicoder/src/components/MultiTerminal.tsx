@@ -72,6 +72,8 @@ function MultiTerminal() {
   const createdSessionIdsRef = useRef<Set<string>>(new Set())
   // 窗口焦点状态（用于 Stop hook 判断是否需要标记未读）
   const windowFocusedRef = useRef(true)
+  // Stop 事件防抖（防止 recap 等重复触发）
+  const lastStopTimeRef = useRef<Map<string, number>>(new Map())
   // 分支检测：每个会话独立的输入缓冲区
   const branchInputBuffersRef = useRef<Map<string, string>>(new Map())
 
@@ -260,7 +262,13 @@ function MultiTerminal() {
         })
       }
       // Stop 事件：窗口可见且聚焦时跳过前台会话，其他情况都标记
+      // 防抖：30 秒内同一会话只触发一次（防止 recap 等重复触发）
       else if (isStopEvent && payload.session_id) {
+        const now = Date.now()
+        const lastStop = lastStopTimeRef.current.get(payload.session_id) || 0
+        if (now - lastStop < 30000) return  // 30 秒防抖
+        lastStopTimeRef.current.set(payload.session_id, now)
+
         const sessions = useSessionStore.getState().sessions
         const matchedSession = sessions.find(s =>
           s.cliSessionId === payload.session_id ||
@@ -293,6 +301,7 @@ function MultiTerminal() {
 
   // 辅助函数：更新终端的监控状态
   // 当前显示的会话不监控（用户正在看），其他会话都监控
+  // 延迟 2 秒启动检测，避免切后台时残留输出误触发
   const updateTerminalMonitoring = () => {
     const current = useSessionStore.getState().activeSessionId
     terminalsRef.current.forEach((instance, id) => {
@@ -305,9 +314,9 @@ function MultiTerminal() {
           instance.bgOutputTimer = undefined
         }
       } else if (!instance.shouldMarkUnread) {
-        // 后台会话：开始监控（仅从非监控状态转为监控状态时设置时间戳）
+        // 后台会话：延迟启动监控
         instance.shouldMarkUnread = true
-        instance.unreadMarkedAt = Date.now()
+        instance.unreadMarkedAt = Date.now() + 2000  // 2 秒后才开始检测
       }
     })
   }
