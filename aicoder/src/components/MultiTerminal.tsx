@@ -70,6 +70,8 @@ function MultiTerminal() {
   const terminalsRef = useRef<Map<string, TerminalInstance>>(new Map())
   // 用于记录创建终端时的配置，避免配置变化时重新创建
   const createdSessionIdsRef = useRef<Set<string>>(new Set())
+  // 窗口焦点状态（用于 Stop hook 判断是否需要标记未读）
+  const windowFocusedRef = useRef(true)
   // 分支检测：每个会话独立的输入缓冲区
   const branchInputBuffersRef = useRef<Map<string, string>>(new Map())
 
@@ -257,7 +259,7 @@ function MultiTerminal() {
           }
         })
       }
-      // Stop 事件：窗口可见时跳过前台会话，窗口不可见时处理所有会话
+      // Stop 事件：窗口可见且聚焦时跳过前台会话，其他情况都标记
       else if (isStopEvent && payload.session_id) {
         const sessions = useSessionStore.getState().sessions
         const matchedSession = sessions.find(s =>
@@ -265,7 +267,8 @@ function MultiTerminal() {
           s.id === payload.session_id
         )
         if (matchedSession && terminalsRef.current.has(matchedSession.id)) {
-          if (!document.hidden && matchedSession.id === activeSessionId) return
+          // 窗口可见 + 聚焦 + 前台会话 → 跳过（用户正在看）
+          if (!document.hidden && windowFocusedRef.current && matchedSession.id === activeSessionId) return
           useSessionStore.getState().setHasUnread(matchedSession.id, true)
         }
       }
@@ -312,6 +315,7 @@ function MultiTerminal() {
   // 监听窗口焦点变化
   useEffect(() => {
     const unlisten = listen<boolean>('tauri://focus-changed', (event) => {
+      windowFocusedRef.current = event.payload
       if (event.payload) {
         const current = useSessionStore.getState().activeSessionId
         if (current) useSessionStore.getState().setHasUnread(current, false)
@@ -332,6 +336,18 @@ function MultiTerminal() {
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [])
+
+  // 监听浏览器焦点变化（补充 Tauri 事件）
+  useEffect(() => {
+    const handleFocus = () => { windowFocusedRef.current = true }
+    const handleBlur = () => { windowFocusedRef.current = false }
+    window.addEventListener('focus', handleFocus)
+    window.addEventListener('blur', handleBlur)
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      window.removeEventListener('blur', handleBlur)
+    }
   }, [])
 
   // 等待容器有正确尺寸的辅助函数
