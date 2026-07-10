@@ -163,6 +163,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   setActiveSession: (sessionId) => {
     set({ activeSessionId: sessionId })
+    // 切换到会话时清除未读状态
+    if (sessionId) {
+      const session = get().sessions.find((s) => s.id === sessionId)
+      if (session && session.hasUnread) {
+        get().updateSession({ ...session, hasUnread: false })
+      }
+    }
   },
 
   setClosedSession: (sessionId) => {
