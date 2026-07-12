@@ -349,7 +349,14 @@ function MultiTerminal() {
 
   // 监听浏览器焦点变化（补充 Tauri 事件）
   useEffect(() => {
-    const handleFocus = () => { windowFocusedRef.current = true }
+    const handleFocus = () => {
+      windowFocusedRef.current = true
+      // 窗口获得焦点时，清除当前会话未读
+      const current = useSessionStore.getState().activeSessionId
+      if (current) {
+        useSessionStore.getState().setHasUnread(current, false)
+      }
+    }
     const handleBlur = () => { windowFocusedRef.current = false }
     window.addEventListener('focus', handleFocus)
     window.addEventListener('blur', handleBlur)
@@ -357,6 +364,22 @@ function MultiTerminal() {
       window.removeEventListener('focus', handleFocus)
       window.removeEventListener('blur', handleBlur)
     }
+  }, [])
+
+  // 定时检查：窗口有焦点时自动清除当前会话未读（兜底机制）
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!document.hidden && windowFocusedRef.current) {
+        const current = useSessionStore.getState().activeSessionId
+        if (current) {
+          const session = useSessionStore.getState().sessions.find(s => s.id === current)
+          if (session?.hasUnread) {
+            useSessionStore.getState().setHasUnread(current, false)
+          }
+        }
+      }
+    }, 1000)
+    return () => clearInterval(interval)
   }, [])
 
   // 等待容器有正确尺寸的辅助函数
