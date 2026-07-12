@@ -1685,8 +1685,8 @@ impl AgentHubManager {
             .map(|r| r.name.clone())
             .unwrap_or_else(|| "default".to_string());
 
-        // 构建上下文（Agent 角色 + 项目 brain + 任务描述）
-        let context = self.build_context_with_agent(task_id, agent_role, brain_sections)?;
+        // 构建上下文（Agent 角色 + 项目 brain 文件路径引用 + 任务描述）
+        let context = self.build_context_with_paths(task_id, agent_role, brain_sections)?;
 
         // 1. 先创建 Agent（状态为 ready）
         let active_agent = ActiveAgent {

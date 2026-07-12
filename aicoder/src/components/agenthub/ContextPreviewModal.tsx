@@ -145,6 +145,7 @@ const ContextPreviewModal: React.FC<ContextPreviewModalProps> = ({ open, onClose
       width={720}
       destroyOnClose
       maskClosable={false}
+      styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}
       footer={
         <Space>
           <Button onClick={onClose}>关闭</Button>
@@ -240,7 +241,6 @@ const ContextPreviewModal: React.FC<ContextPreviewModalProps> = ({ open, onClose
             style={{
               fontFamily: 'monospace',
               fontSize: 13,
-              backgroundColor: isEditing ? '#fff' : '#f5f5f5',
               resize: 'vertical',
             }}
           />
