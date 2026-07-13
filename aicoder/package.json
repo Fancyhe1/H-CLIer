@@ -1,6 +1,6 @@
 {
   "name": "hcl-ier",
-  "version": "0.3.2",
+  "version": "0.5.2",
   "description": "H CLIer - Claude Code 会话管理与工作台",
   "type": "module",
   "scripts": {
@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": ".\\run-tauri.cmd dev",
-    "tauri:build": ".\\run-tauri.cmd build"
+    "tauri:build": ".\\run-tauri.cmd build",
+    "release": "node scripts/release.cjs"
   },
   "keywords": [
     "tauri",
