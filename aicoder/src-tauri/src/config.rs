@@ -81,6 +81,9 @@ pub struct GeneralConfig {
     /// 自定义常用语列表
     #[serde(default)]
     pub phrases: Option<Vec<PhraseItem>>,
+    /// 是否已完成新手引导
+    #[serde(default)]
+    pub has_completed_onboarding: bool,
 }
 
 impl Default for AppConfig {
@@ -101,6 +104,7 @@ impl Default for GeneralConfig {
             default_export_path: None,
             keybindings: None,
             phrases: None,
+            has_completed_onboarding: false,
         }
     }
 }

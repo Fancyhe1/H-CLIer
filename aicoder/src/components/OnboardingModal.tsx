@@ -34,7 +34,7 @@ function OnboardingModal({ visible, onClose, claudeInstalled }: OnboardingModalP
   const handleFinish = () => {
     updateGeneralConfig({
       ...config.general,
-      hasCompletedOnboarding: true,
+      has_completed_onboarding: true,
     })
     onClose()
   }
@@ -42,7 +42,7 @@ function OnboardingModal({ visible, onClose, claudeInstalled }: OnboardingModalP
   const handleSkip = () => {
     updateGeneralConfig({
       ...config.general,
-      hasCompletedOnboarding: true,
+      has_completed_onboarding: true,
     })
     onClose()
   }

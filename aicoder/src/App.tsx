@@ -212,7 +212,7 @@ function App() {
 
       // 首次启动检测：如果未完成引导，显示引导弹窗
       const savedConfig = useSettingsStore.getState().config
-      if (!savedConfig?.general?.hasCompletedOnboarding) {
+      if (!savedConfig?.general?.has_completed_onboarding) {
         setTimeout(() => setOnboardingVisible(true), 500)
       }
     }).catch(() => {

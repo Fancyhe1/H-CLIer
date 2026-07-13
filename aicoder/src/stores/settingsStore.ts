@@ -23,7 +23,7 @@ export interface GeneralConfig {
   default_export_path: string | null
   keybindings?: Record<string, string>
   phrases?: PhraseItem[]
-  hasCompletedOnboarding?: boolean
+  has_completed_onboarding?: boolean
 }
 
 export interface PhraseItem {
