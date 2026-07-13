@@ -1510,7 +1510,7 @@ function Sidebar(props: SidebarProps) {
     <div className={`sidebar ${isDragging ? 'dragging-active' : ''}`}>
       <div className="sidebar-header">
         <span className="logo">
-          <img className="logo-icon" src="/icon.png" alt="H CLIer" width="20" height="20" />
+          <img className="logo-icon" src="/icon-32.png" alt="H CLIer" width="20" height="20" />
           <span>H CLIer</span>
         </span>
       </div>

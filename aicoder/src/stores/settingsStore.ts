@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { invoke } from '@tauri-apps/api/core'
+import { message } from 'antd'
 
 // 类型定义（与Rust后端对应）
 export interface ApiConfig {
@@ -22,6 +23,7 @@ export interface GeneralConfig {
   default_export_path: string | null
   keybindings?: Record<string, string>
   phrases?: PhraseItem[]
+  hasCompletedOnboarding?: boolean
 }
 
 export interface PhraseItem {
@@ -159,6 +161,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       set({ config, isLoading: false })
     } catch (err) {
       console.error('加载配置失败:', err)
+      message.warning('配置加载失败，使用默认配置')
       set({ isLoading: false })
     }
   },
@@ -171,6 +174,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       set({ config, isLoading: false })
     } catch (err) {
       console.error('保存配置失败:', err)
+      message.error('配置保存失败')
       set({ isLoading: false })
     }
   },
@@ -186,6 +190,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       }))
     } catch (err) {
       console.error('更新 Claude 配置失败:', err)
+      message.error('Claude 配置更新失败')
       set({ isLoading: false })
     }
   },
@@ -201,6 +206,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       }))
     } catch (err) {
       console.error('更新通用配置失败:', err)
+      message.error('通用配置更新失败')
       set({ isLoading: false })
     }
   },
@@ -213,6 +219,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       return installed
     } catch (err) {
       console.error('检查 Claude 安装失败:', err)
+      message.warning('Claude CLI 检测失败，请在设置中配置路径')
       set({ claudeInstalled: false })
       return false
     }

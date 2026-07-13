@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { invoke } from '@tauri-apps/api/core'
+import { message } from 'antd'
 import type { Session, CreateSessionParams } from '../types/session'
 
 interface SessionState {
@@ -88,7 +89,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const sessions = await invoke<Session[]>('get_sessions')
       set({ sessions, isLoading: false })
     } catch (err) {
-      set({ error: String(err), isLoading: false })
+      const errStr = String(err)
+      set({ error: errStr, isLoading: false })
+      message.error('加载会话列表失败')
     }
   },
 
@@ -118,6 +121,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       return session
     } catch (err) {
       set({ error: String(err), isLoading: false })
+      message.error('创建会话失败')
       return null
     }
   },
@@ -132,6 +136,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       }))
     } catch (err) {
       set({ error: String(err) })
+      message.error('更新会话失败')
     }
   },
 
@@ -145,6 +150,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       }))
     } catch (err) {
       set({ error: String(err) })
+      message.error('删除会话失败')
     }
   },
 
@@ -158,6 +164,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       set({ sessions: [], activeSessionId: null, isLoading: false })
     } catch (err) {
       set({ error: String(err), isLoading: false })
+      message.error('清空会话失败')
     }
   },
 

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "H CLIer Dev",
+  "productName": "H CLIer",
   "version": "0.3.2",
-  "identifier": "com.hcl-ier.dev",
+  "identifier": "com.hcl-ier",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1421",
@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "H CLIer Dev",
+        "title": "H CLIer",
         "width": 1400,
         "height": 900,
         "minWidth": 800,

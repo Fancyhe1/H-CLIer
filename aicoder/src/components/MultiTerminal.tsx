@@ -732,6 +732,9 @@ function MultiTerminal() {
             { ctrl: true, shift: false, key: 'w' },  // 关闭会话
             { ctrl: true, shift: true, key: 'T' },   // Token 统计
             { ctrl: true, shift: true, key: 'P' },   // 窗口置顶
+            { ctrl: true, shift: false, key: ',' },  // 打开设置
+            { ctrl: true, shift: false, key: 'PageUp' },   // 上一个标签
+            { ctrl: true, shift: false, key: 'PageDown' }, // 下一个标签
           ]
 
           for (const shortcut of globalShortcuts) {

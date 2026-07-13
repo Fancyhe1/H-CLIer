@@ -41,6 +41,7 @@ const FileBrowserModal = lazy(() => import('./components/FileBrowserModal'))
 const DashboardModal = lazy(() => import('./components/DashboardModal'))
 const MarkdownPanel = lazy(() => import('./components/MarkdownPanel'))
 const AgentHubPanel = lazy(() => import('./components/agenthub/AgentHubPanel'))
+const OnboardingModal = lazy(() => import('./components/OnboardingModal'))
 import { useSettingsStore } from './stores/settingsStore'
 import { useSessionStore } from './stores/sessionStore'
 import { useKeybindingStore } from './stores/keybindingStore'
@@ -74,9 +75,10 @@ function App() {
   const [fileBrowserVisible, setFileBrowserVisible] = useState(false)
   const [dashboardVisible, setDashboardVisible] = useState(false)
   const [agentHubVisible, setAgentHubVisible] = useState(false)
+  const [onboardingVisible, setOnboardingVisible] = useState(false)
 
   // 从 store 获取版本和更新状态
-  const { appVersion, updateStatus, getAppVersion } = useSettingsStore()
+  const { appVersion, updateStatus, getAppVersion, claudeInstalled } = useSettingsStore()
 
   // 响应式获取当前会话的工作空间
   const { sessions, activeSessionId } = useSessionStore()
@@ -207,6 +209,12 @@ function App() {
       setIsLoading(false)
       // 移除 index.html 中的内联 splash
       ;(window as any).__removeSplash?.()
+
+      // 首次启动检测：如果未完成引导，显示引导弹窗
+      const savedConfig = useSettingsStore.getState().config
+      if (!savedConfig?.general?.hasCompletedOnboarding) {
+        setTimeout(() => setOnboardingVisible(true), 500)
+      }
     }).catch(() => {
       setIsLoading(false)
       ;(window as any).__removeSplash?.()
@@ -786,6 +794,15 @@ function App() {
           <AgentHubPanel />
         </Suspense>
       </Modal>
+
+      {/* 新手引导 */}
+      <Suspense fallback={null}>
+        <OnboardingModal
+          visible={onboardingVisible}
+          onClose={() => setOnboardingVisible(false)}
+          claudeInstalled={claudeInstalled}
+        />
+      </Suspense>
     </ConfigProvider>
   )
 }
