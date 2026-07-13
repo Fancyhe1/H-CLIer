@@ -80,7 +80,7 @@ try {
 console.log('\n推送到 GitHub...')
 try {
   execSync('git push', { cwd: root, stdio: 'inherit' })
-  execSync('git push --tags', { cwd: root, stdio: 'inherit' })
+  execSync(`git push origin v${version}`, { cwd: root, stdio: 'inherit' })
 } catch (e) {
   console.error('推送失败:', e.message)
   process.exit(1)
