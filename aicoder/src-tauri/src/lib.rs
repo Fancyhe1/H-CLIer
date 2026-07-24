@@ -104,6 +104,16 @@ fn update_session(
 }
 
 #[tauri::command]
+fn touch_session(
+    state: tauri::State<SharedAppState>,
+    session_id: String,
+) -> Result<(), String> {
+    let manager = state.session_manager.lock().map_err(|e| e.to_string())?;
+    manager.touch_session(&session_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn delete_session(
     state: tauri::State<SharedAppState>,
     session_id: String,
@@ -1726,6 +1736,7 @@ pub fn run() {
             create_session,
             get_sessions,
             update_session,
+            touch_session,
             delete_session,
             move_to_trash,
             delete_sessions_by_path,

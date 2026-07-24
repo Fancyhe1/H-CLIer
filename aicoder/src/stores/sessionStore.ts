@@ -24,6 +24,7 @@ interface SessionState {
   fetchArchivedSessions: () => Promise<void>
   createSession: (params: CreateSessionParams) => Promise<Session | null>
   updateSession: (session: Session) => Promise<void>
+  touchSession: (sessionId: string) => Promise<void>
   deleteSession: (sessionId: string) => Promise<void>
   clearAllSessions: () => Promise<void>
   setActiveSession: (sessionId: string | null) => void
@@ -137,6 +138,20 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     } catch (err) {
       set({ error: String(err) })
       message.error('更新会话失败')
+    }
+  },
+
+  touchSession: async (sessionId) => {
+    try {
+      await invoke('touch_session', { sessionId })
+      set((state) => ({
+        sessions: state.sessions.map((s) =>
+          s.id === sessionId ? { ...s, lastActivityAt: new Date().toISOString() } : s
+        ),
+      }))
+    } catch (err) {
+      // 静默失败，不影响用户体验
+      console.error('更新会话活动时间失败:', err)
     }
   },
 

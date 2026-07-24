@@ -204,8 +204,16 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
       }
 
       // 处理输入
+      let touchTimer: ReturnType<typeof setTimeout> | null = null
       term.onData((data) => {
         invoke('write_to_pty', { ptyId, data }).catch(console.error)
+        // 防抖更新会话最后活动时间
+        if (touchTimer) clearTimeout(touchTimer)
+        touchTimer = setTimeout(() => {
+          import('./sessionStore').then(({ useSessionStore }) => {
+            useSessionStore.getState().touchSession(sessionId)
+          })
+        }, 2000)
       })
 
       // Ctrl+C 复制选中内容，Ctrl+V 粘贴

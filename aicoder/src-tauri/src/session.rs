@@ -311,6 +311,15 @@ impl SessionManager {
         Ok(sessions)
     }
 
+    /// 仅更新会话的最后活动时间
+    pub fn touch_session(&self, session_id: &str) -> Result<(), rusqlite::Error> {
+        self.conn.execute(
+            "UPDATE sessions SET last_activity_at = ?1 WHERE id = ?2",
+            params![Utc::now(), session_id],
+        )?;
+        Ok(())
+    }
+
     pub fn update_session(&self, session: &Session) -> Result<(), rusqlite::Error> {
         self.conn.execute(
             r#"
