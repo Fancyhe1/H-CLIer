@@ -533,8 +533,6 @@ function MultiTerminal() {
         const ptyId = activeSessionId
 
         // 设置 PTY 输出监听器
-        const mySessionId = activeSessionId
-
         const unlisten = await listen<string>(`pty-output-${ptyId}`, (event) => {
           // 解码 hex 编码的数据
           let data = event.payload
