@@ -61,7 +61,7 @@ try {
 console.log('\n提交版本号更改...')
 try {
   execSync('git add package.json src-tauri/Cargo.toml', { cwd: root, stdio: 'inherit' })
-  execSync(`git commit -m "release: v${version}"`, { cwd: root, stdio: 'inherit' })
+  execSync(`git commit -m "release: v${version}" --only package.json src-tauri/Cargo.toml`, { cwd: root, stdio: 'inherit' })
 } catch (e) {
   console.error('提交失败:', e.message)
   process.exit(1)
