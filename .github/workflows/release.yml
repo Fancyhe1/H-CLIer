@@ -180,8 +180,8 @@ jobs:
             "https://api.github.com/repos/Fancyhe1/H-CLIer/releases?per_page=10" || true)
 
           if [ -n "$RELEASES" ]; then
-            # 提取第二个 tag_name（第一个是当前版本）
-            PREV_TAG=$(echo "$RELEASES" | grep -oP '"tag_name":\s*"\K[^"]+' | sed -n '2p')
+            # 提取第二个 tag_name（第一个是当前版本）- 使用兼容的 grep
+            PREV_TAG=$(echo "$RELEASES" | grep -o '"tag_name": *"[^"]*"' | sed -n '2p' | sed 's/"tag_name": *"//;s/"//g')
           fi
 
           echo "Previous tag: $PREV_TAG"
@@ -213,9 +213,9 @@ jobs:
           OTHERS=""
 
           while IFS= read -r line; do
-            if echo "$line" | grep -qiE "feat\|新[增加]\|功能\|add\|implement"; then
+            if echo "$line" | grep -qiE "feat|新[增加]|功能|add|implement"; then
               FEATURES="${FEATURES}${line}\n"
-            elif echo "$line" | grep -qiE "fix\|修[复正]\|bug\|hotfix"; then
+            elif echo "$line" | grep -qiE "fix|修[复正]|bug|hotfix"; then
               FIXES="${FIXES}${line}\n"
             else
               OTHERS="${OTHERS}${line}\n"
