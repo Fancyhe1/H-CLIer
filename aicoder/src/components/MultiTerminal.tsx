@@ -18,8 +18,6 @@ interface TerminalInstance {
   shouldMarkUnread: boolean
   // shouldMarkUnread 变为 true 的时间戳（用于过滤旧输出）
   unreadMarkedAt?: number
-  // 后台输出停止检测定时器
-  bgOutputTimer?: ReturnType<typeof setTimeout>
   // 初始化状态：pending=等待中, initializing=初始化中, ready=就绪, error=错误, destroying=销毁中
   initializationState: 'pending' | 'initializing' | 'ready' | 'error' | 'destroying'
   // 初始化超时定时器
@@ -309,10 +307,6 @@ function MultiTerminal() {
         // 当前显示的会话：停止监控
         instance.shouldMarkUnread = false
         instance.unreadMarkedAt = undefined
-        if (instance.bgOutputTimer) {
-          clearTimeout(instance.bgOutputTimer)
-          instance.bgOutputTimer = undefined
-        }
       } else if (!instance.shouldMarkUnread) {
         // 后台会话：延迟启动监控
         instance.shouldMarkUnread = true
@@ -539,9 +533,7 @@ function MultiTerminal() {
         const ptyId = activeSessionId
 
         // 设置 PTY 输出监听器
-        // 负责终端渲染 + 后台会话输出停止检测（用于标记未读）
         const mySessionId = activeSessionId
-        const BG_IDLE_TIMEOUT = 5000
 
         const unlisten = await listen<string>(`pty-output-${ptyId}`, (event) => {
           // 解码 hex 编码的数据
@@ -568,28 +560,6 @@ function MultiTerminal() {
           if (!data) return
 
           term.write(data)
-
-          // 过滤 Claude Code 的 recap/compacting 等 TUI 噪音，避免误触发未读
-          if (/[※✻✶✢]/.test(data) || /\brecap\b/i.test(data) || /\bCompacting\b/i.test(data)) {
-            return
-          }
-
-          // 后台会话：输出停止检测（仅对非活跃会话生效）
-          const currentActive = useSessionStore.getState().activeSessionId
-          const inst = terminalsRef.current.get(mySessionId)
-          if (inst && inst.shouldMarkUnread && inst.unreadMarkedAt
-              && mySessionId !== currentActive
-              && Date.now() > inst.unreadMarkedAt) {
-            if (inst.bgOutputTimer) clearTimeout(inst.bgOutputTimer)
-            inst.bgOutputTimer = setTimeout(() => {
-              const cur = terminalsRef.current.get(mySessionId)
-              const curActive = useSessionStore.getState().activeSessionId
-              if (cur && cur.shouldMarkUnread && mySessionId !== curActive) {
-                useSessionStore.getState().setHasUnread(mySessionId, true)
-              }
-              if (cur) cur.bgOutputTimer = undefined
-            }, BG_IDLE_TIMEOUT)
-          }
         })
 
         // 更新实例的 unlisten
