@@ -239,7 +239,7 @@ function MultiTerminal() {
 
       const activeSessionId = useSessionStore.getState().activeSessionId
 
-      // Notification 事件：仅处理在软件中已打开终端的会话
+      // Notification 事件：匹配到会话就标记未读
       if (isPermissionEvent) {
         if (payload.session_id) {
           const sessions = useSessionStore.getState().sessions
@@ -247,11 +247,14 @@ function MultiTerminal() {
             s.cliSessionId === payload.session_id ||
             s.id === payload.session_id
           )
-          if (matchedSession && terminalsRef.current.has(matchedSession.id)) {
+          if (matchedSession) {
+            // 窗口聚焦 + 前台会话 → 跳过（用户正在看）
+            if (windowFocusedRef.current && matchedSession.id === activeSessionId) return
             useSessionStore.getState().setHasUnread(matchedSession.id, true)
             return
           }
         }
+        // 如果没有 session_id 或者没匹配到，标记所有后台会话
         const terminals = terminalsRef.current
         terminals.forEach((instance, sessionId) => {
           if (instance.shouldMarkUnread) {
@@ -272,7 +275,7 @@ function MultiTerminal() {
           s.cliSessionId === payload.session_id ||
           s.id === payload.session_id
         )
-        if (matchedSession && terminalsRef.current.has(matchedSession.id)) {
+        if (matchedSession) {
           // 窗口聚焦 + 前台会话 → 跳过（用户正在看）
           // 窗口失焦 或 可见但失焦 → 标记未读
           if (windowFocusedRef.current && matchedSession.id === activeSessionId) return
