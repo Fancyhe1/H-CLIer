@@ -259,7 +259,7 @@ function MultiTerminal() {
           }
         })
       }
-      // Stop 事件：窗口可见且聚焦时跳过前台会话，其他情况都标记
+      // Stop 事件：窗口聚焦且是前台会话时跳过，其他情况都标记
       // 防抖：30 秒内同一会话只触发一次（防止 recap 等重复触发）
       else if (isStopEvent && payload.session_id) {
         const now = Date.now()
@@ -273,8 +273,9 @@ function MultiTerminal() {
           s.id === payload.session_id
         )
         if (matchedSession && terminalsRef.current.has(matchedSession.id)) {
-          // 窗口可见 + 聚焦 + 前台会话 → 跳过（用户正在看）
-          if (!document.hidden && windowFocusedRef.current && matchedSession.id === activeSessionId) return
+          // 窗口聚焦 + 前台会话 → 跳过（用户正在看）
+          // 窗口失焦 或 可见但失焦 → 标记未读
+          if (windowFocusedRef.current && matchedSession.id === activeSessionId) return
           useSessionStore.getState().setHasUnread(matchedSession.id, true)
         }
       }
