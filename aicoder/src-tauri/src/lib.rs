@@ -10,6 +10,7 @@ mod claude_config;
 mod web_server;
 mod tunnel;
 mod agent_hub;
+mod team;
 
 use session::{Session, SessionManager};
 use pty::PtyManager;
@@ -1619,6 +1620,31 @@ fn agenthub_handle_task_completed(
     Ok(next_task_id)
 }
 
+// Team 模式可视化命令
+#[tauri::command]
+fn team_scan(project_path: String) -> Result<Vec<team::TeamInfo>, String> {
+    team::scan_teams(&project_path)
+}
+
+#[tauri::command]
+fn team_scan_session(cli_session_id: String, project_path: String) -> Result<team::TeamInfo, String> {
+    team::scan_session_team(&cli_session_id, &project_path)
+}
+
+#[tauri::command]
+fn team_refresh(project_path: String) -> Result<Vec<team::TeamInfo>, String> {
+    team::refresh_teams(&project_path)
+}
+
+#[tauri::command]
+fn team_get_agent_output(
+    jsonl_path: String,
+    offset: u64,
+    limit: u64,
+) -> Result<team::AgentOutput, String> {
+    team::get_agent_output(&jsonl_path, offset, limit)
+}
+
 // 主函数
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -1858,6 +1884,11 @@ pub fn run() {
             agenthub_create_tasks_from_workflow,
             agenthub_start_workflow,
             agenthub_handle_task_completed,
+            // Team 模式可视化
+            team_scan,
+            team_scan_session,
+            team_refresh,
+            team_get_agent_output,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -23,6 +23,7 @@ import {
   FileTextOutlined,
   CodeOutlined,
   RobotOutlined,
+  TeamOutlined,
 } from '@ant-design/icons'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { invoke as tauriInvoke } from '@tauri-apps/api/core'
@@ -41,6 +42,7 @@ const FileBrowserModal = lazy(() => import('./components/FileBrowserModal'))
 const DashboardModal = lazy(() => import('./components/DashboardModal'))
 const MarkdownPanel = lazy(() => import('./components/MarkdownPanel'))
 const AgentHubPanel = lazy(() => import('./components/agenthub/AgentHubPanel'))
+const TeamPanel = lazy(() => import('./components/team/TeamPanel'))
 const OnboardingModal = lazy(() => import('./components/OnboardingModal'))
 import { useSettingsStore } from './stores/settingsStore'
 import { useSessionStore } from './stores/sessionStore'
@@ -75,6 +77,7 @@ function App() {
   const [fileBrowserVisible, setFileBrowserVisible] = useState(false)
   const [dashboardVisible, setDashboardVisible] = useState(false)
   const [agentHubVisible, setAgentHubVisible] = useState(false)
+  const [teamVisible, setTeamVisible] = useState(false)
   const [onboardingVisible, setOnboardingVisible] = useState(false)
 
   // 从 store 获取版本和更新状态
@@ -635,6 +638,17 @@ function App() {
                   AgentHub
                 </Button>
               </Tooltip>
+              <Tooltip title="Team - 多 Agent 协作监控">
+                <Button
+                  type="text"
+                  icon={<TeamOutlined />}
+                  className="status-btn"
+                  size="small"
+                  onClick={() => setTeamVisible(true)}
+                >
+                  Team
+                </Button>
+              </Tooltip>
               <Tooltip title="仪表盘">
                 <Button
                   type="text"
@@ -792,6 +806,30 @@ function App() {
       >
         <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spin /></div>}>
           <AgentHubPanel />
+        </Suspense>
+      </Modal>
+
+      {/* Team 面板 */}
+      <Modal
+        title={
+          <Space>
+            <TeamOutlined />
+            <span>Team - 多 Agent 协作监控</span>
+          </Space>
+        }
+        open={teamVisible}
+        onCancel={() => setTeamVisible(false)}
+        footer={null}
+        width="85vw"
+        style={{ top: 10 }}
+        styles={{ body: { height: 'calc(100vh - 80px)', padding: 0, overflow: 'hidden' } }}
+        className="team-modal"
+        destroyOnClose={false}
+        maskClosable={false}
+        centered
+      >
+        <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spin /></div>}>
+          <TeamPanel />
         </Suspense>
       </Modal>
 
