@@ -210,7 +210,7 @@ pub fn setup_claude_hooks(hook_script_path: &str) -> Result<(), String> {
         format!("bash \"{}\"", hook_script_path)
     };
 
-    // 设置 Notification hooks
+    // Notification hooks：Claude 需要用户操作时触发（权限确认、对话框）
     let notification_hooks = serde_json::json!([
         {
             "matcher": "permission_prompt|elicitation_dialog",
@@ -223,12 +223,26 @@ pub fn setup_claude_hooks(hook_script_path: &str) -> Result<(), String> {
         }
     ]);
 
-    // 合并到现有 hooks 配置中
+    // Stop hooks：Claude 每次完成回答（生成停止）时触发
+    let stop_hooks = serde_json::json!([
+        {
+            "hooks": [
+                {
+                    "type": "command",
+                    "command": hook_cmd
+                }
+            ]
+        }
+    ]);
+
+    // 合并到现有 hooks 配置中（保留用户已有的其他 hook）
     if let Some(hooks) = settings.get_mut("hooks") {
         hooks["Notification"] = notification_hooks;
+        hooks["Stop"] = stop_hooks;
     } else {
         settings["hooks"] = serde_json::json!({
-            "Notification": notification_hooks
+            "Notification": notification_hooks,
+            "Stop": stop_hooks
         });
     }
 
