@@ -255,7 +255,25 @@ pub fn setup_claude_hooks(hook_script_path: &str) -> Result<(), String> {
     Ok(())
 }
 
+// 从指定事件（Notification/Stop）的 hooks 中提取 notify 脚本命令
+fn find_notify_command(json: &serde_json::Value, event: &str) -> Option<String> {
+    let entries = json.get("hooks")?.get(event)?.as_array()?;
+    for entry in entries {
+        if let Some(hooks) = entry.get("hooks").and_then(|h| h.as_array()) {
+            for hook in hooks {
+                if let Some(cmd) = hook.get("command").and_then(|c| c.as_str()) {
+                    if cmd.contains("notify.ps1") || cmd.contains("notify.sh") {
+                        return Some(cmd.to_string());
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 // 获取 Claude Code hooks 配置的脚本路径
+// Notification 和 Stop 两个 hook 必须都指向 notify 脚本，缺任何一个都视为未配置
 pub fn get_hook_script_path() -> Result<String, String> {
     let settings_path = get_claude_dir()
         .map_err(|e| format!("无法获取 Claude 配置目录: {}", e))?
@@ -270,23 +288,12 @@ pub fn get_hook_script_path() -> Result<String, String> {
     let json: serde_json::Value = serde_json::from_str(&content)
         .map_err(|e| format!("无法解析 settings.json: {}", e))?;
 
-    // 从 Notification hooks 中提取脚本路径
-    if let Some(notification) = json.get("hooks")
-        .and_then(|h| h.get("Notification"))
-        .and_then(|n| n.as_array())
-    {
-        for entry in notification {
-            if let Some(hooks) = entry.get("hooks").and_then(|h| h.as_array()) {
-                for hook in hooks {
-                    if let Some(cmd) = hook.get("command").and_then(|c| c.as_str()) {
-                        if cmd.contains("notify.ps1") || cmd.contains("notify.sh") {
-                            return Ok(cmd.to_string());
-                        }
-                    }
-                }
-            }
-        }
+    // Stop hook 缺失会导致回答完成无提醒，必须同时配置
+    if find_notify_command(&json, "Stop").is_none() {
+        return Err("未找到 Stop 通知 hook 配置".to_string());
     }
 
-    Err("未找到通知 hook 配置".to_string())
+    // 返回 Notification hook 的命令（两个 hook 使用同一脚本）
+    find_notify_command(&json, "Notification")
+        .ok_or_else(|| "未找到 Notification 通知 hook 配置".to_string())
 }
