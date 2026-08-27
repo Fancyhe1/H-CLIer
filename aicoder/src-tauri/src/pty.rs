@@ -218,70 +218,25 @@ impl PtyManager {
     }
 
     pub fn close(&mut self, pty_id: &str) -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(mut pty) = self.ptys.remove(pty_id) {
-            // 1. 尝试优雅退出：发送 Ctrl+Q（Claude Code 的退出快捷键），让 claude 有机会保存状态
-            if pty.child.is_some() {
-                if let Ok(mut writer) = pty.writer.lock() {
-                    let _ = writer.write_all(b"\x11");
-                    let _ = writer.flush();
-                }
-
-                // 2. 等待最多 2 秒让子进程自行退出
-                let deadline = Instant::now() + Duration::from_secs(2);
-                loop {
-                    let exited = match pty.child.as_mut() {
-                        Some(child) => child.try_wait()?.is_some(),
-                        None => true,
-                    };
-                    if exited || Instant::now() >= deadline {
-                        break;
-                    }
-                    thread::sleep(Duration::from_millis(100));
-                }
-
-                // 3. 仍未退出 → 强杀整个进程树（shell + claude 及其子进程），避免孤儿进程残留
-                let still_running = match pty.child.as_mut() {
-                    Some(child) => child.try_wait()?.is_none(),
-                    None => false,
-                };
-                if still_running {
-                    if let Some(pid) = pty.child.as_ref().and_then(|c| c.process_id()) {
-                        let _ = kill_process_tree(pid);
-                    } else {
-                        let _ = pty.child.as_mut().map(|c| c.kill());
-                    }
-                }
-            }
-
-            // 4. 关闭PTY会导致读取线程退出
-            drop(pty.pair);
-
-            // 5. 等待读取线程结束（带超时，避免死锁）
-            if let Some(handle) = pty._reader_thread.take() {
-                // 使用线程来实现超时等待
-                let join_handle = std::thread::spawn(move || {
-                    let _ = handle.join();
-                });
-
-                // 等待最多 2 秒
-                let start = Instant::now();
-                while start.elapsed() < Duration::from_secs(2) {
-                    if join_handle.is_finished() {
-                        break;
-                    }
-                    thread::sleep(Duration::from_millis(50));
-                }
-                // 如果超时，线程会在后台继续运行直到退出
-            }
+        if let Some(pty) = self.ptys.remove(pty_id) {
+            // 后台线程执行完整清理流程（Ctrl+Q 优雅退出 → 等待 → 强杀），
+            // 立即返回，不阻塞 UI
+            std::thread::spawn(move || cleanup_instance(pty));
         }
         Ok(())
     }
 
-    /// 关闭所有 PTY（应用退出时调用，避免 claude 进程残留）
+    /// 关闭所有 PTY（应用退出时调用）：直接强杀进程树，保证退出前清理完成
     pub fn close_all(&mut self) {
-        let ids: Vec<String> = self.ptys.keys().cloned().collect();
-        for id in ids {
-            let _ = self.close(&id);
+        for (_, mut pty) in self.ptys.drain() {
+            if let Some(child) = pty.child.as_mut() {
+                if let Some(pid) = child.process_id() {
+                    let _ = kill_process_tree(pid);
+                } else {
+                    let _ = child.kill();
+                }
+            }
+            drop(pty.pair);
         }
     }
 
@@ -317,11 +272,57 @@ impl PtyManager {
     }
 }
 
+// 后台清理单个 PTY 实例：发 Ctrl+Q 优雅退出 → 最多等待 2 秒 → 未退出则强杀进程树
+fn cleanup_instance(mut pty: PtyInstance) {
+    if pty.child.is_some() {
+        // 1. 发送 Ctrl+Q（Claude Code 的退出快捷键），让 claude 有机会保存状态
+        if let Ok(mut writer) = pty.writer.lock() {
+            let _ = writer.write_all(b"\x11");
+            let _ = writer.flush();
+        }
+
+        // 2. 等待最多 2 秒让子进程自行退出
+        let deadline = Instant::now() + Duration::from_secs(2);
+        loop {
+            let exited = match pty.child.as_mut() {
+                Some(child) => child.try_wait().map(|s| s.is_some()).unwrap_or(true),
+                None => true,
+            };
+            if exited || Instant::now() >= deadline {
+                break;
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+
+        // 3. 仍未退出 → 强杀整个进程树（shell + claude 及其子进程），避免孤儿进程残留
+        let still_running = match pty.child.as_mut() {
+            Some(child) => child.try_wait().map(|s| s.is_none()).unwrap_or(false),
+            None => false,
+        };
+        if still_running {
+            if let Some(pid) = pty.child.as_ref().and_then(|c| c.process_id()) {
+                let _ = kill_process_tree(pid);
+            } else {
+                let _ = pty.child.as_mut().map(|c| c.kill());
+            }
+        }
+    }
+
+    // 4. 关闭 PTY 导致读取线程退出，并等待其结束
+    drop(pty.pair);
+    if let Some(handle) = pty._reader_thread.take() {
+        let _ = handle.join();
+    }
+}
+
 // 强杀进程树：Windows 用 taskkill /T 递归终止所有子进程（shell → claude → claude 的子任务）
 #[cfg(target_os = "windows")]
 fn kill_process_tree(pid: u32) -> Result<(), Box<dyn std::error::Error>> {
+    use std::os::windows::process::CommandExt;
     let _ = std::process::Command::new("taskkill")
         .args(["/F", "/T", "/PID", &pid.to_string()])
+        // CREATE_NO_WINDOW：避免从 GUI 进程启动控制台程序时闪现终端窗口
+        .creation_flags(0x08000000)
         .output()?;
     Ok(())
 }
