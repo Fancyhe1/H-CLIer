@@ -1,6 +1,6 @@
 [package]
 name = "hcl-ier"
-version = "0.5.14"
+version = "0.5.15"
 description = "H CLIer - Claude Code 会话管理与工作台"
 authors = ["you"]
 edition = "2021"
