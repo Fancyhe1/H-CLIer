@@ -962,7 +962,10 @@ async fn download_update(url: String, app_handle: tauri::AppHandle) -> Result<St
 }
 
 #[tauri::command]
-async fn install_update(file_path: String) -> Result<(), String> {
+async fn install_update(
+    state: tauri::State<'_, SharedAppState>,
+    file_path: String,
+) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         use std::process::Command;
@@ -970,6 +973,11 @@ async fn install_update(file_path: String) -> Result<(), String> {
             .args(["/C", "start", "", &file_path, "/S"])
             .spawn()
             .map_err(|e| format!("启动安装程序失败: {}", e))?;
+
+        // 退出前关闭所有 PTY，避免 claude / powershell 进程残留
+        if let Ok(mut manager) = state.pty_manager.lock() {
+            manager.close_all();
+        }
 
         // 退出当前应用
         std::process::exit(0);
@@ -1890,6 +1898,16 @@ pub fn run() {
             team_refresh,
             team_get_agent_output,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            // 应用退出前关闭所有 PTY，避免 claude / powershell 进程残留
+            if let tauri::RunEvent::ExitRequested { .. } = event {
+                if let Some(state) = app_handle.try_state::<SharedAppState>() {
+                    if let Ok(mut manager) = state.pty_manager.lock() {
+                        manager.close_all();
+                    }
+                }
+            }
+        });
 }

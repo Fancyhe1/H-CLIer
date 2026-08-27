@@ -5,7 +5,7 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tauri::Emitter;
 
 pub struct PtyInstance {
@@ -13,6 +13,8 @@ pub struct PtyInstance {
     pub writer: Arc<Mutex<Box<dyn Write + Send>>>,
     _reader_thread: Option<thread::JoinHandle<()>>,
     log_file: Arc<Mutex<File>>,
+    /// PTY 中的子进程（通常是 powershell），关闭时用于优雅退出/强杀
+    child: Option<Box<dyn portable_pty::Child + Send + Sync>>,
 }
 
 pub struct PtyManager {
@@ -178,6 +180,7 @@ impl PtyManager {
             writer: Arc::new(Mutex::new(writer)),
             _reader_thread: Some(reader_thread),
             log_file: log_file_arc,
+            child: None,
         };
 
         self.ptys.insert(session_id.clone(), instance);
@@ -216,10 +219,44 @@ impl PtyManager {
 
     pub fn close(&mut self, pty_id: &str) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(mut pty) = self.ptys.remove(pty_id) {
-            // 关闭PTY会导致读取线程退出
+            // 1. 尝试优雅退出：发送 Ctrl+Q（Claude Code 的退出快捷键），让 claude 有机会保存状态
+            if pty.child.is_some() {
+                if let Ok(mut writer) = pty.writer.lock() {
+                    let _ = writer.write_all(b"\x11");
+                    let _ = writer.flush();
+                }
+
+                // 2. 等待最多 2 秒让子进程自行退出
+                let deadline = Instant::now() + Duration::from_secs(2);
+                loop {
+                    let exited = match pty.child.as_mut() {
+                        Some(child) => child.try_wait()?.is_some(),
+                        None => true,
+                    };
+                    if exited || Instant::now() >= deadline {
+                        break;
+                    }
+                    thread::sleep(Duration::from_millis(100));
+                }
+
+                // 3. 仍未退出 → 强杀整个进程树（shell + claude 及其子进程），避免孤儿进程残留
+                let still_running = match pty.child.as_mut() {
+                    Some(child) => child.try_wait()?.is_none(),
+                    None => false,
+                };
+                if still_running {
+                    if let Some(pid) = pty.child.as_ref().and_then(|c| c.process_id()) {
+                        let _ = kill_process_tree(pid);
+                    } else {
+                        let _ = pty.child.as_mut().map(|c| c.kill());
+                    }
+                }
+            }
+
+            // 4. 关闭PTY会导致读取线程退出
             drop(pty.pair);
 
-            // 等待读取线程结束（带超时，避免死锁）
+            // 5. 等待读取线程结束（带超时，避免死锁）
             if let Some(handle) = pty._reader_thread.take() {
                 // 使用线程来实现超时等待
                 let join_handle = std::thread::spawn(move || {
@@ -227,7 +264,7 @@ impl PtyManager {
                 });
 
                 // 等待最多 2 秒
-                let start = std::time::Instant::now();
+                let start = Instant::now();
                 while start.elapsed() < Duration::from_secs(2) {
                     if join_handle.is_finished() {
                         break;
@@ -240,6 +277,14 @@ impl PtyManager {
         Ok(())
     }
 
+    /// 关闭所有 PTY（应用退出时调用，避免 claude 进程残留）
+    pub fn close_all(&mut self) {
+        let ids: Vec<String> = self.ptys.keys().cloned().collect();
+        for id in ids {
+            let _ = self.close(&id);
+        }
+    }
+
     pub fn spawn_command(
         &mut self,
         pty_id: &str,
@@ -247,7 +292,7 @@ impl PtyManager {
         args: &[&str],
         cwd: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(pty) = self.ptys.get(pty_id) {
+        if let Some(pty) = self.ptys.get_mut(pty_id) {
             let mut cmd = CommandBuilder::new(command);
             cmd.args(args);
             cmd.cwd(cwd);
@@ -259,12 +304,34 @@ impl PtyManager {
                 let _ = file.flush();
             }
 
-            let _child = pty.pair.slave.spawn_command(cmd)?;
+            // 保存子进程句柄，关闭 PTY 时用于优雅退出/强杀
+            let child = pty.pair.slave.spawn_command(cmd)?;
+            if let Some(mut old) = pty.child.replace(child) {
+                // 同一 PTY 重复 spawn 时，先结束旧进程
+                let _ = old.kill();
+            }
             Ok(())
         } else {
             Err("PTY not found".into())
         }
     }
+}
+
+// 强杀进程树：Windows 用 taskkill /T 递归终止所有子进程（shell → claude → claude 的子任务）
+#[cfg(target_os = "windows")]
+fn kill_process_tree(pid: u32) -> Result<(), Box<dyn std::error::Error>> {
+    let _ = std::process::Command::new("taskkill")
+        .args(["/F", "/T", "/PID", &pid.to_string()])
+        .output()?;
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn kill_process_tree(pid: u32) -> Result<(), Box<dyn std::error::Error>> {
+    let _ = std::process::Command::new("kill")
+        .args(["-9", &pid.to_string()])
+        .output()?;
+    Ok(())
 }
 
 unsafe impl Send for PtyManager {}
