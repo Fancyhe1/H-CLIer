@@ -1,0 +1,280 @@
+.claude-cmd-modal .ant-modal-content {
+  padding: 0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.claude-cmd-modal .ant-modal-body {
+  padding: 0;
+}
+
+.claude-cmd-modal .ant-modal-close {
+  top: 14px;
+  right: 14px;
+}
+
+.claude-cmd-panel {
+  display: flex;
+  flex-direction: column;
+  max-height: 600px;
+}
+
+.claude-cmd-header {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid #f0f0f0;
+  gap: 12px;
+}
+
+.claude-cmd-search-icon {
+  font-size: 18px;
+  color: #999;
+}
+
+.claude-cmd-search {
+  flex: 1;
+  font-size: 15px;
+}
+
+.claude-cmd-search input {
+  font-size: 15px;
+}
+
+.claude-cmd-count {
+  font-size: 12px;
+  color: #999;
+  white-space: nowrap;
+}
+
+.claude-cmd-body {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 500px;
+  padding: 8px 0;
+}
+
+.claude-cmd-category {
+  margin-bottom: 4px;
+}
+
+.claude-cmd-category-header {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px 4px;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.claude-cmd-category-header:hover {
+  background: #f5f5f5;
+}
+
+.claude-cmd-category-icon {
+  font-size: 16px;
+}
+
+.claude-cmd-category-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #666;
+  flex: 1;
+}
+
+.claude-cmd-category-arrow {
+  font-size: 10px;
+  color: #999;
+  transition: transform 0.2s;
+}
+
+.claude-cmd-category-arrow.collapsed {
+  transform: rotate(-90deg);
+}
+
+.claude-cmd-list {
+  padding: 0;
+}
+
+.claude-cmd-item {
+  display: flex;
+  align-items: center;
+  padding: 6px 16px 6px 28px;
+  cursor: pointer;
+  transition: background 0.15s;
+  gap: 12px;
+}
+
+.claude-cmd-item:hover {
+  background: #f0f0f0;
+}
+
+.claude-cmd-item.selected {
+  background: #e8e8e8;
+}
+
+.claude-cmd-name {
+  font-family: 'SFMono-Regular', 'Consolas', 'Liberation Mono', 'Menlo', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1677ff;
+  white-space: nowrap;
+  padding: 2px 8px;
+  background: #e6f4ff;
+  border-radius: 4px;
+  border: 1px solid #91caff;
+  min-width: 120px;
+  text-align: center;
+}
+
+.claude-cmd-desc {
+  flex: 1;
+  font-size: 13px;
+  color: #555;
+  min-width: 0;
+}
+
+.claude-cmd-args {
+  font-family: 'SFMono-Regular', 'Consolas', 'Liberation Mono', 'Menlo', monospace;
+  font-size: 11px;
+  color: #999;
+  white-space: nowrap;
+}
+
+.claude-cmd-footer {
+  padding: 10px 16px;
+  border-top: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+}
+
+.claude-cmd-footer-text {
+  font-size: 12px;
+  color: #999;
+}
+
+.claude-cmd-footer kbd {
+  padding: 1px 5px;
+  background: #e8e8e8;
+  border: 1px solid #d9d9d9;
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 11px;
+  margin: 0 2px;
+  color: #333;
+}
+
+.claude-cmd-empty {
+  padding: 40px 0;
+  text-align: center;
+}
+
+/* 暗色主题 */
+.dark .claude-cmd-modal .ant-modal-content {
+  background: #1f1f1f;
+}
+
+.dark .claude-cmd-header {
+  border-color: #303030;
+}
+
+.dark .claude-cmd-search input {
+  color: #d9d9d9;
+}
+
+.dark .claude-cmd-search input::placeholder {
+  color: #666;
+}
+
+.dark .claude-cmd-count {
+  color: #666;
+}
+
+.dark .claude-cmd-category-header:hover {
+  background: #2a2a2a;
+}
+
+.dark .claude-cmd-category-name {
+  color: #888;
+}
+
+.dark .claude-cmd-item:hover {
+  background: #2a2a2a;
+}
+
+.dark .claude-cmd-item.selected {
+  background: #333;
+}
+
+.dark .claude-cmd-name {
+  color: #4096ff;
+  background: #111a2c;
+  border-color: #15395b;
+}
+
+.dark .claude-cmd-desc {
+  color: #aaa;
+}
+
+.dark .claude-cmd-args {
+  color: #666;
+}
+
+.dark .claude-cmd-footer {
+  border-color: #303030;
+  background: #1f1f1f;
+}
+
+.dark .claude-cmd-footer-text {
+  color: #666;
+}
+
+.dark .claude-cmd-footer kbd {
+  background: #3a3a3a;
+  border-color: #555;
+  color: #fff;
+}
+
+/* 浅色主题 */
+.light .claude-cmd-modal .ant-modal-content {
+  background: #ffffff;
+}
+
+.light .claude-cmd-header {
+  border-color: #e8e8e8;
+}
+
+.light .claude-cmd-search-icon {
+  color: #666;
+}
+
+.light .claude-cmd-category-header:hover {
+  background: #f5f5f5;
+}
+
+.light .claude-cmd-item:hover {
+  background: #f0f0f0;
+}
+
+.light .claude-cmd-item.selected {
+  background: #e0e0e0;
+}
+
+.light .claude-cmd-footer {
+  border-color: #e8e8e8;
+  background: #fafafa;
+}
+
+/* 搜索高亮 */
+.claude-cmd-highlight {
+  background: #ffd666;
+  color: #000;
+  padding: 0 1px;
+  border-radius: 2px;
+}
+
+.dark .claude-cmd-highlight {
+  background: #ad6800;
+  color: #fff;
+}

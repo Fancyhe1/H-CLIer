@@ -1,0 +1,268 @@
+.command-palette-modal .ant-modal-content {
+  padding: 0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.command-palette-modal .ant-modal-body {
+  padding: 0;
+}
+
+.command-palette {
+  display: flex;
+  flex-direction: column;
+  max-height: 500px;
+}
+
+.command-input-wrapper {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid #f0f0f0;
+  gap: 12px;
+}
+
+.command-search-icon {
+  font-size: 20px;
+  color: #999;
+}
+
+.command-input {
+  flex: 1;
+  font-size: 16px;
+}
+
+.command-input input {
+  font-size: 16px;
+}
+
+.command-shortcut-hint {
+  font-size: 12px;
+  color: #999;
+}
+
+.command-list {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 350px;
+}
+
+.command-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.command-item:hover,
+.command-item.selected,
+.command-list .ant-list-item:hover,
+.command-list .ant-list-item.selected {
+  background: #3a3a3a3a !important;
+}
+
+.command-item-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+  font-size: 18px;
+  color: #666;
+}
+
+.command-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.command-item-title {
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.command-item-desc {
+  font-size: 12px;
+}
+
+.command-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 12px;
+}
+
+.command-type-action {
+  background: #fff7e6;
+  color: #fa8c16;
+  border-color: #ffd591;
+}
+
+/* 暗色主题下的标签样式 */
+.dark .command-type-action {
+  background: #3b2d1a;
+  color: #ffc069;
+  border-color: #8a5a0a;
+}
+
+.command-shortcut {
+  padding: 2px 6px;
+  background: #f0f0f0 !important;
+  border: 1px solid #d9d9d9 !important;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: monospace;
+  color: #333 !important;
+}
+
+.command-footer {
+  padding: 12px 16px;
+  border-top: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: center;
+}
+
+.command-footer kbd {
+  padding: 2px 6px;
+  background: #e8e8e8 !important;
+  border: 1px solid #d9d9d9 !important;
+  border-radius: 4px;
+  font-family: monospace;
+  margin: 0 2px;
+  color: #333 !important;
+}
+
+/* 暗色主题 */
+.dark .command-palette-modal .ant-modal-content {
+  background: #1f1f1f;
+}
+
+.dark .command-input-wrapper {
+  border-color: #303030;
+}
+
+.dark .command-input {
+  background: transparent;
+  color: #d9d9d9;
+}
+
+.dark .command-input input {
+  color: #d9d9d9;
+}
+
+.dark .command-input input::placeholder {
+  color: #666;
+}
+
+.dark .command-item {
+  border-color: #303030;
+}
+
+.dark .command-item:hover,
+.dark .command-item.selected,
+.dark .command-list .ant-list-item:hover,
+.dark .command-list .ant-list-item.selected,
+.dark .ant-list-item:hover,
+.dark .ant-list-item.selected {
+  background: #333333 !important;
+}
+
+/* 最高优先级覆盖 Ant Design 列表选中状态 */
+.dark .command-palette-modal .ant-list-item:hover {
+  background: #333333 !important;
+}
+
+.dark .command-palette-modal .ant-list-item.selected {
+  background: #333333 !important;
+}
+
+.dark .command-item-icon {
+  color: #999;
+}
+
+.dark .command-item-title {
+  color: #e6e6e6;
+}
+
+.dark .command-item-desc {
+  color: #888 !important;
+}
+
+.dark .command-footer {
+  border-color: #303030;
+  background: #1f1f1f;
+}
+
+.dark .command-footer-text {
+  color: #888 !important;
+}
+
+.dark .command-footer-text kbd {
+  background: #3a3a3a !important;
+  border-color: #555 !important;
+  color: #ffffff !important;
+}
+
+.dark .command-footer kbd,
+.dark .command-shortcut {
+  background: #3a3a3a !important;
+  border-color: #555 !important;
+  color: #ffffff !important;
+}
+
+/* 浅色主题样式 */
+.light .command-palette-modal .ant-modal-content {
+  background: #ffffff;
+}
+
+.light .command-input-wrapper {
+  border-color: #e8e8e8;
+}
+
+.light .command-search-icon {
+  color: #666;
+}
+
+.light .command-shortcut-hint {
+  color: #666;
+}
+
+.light .command-item {
+  border-color: #f0f0f0;
+}
+
+.light .command-item:hover,
+.light .command-item.selected {
+  background: #d9d9d9 !important;
+}
+
+.light .command-item-icon {
+  color: #666;
+}
+
+.light .command-item-title {
+  color: #333;
+}
+
+.light .command-item-desc {
+  color: #666 !important;
+}
+
+.light .command-footer {
+  border-color: #e8e8e8;
+  background: #fafafa;
+}
+
+.light .command-footer-text {
+  color: #666 !important;
+}
+
+.light .command-footer kbd,
+.light .command-shortcut {
+  background: #e8e8e8 !important;
+  border-color: #d9d9d9 !important;
+  color: #333 !important;
+}

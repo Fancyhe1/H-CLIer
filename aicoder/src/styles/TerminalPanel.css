@@ -1,0 +1,209 @@
+.terminal-panel {
+  width: 100%;
+  height: 100%;
+  background: #000000;
+  position: relative;
+}
+
+/* 浅色主题 */
+.light .terminal-panel {
+  background: #ffffff;
+}
+
+.dark .terminal-panel {
+  background: #000000;
+}
+
+.terminals-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.terminals-container > div {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.terminal-empty-state {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+  font-size: 14px;
+  z-index: 100;
+  background: #ffffff;
+  pointer-events: auto;
+}
+
+.dark .terminal-empty-state {
+  background: #000000;
+}
+
+.light .terminal-empty-state {
+  background: #ffffff;
+}
+
+.light .terminal-empty-shortcut {
+  color: #666;
+}
+
+.terminal-empty-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  opacity: 0.8;
+}
+
+.terminal-empty-title {
+  font-weight: bold;
+  font-size: 18px;
+  margin-bottom: 12px;
+  color: #333;
+}
+
+.terminal-empty-desc {
+  color: #666;
+  margin-bottom: 24px;
+}
+
+.dark .terminal-empty-title {
+  color: #fff;
+}
+
+.dark .terminal-empty-desc {
+  color: #888;
+}
+
+.terminal-empty-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: rgba(22, 119, 255, 0.1);
+  border: 1px dashed #1677ff;
+  border-radius: 8px;
+  color: #1677ff;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.terminal-empty-hint:hover {
+  background: rgba(22, 119, 255, 0.2);
+}
+
+.terminal-empty-hint-icon {
+  font-size: 20px;
+}
+
+.terminal-empty-hint-text {
+  font-size: 14px;
+}
+
+.terminal-empty-shortcut {
+  margin-top: 16px;
+  color: #555;
+  font-size: 12px;
+}
+
+.terminal-empty-shortcut kbd {
+  background: #e8e8e8;
+  border: 1px solid #d9d9d9;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: inherit;
+  color: #333;
+}
+
+.dark .terminal-empty-shortcut kbd {
+  background: #333;
+  border-color: #444;
+  color: #aaa;
+}
+
+/* xterm样式调整 */
+.xterm {
+  padding: 8px;
+  height: 100%;
+}
+
+.xterm-helpers {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+}
+
+.xterm-screen {
+  background: #ffffff !important;
+}
+
+.dark .xterm-screen {
+  background: #000000 !important;
+}
+
+.xterm-viewport {
+  background: #ffffff !important;
+}
+
+.dark .xterm-viewport {
+  background: #000000 !important;
+}
+
+/* 确保终端可以选择文本 */
+.xterm .xterm-screen {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* 滚动条样式 - 鼠标进入时显示，移出时隐藏 */
+.terminal-panel .xterm-scrollbar {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.terminal-panel:hover .xterm-scrollbar {
+  opacity: 0.5;
+}
+
+.terminal-panel .xterm-scrollbar:hover {
+  opacity: 0.8;
+}
+
+/* 深色主题滚动条 */
+.dark .terminal-panel .xterm-scrollbar {
+  background: rgba(255, 255, 255, 0.3) !important;
+}
+
+.dark .terminal-panel .xterm-scrollbar-slider {
+  background: rgba(255, 255, 255, 0.4) !important;
+  border-radius: 4px;
+}
+
+.dark .terminal-panel .xterm-scrollbar-slider:hover {
+  background: rgba(255, 255, 255, 0.6) !important;
+}
+
+/* 浅色主题滚动条 */
+.light .terminal-panel .xterm-scrollbar {
+  background: rgba(0, 0, 0, 0.2) !important;
+}
+
+.light .terminal-panel .xterm-scrollbar-slider {
+  background: rgba(0, 0, 0, 0.3) !important;
+  border-radius: 4px;
+}
+
+.light .terminal-panel .xterm-scrollbar-slider:hover {
+  background: rgba(0, 0, 0, 0.5) !important;
+}

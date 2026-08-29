@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">H CLIer</string>
+    <string name="title_activity_main">H CLIer</string>
+    <string name="package_name">com.hclier.app</string>
+    <string name="custom_url_scheme">com.hclier.app</string>
+</resources>

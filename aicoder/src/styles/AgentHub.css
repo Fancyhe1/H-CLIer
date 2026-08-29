@@ -1,0 +1,576 @@
+/* ============================================================
+   AgentHub 样式
+   ============================================================ */
+
+/* 主面板 */
+.agenthub-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Modal 可调节大小 */
+.agenthub-modal .ant-modal-content {
+  resize: both;
+  overflow: auto;
+  min-width: 700px;
+  min-height: 400px;
+}
+
+/* 项目选择器 */
+.agenthub-project-selector {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+  flex-shrink: 0;
+}
+
+/* 下拉选项样式 */
+.project-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.project-option-name {
+  display: flex;
+  align-items: center;
+}
+
+.project-option-meta {
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.project-path-hint {
+  max-width: 200px;
+  font-size: 12px;
+}
+
+/* 未初始化提示（内联） */
+.agenthub-empty-inline {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px;
+}
+
+.agenthub-panel.agenthub-loading,
+.agenthub-panel.agenthub-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.agenthub-empty .empty-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+}
+
+.agenthub-empty .empty-icon {
+  font-size: 48px;
+  color: #8c8c8c;
+}
+
+.agenthub-header {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.agenthub-tabs {
+  flex: 1;
+  overflow: hidden;
+}
+
+.agenthub-tabs .ant-tabs-content {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.agenthub-error {
+  margin: 8px 12px;
+}
+
+/* ============================================================
+   任务看板
+   ============================================================ */
+
+.task-board {
+  padding: 12px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.task-board-header {
+  margin-bottom: 12px;
+}
+
+.task-columns {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  flex: 1;
+  padding-bottom: 12px;
+}
+
+.task-column {
+  min-width: 160px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.column-header {
+  padding: 8px 12px;
+  border-left: 3px solid;
+  font-weight: 500;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.column-body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 100px;
+}
+
+/* 任务卡片 */
+.task-card {
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.task-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.task-card .ant-card-body {
+  padding: 8px 12px;
+}
+
+.task-card-id {
+  font-size: 11px;
+  color: #8c8c8c;
+  font-family: monospace;
+}
+
+.task-card-title {
+  font-weight: 500;
+  margin: 4px 0;
+  font-size: 13px;
+}
+
+.task-card-meta {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.task-card-meta .ant-tag {
+  font-size: 11px;
+  line-height: 18px;
+  padding: 0 4px;
+  margin-inline-end: 4px;
+}
+
+.task-card-subtasks {
+  font-size: 12px;
+  color: #8c8c8c;
+  margin-top: 4px;
+}
+
+/* ============================================================
+   任务详情
+   ============================================================ */
+
+.task-detail-section {
+  margin-bottom: 8px;
+}
+
+.task-detail-actions {
+  margin-top: 16px;
+}
+
+/* ============================================================
+   项目大脑
+   ============================================================ */
+
+.brain-panel {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+}
+
+.brain-header {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.brain-meta-card .ant-descriptions-item-label {
+  font-size: 12px;
+}
+
+.brain-content-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.brain-content-card .ant-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.brain-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
+.brain-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.brain-textarea {
+  flex: 1;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  resize: none;
+}
+
+.brain-editor-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ============================================================
+   Agent 监控
+   ============================================================ */
+
+.agent-monitor {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.monitor-topology-card {
+  flex-shrink: 0;
+}
+
+.monitor-events-card {
+  flex: 1;
+  overflow: hidden;
+}
+
+.monitor-events-card .ant-card-body {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+/* Agent 节点 */
+.agent-node {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  transition: all 0.3s;
+  min-width: 140px;
+}
+
+.agent-node-running {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+  animation: agent-pulse-border 2s infinite;
+}
+
+.agent-node-ready {
+  border-color: #a855f7;
+  box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.3);
+  animation: agent-pulse-border-purple 2.5s infinite;
+}
+
+.agent-node-done {
+  border-color: #22c55e;
+  opacity: 0.7;
+}
+
+.agent-node-failed {
+  border-color: #ef4444;
+  animation: agent-shake 0.5s ease-in-out;
+}
+
+@keyframes agent-pulse-border-purple {
+  0% { box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.3); }
+  70% { box-shadow: 0 0 0 8px rgba(168, 85, 247, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(168, 85, 247, 0); }
+}
+
+@keyframes agent-pulse-border {
+  0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+}
+
+@keyframes agent-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+/* 状态指示器圆点 */
+.agent-node-indicator {
+  position: relative;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-bottom: 8px;
+}
+
+.agent-pulse {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: inherit;
+  animation: dot-pulse 1.5s infinite;
+}
+
+@keyframes dot-pulse {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+
+.agent-node-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.agent-node-id {
+  font-size: 11px;
+  font-family: monospace;
+}
+
+.agent-node-task {
+  margin-top: 4px;
+}
+
+.agent-node-action {
+  font-size: 11px;
+  margin-top: 4px;
+  max-width: 140px;
+  text-align: center;
+}
+
+/* 拓扑图布局 */
+.agent-topology {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  padding: 20px;
+}
+
+.topology-boss {
+  margin-bottom: 8px;
+}
+
+.boss-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.boss-icon {
+  font-size: 32px;
+}
+
+.topology-agents {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.topology-connections {
+  width: 100%;
+  height: 40px;
+  position: relative;
+}
+
+/* 活动流 */
+.event-stream {
+  max-height: 350px;
+  overflow-y: auto;
+}
+
+.event-item {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.event-time {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.event-message {
+  flex: 1;
+}
+
+.event-agent {
+  font-size: 11px;
+}
+
+/* ============================================================
+   Agent 设置
+   ============================================================ */
+
+.agent-settings-panel {
+  padding: 12px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+/* ============================================================
+   消息面板
+   ============================================================ */
+
+.message-panel {
+  padding: 12px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.message-send-card {
+  flex-shrink: 0;
+}
+
+.message-list-card {
+  flex: 1;
+  overflow: hidden;
+}
+
+.message-list-card .ant-card-body {
+  height: calc(100% - 40px);
+  overflow: hidden;
+}
+
+.message-stream {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.message-item {
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.message-item:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.message-unread {
+  background: rgba(24, 144, 255, 0.05);
+}
+
+.message-content {
+  width: 100%;
+}
+
+.message-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.message-time {
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.message-text {
+  margin: 0;
+  font-size: 13px;
+}
+
+/* ============================================================
+   工作流面板
+   ============================================================ */
+
+.workflow-panel {
+  padding: 12px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+/* ============================================================
+   上下文预览弹窗
+   ============================================================ */
+
+.context-preview-config {
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.context-preview-config .config-row {
+  display: flex;
+  gap: 12px;
+}
+
+.context-preview-config .config-item {
+  flex: 1;
+}
+
+.context-preview-area {
+  margin-top: 16px;
+}
+
+.context-preview-area .ant-input-textarea {
+  border-radius: 6px;
+}
+
+.context-preview-area .ant-input-textarea:focus,
+.context-preview-area .ant-input-textarea-focused {
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}

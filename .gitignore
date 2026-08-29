@@ -1,0 +1,78 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+dist-portable/
+
+# Tauri build
+src-tauri/target/
+aicoder/src-tauri/target/
+
+# Executables
+*.exe
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Cache
+.cache/
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+
+# Claude
+.claude/
+.claude/scheduled_tasks.json
+
+# NPM
+aicoder/node_modules/
+aicoder/dist/
+aicoder/latest.json
+
+# Temporary files
+*.tmp
+*.temp
+
+# AgentHub 运行时数据（每个项目独立生成）
+.agent-hub/
+
+# Signing keys (never commit)
+*.key
+*.key.b64
+*.key.pub
+
+# License server (separate deployment)
+license-server/
+
+# Personal memory
+memory/
+
+# Old root-level code (deprecated, use aicoder/)
+/src/
+/src-tauri/
+package-lock.json
+tsconfig.json
+tsconfig.node.json
+vite.config.ts
+latest.json
