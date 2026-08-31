@@ -42,8 +42,8 @@
 <div align="center">
 
   <p>
-    <img src="docs/screenshots/启动页面.png" width="400">
-    <img src="docs/screenshots/main.png" width="400">
+    <img src="docs/screenshots/启动页面.png" width="450">
+    <img src="docs/screenshots/main.png" width="450">
   </p>
 
 </div>
@@ -113,6 +113,22 @@
 - GitHub Releases 自动更新检测
 - 新手引导（首次使用引导流程）
 - 文件浏览器
+
+<div align="center">
+
+  <p>
+    <img src="docs/screenshots/对话窗口.png" width="500">
+    <img src="docs/screenshots/新建会话.png" width="500">
+  </p>
+  <p>
+    <img src="docs/screenshots/通用设置.png" width="500">
+    <img src="docs/screenshots/快捷键设置.png" width="500">
+  </p>
+  <p>
+    <img src="docs/screenshots/历史记录查询.png" width="500">
+    <img src="docs/screenshots/markdown视图对话.png" width="500">
+  </p>
+</div>
 
 ---
 
