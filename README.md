@@ -280,7 +280,15 @@ H-CLIer/
 
 如果觉得有用，请给个 Star 支持一下！
 
-[![Star History Chart](https://api.star-history.com/svg?repos=Fancyhe1/H-CLIer&type=Date)](https://star-history.com/#Fancyhe1/H-CLIer&Date)
+## Star History
+
+<a href="https://www.star-history.com/?type=date&repos=Fancyhe1%2FH-CLIer">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=Fancyhe1/H-CLIer&type=date&theme=dark&legend=top-left&sealed_token=6QOJUxfSAn_Rer-rouuCsCyXC0dyAMweclVEUv0PcHWp3Cv4hMLvYj2HPlvLyCq10Qy5qCD3fZUwH2UviY03IqjTcBqGnuM8FfmdMc9erx_o9vOZzvM_qhmE2x0DxC-vdHVCNDRrHbKQ96Wjnfr6AeDt2TGKmMljfF33WASUcvtzpZnp_Nup7d9CyhJ6" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=Fancyhe1/H-CLIer&type=date&legend=top-left&sealed_token=6QOJUxfSAn_Rer-rouuCsCyXC0dyAMweclVEUv0PcHWp3Cv4hMLvYj2HPlvLyCq10Qy5qCD3fZUwH2UviY03IqjTcBqGnuM8FfmdMc9erx_o9vOZzvM_qhmE2x0DxC-vdHVCNDRrHbKQ96Wjnfr6AeDt2TGKmMljfF33WASUcvtzpZnp_Nup7d9CyhJ6" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=Fancyhe1/H-CLIer&type=date&legend=top-left&sealed_token=6QOJUxfSAn_Rer-rouuCsCyXC0dyAMweclVEUv0PcHWp3Cv4hMLvYj2HPlvLyCq10Qy5qCD3fZUwH2UviY03IqjTcBqGnuM8FfmdMc9erx_o9vOZzvM_qhmE2x0DxC-vdHVCNDRrHbKQ96Wjnfr6AeDt2TGKmMljfF33WASUcvtzpZnp_Nup7d9CyhJ6" />
+ </picture>
+</a>
 
 ---
 
