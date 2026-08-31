@@ -1,5 +1,11 @@
-# H CLIer
-
+<div align="center">
+  
+  # H CLIer
+  
+  <div align="center">  
+  <img src="docs/screenshots/HCLIer.png" width="100">
+  </div>
+</div>
 <div align="center">
 
 **Windows 上 Claude Code CLI 的图形化管理工具**
