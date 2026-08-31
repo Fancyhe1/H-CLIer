@@ -48,8 +48,8 @@
 <div align="center">
 
   <p>
-    <img src="docs/screenshots/启动页面.png" width="450">
-    <img src="docs/screenshots/main.png" width="450">
+    <img src="docs/screenshots/启动页面.png" width="400">
+    <img src="docs/screenshots/main.png" width="400">
   </p>
 
 </div>
