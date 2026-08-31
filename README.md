@@ -41,7 +41,10 @@
 
 <div align="center">
 
-![主界面](docs/screenshots/main.png)
+  <p>
+    <img src="docs/screenshots/启动页面.png" width="400">
+    <img src="docs/screenshots/main.png" width="400">
+  </p>
 
 </div>
 
