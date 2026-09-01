@@ -3,7 +3,7 @@
   # H CLIer
   
   <div align="center">  
-  <img src="docs/screenshots/HCLIer.png" width="100">
+  <img src="docs/screenshots/封面图16:2.5.png" width="400">
   </div>
 </div>
 <div align="center">
