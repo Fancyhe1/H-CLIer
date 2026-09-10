@@ -33,6 +33,7 @@ function TerminalPanel({ sessionId, projectPath }: TerminalPanelProps) {
       },
       rows: 30,
       cols: 80,
+      scrollback: 10000,  // 限制滚动缓冲区大小
       allowProposedApi: true,
       // 启用选择功能
       rightClickSelectsWord: true,

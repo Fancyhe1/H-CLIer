@@ -467,6 +467,7 @@ function MultiTerminal() {
       theme: termTheme,
       rows: 30,
       cols: 120,  // 使用较大的默认尺寸，避免在隐藏状态下使用 80 列
+      scrollback: 10000,  // 限制滚动缓冲区大小，避免内存溢出
       allowProposedApi: true,
     })
 
