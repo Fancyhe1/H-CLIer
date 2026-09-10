@@ -96,7 +96,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
         },
         rows: 30,
         cols: 80,
-        scrollback: 50000,
+        scrollback: 10000,
         allowProposedApi: true,
       })
 
@@ -107,7 +107,10 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
 
       // 先恢复历史内容到终端滚动缓冲区（在启动新进程之前）
       try {
-        const history = await invoke<string>('read_terminal_history', { sessionId })
+        const history = await invoke<string>('read_terminal_history', {
+          sessionId,
+          maxSize: 512 * 1024 // 512KB
+        })
         if (history && history.length > 0) {
           // 过滤掉可能导致问题的控制字符
           const filteredHistory = history
@@ -115,8 +118,16 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
             .replace(/\x1b\[\?25[hl]/g, '')
             .replace(/\x1b\[\?1049[hl]/g, '')
 
-          // 写入历史内容到终端
-          term.write(filteredHistory)
+          // 分批写入历史内容到终端，避免一次性写入大量内容导致卡顿
+          const chunkSize = 50 * 1024 // 50KB per chunk
+          for (let i = 0; i < filteredHistory.length; i += chunkSize) {
+            const chunk = filteredHistory.slice(i, i + chunkSize)
+            term.write(chunk)
+            // 让出主线程，避免阻塞 UI
+            if (i + chunkSize < filteredHistory.length) {
+              await new Promise(resolve => setTimeout(resolve, 0))
+            }
+          }
           term.write('\x1b[90m\r\n─── 会话继续 ───\r\n\x1b[0m')
         }
       } catch (err) {

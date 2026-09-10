@@ -51,6 +51,35 @@ impl PtyManager {
         }
     }
 
+    /// 读取历史日志内容（只读取最后 max_size 字节）
+    pub fn read_history_tail(&self, session_id: &str, max_size: u64) -> Result<String, Box<dyn std::error::Error>> {
+        let log_path = self.get_log_path(session_id);
+        if !log_path.exists() {
+            return Ok(String::new());
+        }
+
+        let metadata = fs::metadata(&log_path)?;
+        let file_size = metadata.len();
+
+        if file_size <= max_size {
+            // 文件小于限制，全量读取
+            Ok(fs::read_to_string(&log_path)?)
+        } else {
+            // 只读取最后 max_size 字节
+            use std::io::{Read, Seek, SeekFrom};
+            let mut file = File::open(&log_path)?;
+            file.seek(SeekFrom::End(-(max_size as i64)))?;
+            let mut content = String::new();
+            file.read_to_string(&mut content)?;
+            // 跳过第一行可能的不完整内容
+            if let Some(pos) = content.find('\n') {
+                Ok(content[pos + 1..].to_string())
+            } else {
+                Ok(content)
+            }
+        }
+    }
+
     /// 写入历史日志内容（用于克隆会话）
     pub fn write_history(&self, session_id: &str, content: &str) -> Result<(), Box<dyn std::error::Error>> {
         let log_path = self.get_log_path(session_id);
