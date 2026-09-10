@@ -660,6 +660,12 @@ function MultiTerminal() {
         let lastPasteTime = 0
         let lastShiftEnterTime = 0
         term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
+          // IME 输入法组合中时，不做任何拦截，让 xterm 正常处理
+          // 这样可以避免中文等输入法出现字符重复的问题
+          if (e.isComposing) {
+            return true
+          }
+
           // Shift+Enter: 发送换行符（\n）而非回车符（\r），支持多行输入
           if (e.key === 'Enter' && e.shiftKey) {
             const now = Date.now()
