@@ -3,7 +3,6 @@ mod pty;
 mod cli;
 mod config;
 mod checkpoint;
-mod license;
 mod history;
 mod token_usage;
 mod claude_config;
@@ -54,7 +53,6 @@ pub struct AppState {
     pub pty_manager: Mutex<PtyManager>,
     pub config_manager: Mutex<ConfigManager>,
     pub checkpoint_manager: Mutex<CheckpointManager>,
-    pub license_manager: Mutex<license::LicenseManager>,
     pub tunnel_manager: tunnel::TunnelManager,
     pub web_access_token: Mutex<String>,
     pub agent_hub_manager: Mutex<agent_hub::AgentHubManager>,
@@ -276,9 +274,11 @@ fn create_pty(
 fn read_terminal_history(
     state: tauri::State<SharedAppState>,
     session_id: String,
+    max_size: Option<u64>,
 ) -> Result<String, String> {
     let manager = state.pty_manager.lock().map_err(|e| e.to_string())?;
-    manager.read_history(&session_id)
+    let size = max_size.unwrap_or(512 * 1024); // 默认 512KB
+    manager.read_history_tail(&session_id, size)
         .map_err(|e| e.to_string())
 }
 
@@ -989,32 +989,6 @@ async fn install_update(
     }
 }
 
-// License 管理命令
-#[tauri::command]
-fn activate_license(
-    state: tauri::State<SharedAppState>,
-    code: String,
-) -> Result<license::LicenseState, String> {
-    let manager = state.license_manager.lock().map_err(|e| e.to_string())?;
-    manager.activate(&code)
-}
-
-#[tauri::command]
-fn get_license_status(
-    state: tauri::State<SharedAppState>,
-) -> Result<license::LicenseStatus, String> {
-    let manager = state.license_manager.lock().map_err(|e| e.to_string())?;
-    manager.get_status()
-}
-
-#[tauri::command]
-fn get_machine_id(
-    state: tauri::State<SharedAppState>,
-) -> Result<String, String> {
-    let manager = state.license_manager.lock().map_err(|e| e.to_string())?;
-    Ok(manager.get_machine_id())
-}
-
 // 检查点管理命令
 #[tauri::command]
 fn create_checkpoint(
@@ -1687,10 +1661,6 @@ pub fn run() {
             // 初始化检查点管理器
             let checkpoint_manager = CheckpointManager::new(&app_dir);
 
-            // 初始化 License 管理器
-            let license_manager = license::LicenseManager::new(&db_path, &app_dir)
-                .expect("Failed to create license manager");
-
             // 生成 Web Server 访问令牌
             // 优先读取已有的 token（保证重启后 token 不变，hook 脚本可正常工作）
             let access_token = if let Ok(config_dir) = app_handle.path().app_config_dir() {
@@ -1725,7 +1695,6 @@ pub fn run() {
                 pty_manager: Mutex::new(pty_manager),
                 config_manager: Mutex::new(config_manager),
                 checkpoint_manager: Mutex::new(checkpoint_manager),
-                license_manager: Mutex::new(license_manager),
                 tunnel_manager: tunnel::TunnelManager::new(),
                 web_access_token: Mutex::new(access_token.clone()),
                 agent_hub_manager: Mutex::new(agent_hub_manager),
@@ -1837,10 +1806,6 @@ pub fn run() {
             restore_checkpoint,
             delete_checkpoint,
             get_checkpoint_diff,
-            // License 管理
-            activate_license,
-            get_license_status,
-            get_machine_id,
             // 隧道控制
             start_tunnel,
             stop_tunnel,
