@@ -1,0 +1,211 @@
+/* ========================================
+ * TabBar — Dark Modern Workbench
+ * ======================================== */
+
+.tab-bar {
+  display: flex;
+  align-items: center;
+  background: var(--bg-surface);
+  padding: 4px 8px;
+  min-height: 36px;
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+
+.tab-bar-tabs {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.empty-tabs {
+  flex: 1;
+  height: 4px;
+}
+
+/* New Tab Button */
+.new-tab-btn {
+  color: var(--text-disabled) !important;
+  padding: 0 8px !important;
+  height: 26px !important;
+  display: flex !important;
+  align-items: center !important;
+  flex-shrink: 0;
+  margin-right: 8px;
+  border-radius: var(--radius-default) !important;
+  transition: all var(--transition-fast) !important;
+}
+
+.new-tab-btn:hover {
+  color: var(--text-secondary) !important;
+  background: var(--bg-surface-hover) !important;
+}
+
+/* Custom Draggable Tabs */
+.custom-tabs {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex: 1;
+  min-width: 0;
+}
+
+.custom-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.custom-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-default);
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  position: relative;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.custom-tab:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-secondary);
+}
+
+.custom-tab.active {
+  background: rgba(59, 130, 246, 0.18);
+  color: #60A5FA;
+}
+
+/* 面板标签（固定位置，不可拖拽） */
+.custom-tab.panel-tab {
+  color: var(--text-disabled);
+}
+
+.custom-tab.panel-tab:hover {
+  color: var(--text-secondary);
+}
+
+.custom-tab.panel-tab.active {
+  color: #60A5FA;
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.custom-tab-icon {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+}
+
+.custom-tab.dragging {
+  opacity: 0.3;
+}
+
+.custom-tab.drop-before::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: 2px;
+  bottom: 2px;
+  width: 2px;
+  background: var(--accent);
+  border-radius: 1px;
+}
+
+.custom-tab.drop-after::after {
+  content: '';
+  position: absolute;
+  right: -2px;
+  top: 2px;
+  bottom: 2px;
+  width: 2px;
+  background: var(--accent);
+  border-radius: 1px;
+}
+
+.custom-tab-label {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.custom-tab-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-xs);
+  font-size: 10px;
+  color: var(--text-disabled);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.custom-tab:hover .custom-tab-close {
+  opacity: 1;
+}
+
+.custom-tab-close:hover {
+  background: var(--bg-surface-active);
+  color: var(--danger);
+}
+
+/* Unread dot in tab */
+.tab-label-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tab-label-text {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.unread-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--status-unread);
+  flex-shrink: 0;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.4);
+}
+
+/* 展开按钮 */
+.tab-expand-btn {
+  color: var(--text-disabled) !important;
+  height: 24px !important;
+  width: 24px !important;
+  min-width: 24px !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: var(--radius-sm) !important;
+  flex-shrink: 0;
+  margin-left: 2px;
+  font-size: 10px !important;
+  transition: all var(--transition-fast) !important;
+}
+
+.tab-expand-btn:hover {
+  color: var(--text-secondary) !important;
+  background: var(--bg-surface-hover) !important;
+}
+
+/* Dragging state */
+.tab-bar.dragging-active {
+  user-select: none;
+  -webkit-user-select: none;
+}

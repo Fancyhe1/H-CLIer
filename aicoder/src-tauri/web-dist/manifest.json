@@ -1,0 +1,32 @@
+{
+  "name": "H CLIer - Claude Code 会话管理",
+  "short_name": "H CLIer",
+  "description": "远程管理 Claude CLI 会话的移动应用",
+  "theme_color": "#1a1a2e",
+  "background_color": "#0f0f1a",
+  "display": "standalone",
+  "scope": "/",
+  "start_url": "/",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "会话列表",
+      "url": "/",
+      "icons": [{ "src": "/icons/icon.svg", "sizes": "any" }]
+    }
+  ]
+}

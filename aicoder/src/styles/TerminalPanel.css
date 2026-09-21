@@ -1,0 +1,149 @@
+.terminal-panel {
+  width: 100%;
+  height: 100%;
+  background: #000000;
+  position: relative;
+}
+
+.terminals-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.terminals-container > div {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.terminal-empty-state {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 14px;
+  z-index: 100;
+  background: var(--bg-base);
+  pointer-events: auto;
+}
+
+.terminal-empty-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  margin-bottom: 20px;
+  opacity: 0.7;
+}
+
+.terminal-empty-title {
+  font-weight: 600;
+  font-size: 18px;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.terminal-empty-desc {
+  color: var(--text-muted);
+  margin-bottom: 24px;
+}
+
+.terminal-empty-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-card);
+  color: var(--accent);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-size: 14px;
+}
+
+.terminal-empty-hint:hover {
+  background: var(--accent-bg-hover);
+  border-color: var(--accent);
+}
+
+.terminal-empty-hint-icon {
+  font-size: 18px;
+}
+
+.terminal-empty-shortcut {
+  margin-top: 16px;
+  color: var(--text-disabled);
+  font-size: 12px;
+}
+
+.terminal-empty-shortcut kbd {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-default);
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}
+
+/* xterm */
+.xterm {
+  padding: 8px;
+  height: 100%;
+}
+
+.xterm-helpers {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+}
+
+.xterm-screen {
+  background: #000000 !important;
+}
+
+.xterm-viewport {
+  background: #000000 !important;
+}
+
+/* 文本选择 */
+.xterm .xterm-screen {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* 滚动条 */
+.terminal-panel .xterm-scrollbar {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.terminal-panel:hover .xterm-scrollbar {
+  opacity: 0.5;
+}
+
+.terminal-panel .xterm-scrollbar:hover {
+  opacity: 0.8;
+}
+
+.terminal-panel .xterm-scrollbar {
+  background: rgba(255, 255, 255, 0.2) !important;
+}
+
+.terminal-panel .xterm-scrollbar-slider {
+  background: rgba(255, 255, 255, 0.3) !important;
+  border-radius: 4px;
+}
+
+.terminal-panel .xterm-scrollbar-slider:hover {
+  background: rgba(255, 255, 255, 0.5) !important;
+}

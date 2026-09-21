@@ -1,0 +1,431 @@
+/* ========================================
+ * MemoPanel — 大面板备忘录
+ * ======================================== */
+
+.memo-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9990;
+  background: transparent;
+}
+
+.memo-panel {
+  position: fixed;
+  bottom: calc(var(--statusbar-height) + 8px);
+  right: 8px;
+  width: 420px;
+  height: 520px;
+  background: rgba(17, 19, 24, 0.72);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-card);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  display: flex;
+  flex-direction: column;
+  z-index: 9991;
+  animation: memo-slide-up 0.15s ease;
+  overflow: hidden;
+}
+
+@keyframes memo-slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Header ── */
+.memo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.memo-header-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.memo-close-btn {
+  color: var(--text-disabled) !important;
+  width: 24px !important;
+  height: 24px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: var(--radius-sm) !important;
+}
+
+.memo-close-btn:hover {
+  color: var(--text-secondary) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* ── Body (scrollable area) ── */
+.memo-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ── Filters ── */
+.memo-filters {
+  display: flex;
+  gap: 2px;
+  padding: 8px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.memo-filter-btn {
+  padding: 3px 10px;
+  font-size: 11px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--text-disabled);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all var(--transition-fast);
+}
+
+.memo-filter-btn:hover {
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.memo-filter-btn.active {
+  color: var(--accent);
+  background: var(--accent-bg);
+  font-weight: 500;
+}
+
+.memo-list-count {
+  font-size: 11px;
+  color: var(--text-disabled);
+  font-family: var(--font-mono);
+  margin-left: auto;
+}
+
+/* ── List ── */
+.memo-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.memo-list::-webkit-scrollbar { width: 4px; }
+.memo-list::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
+
+.memo-empty {
+  text-align: center;
+  padding: 40px 16px;
+  color: var(--text-disabled);
+  font-size: 13px;
+}
+
+/* Row */
+.memo-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.memo-row:last-child { border-bottom: none; }
+.memo-row:hover { background: rgba(255, 255, 255, 0.05); }
+.memo-row.is-done { opacity: 0.55; }
+
+.memo-check {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+  background: transparent;
+  cursor: pointer;
+  color: transparent;
+  font-size: 10px;
+  padding: 0;
+  transition: all var(--transition-fast);
+}
+
+.memo-check:hover { border-color: var(--accent); color: var(--accent); background: rgba(59, 130, 246, 0.12); }
+.memo-check.checked { border-color: var(--success); background: var(--success); color: #fff; }
+
+.memo-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.memo-row-title {
+  font-size: 13px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.memo-row.is-done .memo-row-title {
+  text-decoration: line-through;
+  color: var(--text-disabled);
+}
+
+.memo-row-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-disabled);
+}
+
+.memo-pri-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.memo-row-due,
+.memo-row-time {
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.memo-row-due { color: var(--status-warning); }
+
+.memo-row-del {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-xs);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-disabled);
+  font-size: 10px;
+  padding: 0;
+  transition: all var(--transition-fast);
+}
+
+.memo-row:hover .memo-row-del { display: flex; }
+.memo-row-del:hover { color: var(--danger); background: var(--danger-bg); }
+
+/* FAB */
+.memo-fab {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  transition: all var(--transition-fast);
+  z-index: 2;
+}
+
+.memo-fab:hover { background: var(--accent-hover); transform: scale(1.05); }
+
+/* Footer */
+.memo-footer {
+  padding: 6px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.memo-clear-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  padding: 5px 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-disabled);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.memo-clear-btn:hover { color: var(--danger); background: var(--danger-bg); }
+
+/* ── Edit / Create View ── */
+.memo-edit-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  flex-shrink: 0;
+}
+
+.memo-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.memo-back-btn:hover { color: var(--accent); background: rgba(59, 130, 246, 0.12); }
+
+.memo-edit-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+.memo-edit-del-btn {
+  color: var(--text-disabled) !important;
+  width: 24px !important;
+  height: 24px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: var(--radius-sm) !important;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.memo-edit-del-btn:hover { color: var(--danger) !important; background: var(--danger-bg) !important; }
+
+.memo-edit-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.memo-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.memo-field-grow { flex: 1; }
+
+.memo-field-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.memo-field-optional {
+  font-weight: 400;
+  text-transform: none;
+  color: var(--text-disabled);
+  letter-spacing: 0;
+}
+
+.memo-field-input {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: var(--text-primary) !important;
+  border-radius: var(--radius-default) !important;
+  font-size: 13px !important;
+}
+
+.memo-field-input:focus {
+  border-color: var(--accent) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+.memo-field-textarea {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: var(--text-primary) !important;
+  border-radius: var(--radius-default) !important;
+  font-size: 13px !important;
+  resize: none !important;
+}
+
+.memo-field-textarea:focus {
+  border-color: var(--accent) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+.memo-pri-select {
+  display: flex;
+  gap: 6px;
+}
+
+.memo-pri-opt {
+  padding: 4px 14px;
+  font-size: 12px;
+  border-radius: var(--radius-default);
+  border: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--text-disabled);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all var(--transition-fast);
+}
+
+.memo-pri-opt:hover {
+  border-color: var(--pri-color);
+  color: var(--pri-color);
+}
+
+.memo-pri-opt.active {
+  border-color: var(--pri-color);
+  background: color-mix(in srgb, var(--pri-color) 12%, transparent);
+  color: var(--pri-color);
+  font-weight: 500;
+}
+
+.memo-edit-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.02);
+}

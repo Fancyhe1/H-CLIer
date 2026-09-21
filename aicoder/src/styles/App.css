@@ -1,0 +1,393 @@
+/* ========================================
+ * App Layout — Dark Modern Workbench
+ * ======================================== */
+
+.app-layout {
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg-base) !important;
+}
+
+.app-layout.dark {
+  background: var(--bg-base) !important;
+}
+
+.app-layout.light {
+  background: var(--bg-base) !important;
+}
+
+/* ── Sidebar Container ── */
+.app-sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  border-right: 1px solid var(--border-default) !important;
+  background: var(--bg-surface) !important;
+}
+
+/* ── Main Area ── */
+.app-main {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg-base);
+}
+
+/* ── Toolbar (Top Bar) ── */
+.app-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-topbar);
+  height: var(--toolbar-height);
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+  -webkit-app-region: drag;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* TabBar 嵌入工具栏：去掉独立背景/边框，适配高度 */
+.toolbar-left .tab-bar {
+  background: transparent;
+  border-bottom: none;
+  min-height: unset;
+  padding: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+/* tab 容器间隙区域可拖拽窗口 */
+.toolbar-left .custom-tabs {
+  -webkit-app-region: drag;
+}
+
+/* 单个 tab 和按钮不可拖拽（点击优先） */
+.toolbar-left .custom-tab,
+.toolbar-left .new-tab-btn,
+.toolbar-left .tab-expand-btn {
+  -webkit-app-region: no-drag;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  -webkit-app-region: no-drag;
+  flex-shrink: 0;
+  gap: 2px;
+}
+
+/* Toolbar Buttons */
+.toolbar-btn {
+  color: var(--text-muted) !important;
+  padding: 0 10px !important;
+  height: 32px !important;
+  min-width: 36px !important;
+  border-radius: var(--radius-default) !important;
+  transition: all var(--transition-fast) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.toolbar-btn:hover {
+  color: var(--text-secondary) !important;
+  background: var(--bg-surface-hover) !important;
+}
+
+.toolbar-btn:active {
+  background: var(--bg-surface-active) !important;
+}
+
+/* Active state for toolbar toggle buttons */
+.toolbar-btn.ant-btn-primary,
+.toolbar-btn.ant-btn-primary:hover {
+  background: rgba(59, 130, 246, 0.18) !important;
+  color: #60A5FA !important;
+  border-color: transparent !important;
+}
+
+/* Window Control Buttons */
+.window-btn {
+  color: var(--text-muted) !important;
+  padding: 0 10px !important;
+  height: 32px !important;
+  min-width: 36px !important;
+  border-radius: var(--radius-default) !important;
+  transition: all var(--transition-fast) !important;
+}
+
+.window-btn:hover {
+  background: var(--bg-surface-hover) !important;
+  color: var(--text-secondary) !important;
+}
+
+.window-close:hover {
+  background: var(--danger) !important;
+  color: #fff !important;
+}
+
+/* ── Content Area ── */
+.app-content {
+  flex: 1;
+  overflow: hidden;
+  padding: 0;
+  background: var(--bg-base);
+}
+
+/* ── Status Bar (Bottom) ── */
+.status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--statusbar-height);
+  padding: 0 12px;
+  background: var(--bg-statusbar);
+  border-top: 1px solid var(--border-default);
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  overflow: hidden;
+}
+
+.status-left,
+.status-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  flex-shrink: 1;
+  position: relative;
+}
+
+.status-left::-webkit-scrollbar,
+.status-right::-webkit-scrollbar {
+  display: none;
+}
+
+/* 右侧溢出时的渐变提示 */
+.status-right::after {
+  content: '';
+  position: sticky;
+  right: 0;
+  top: 0;
+  width: 24px;
+  height: 100%;
+  flex-shrink: 0;
+  background: linear-gradient(to right, transparent, var(--bg-surface));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.status-right.is-overflow::after {
+  opacity: 1;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  font-size: 12px;
+  color: #7C8491;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+  font-family: var(--font-mono);
+}
+
+.status-item:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-secondary);
+}
+
+.status-text {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border-default);
+  margin: 0 6px;
+  flex-shrink: 0;
+}
+
+.status-btn {
+  color: var(--text-muted) !important;
+  font-size: 12px !important;
+  height: 26px !important;
+  padding: 0 8px !important;
+  font-family: var(--font-mono) !important;
+  border-radius: var(--radius-sm) !important;
+  transition: all var(--transition-fast) !important;
+}
+
+.status-btn:hover {
+  color: var(--accent) !important;
+  background: var(--accent-bg) !important;
+}
+
+.status-info {
+  font-size: 12px;
+  color: #7C8491;
+  padding: 0 6px;
+  font-family: var(--font-mono);
+}
+
+/* ── CLAUDE.md Editor ── */
+.claude-md-editor {
+  font-family: var(--font-mono) !important;
+  font-size: 13px !important;
+}
+
+.dark .claude-md-editor {
+  background: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-default) !important;
+}
+
+/* ── Ant Design Modal Overrides (Dark) ── */
+.ant-modal .ant-modal-content {
+  background: var(--bg-surface-elevated) !important;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card) !important;
+}
+
+.ant-modal .ant-modal-header {
+  background: transparent !important;
+  border-bottom: 1px solid var(--border-default) !important;
+}
+
+.ant-modal .ant-modal-title {
+  color: var(--text-primary) !important;
+}
+
+.ant-modal .ant-modal-close {
+  color: var(--text-muted) !important;
+}
+
+.ant-modal .ant-modal-close:hover {
+  color: var(--text-secondary) !important;
+}
+
+/* ── Header Divider (legacy) ── */
+.header-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border-default);
+  margin: 0 6px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* ── Ant Design Input Overrides ── */
+.ant-input,
+.ant-input-affix-wrapper {
+  background: var(--bg-surface-elevated) !important;
+  border-color: var(--border-default) !important;
+  color: var(--text-primary) !important;
+  border-radius: var(--radius-default) !important;
+}
+
+.ant-input::placeholder {
+  color: var(--text-disabled) !important;
+}
+
+.ant-input-affix-wrapper:hover,
+.ant-input:hover {
+  border-color: var(--border-strong) !important;
+}
+
+.ant-input-affix-wrapper:focus,
+.ant-input-affix-wrapper-focused,
+.ant-input:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px var(--accent-bg) !important;
+}
+
+.ant-input-prefix {
+  color: var(--text-disabled) !important;
+}
+
+/* ── Ant Design Button Overrides ── */
+.ant-btn-default {
+  background: var(--bg-surface-elevated) !important;
+  border-color: var(--border-default) !important;
+  color: var(--text-secondary) !important;
+}
+
+.ant-btn-default:hover {
+  background: var(--bg-surface-hover) !important;
+  border-color: var(--border-strong) !important;
+  color: var(--text-primary) !important;
+}
+
+/* ── Ant Design Tooltip Overrides ── */
+.ant-tooltip .ant-tooltip-inner {
+  background: var(--bg-surface-elevated) !important;
+  color: var(--text-secondary) !important;
+  font-size: 12px !important;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm) !important;
+}
+
+.ant-tooltip .ant-tooltip-arrow::before {
+  background: var(--bg-surface-elevated) !important;
+}
+
+/* ── Ant Design Dropdown/Menu Overrides ── */
+.ant-dropdown .ant-dropdown-menu {
+  background: var(--bg-surface-elevated) !important;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card) !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+
+.ant-dropdown .ant-dropdown-menu-item {
+  color: var(--text-secondary) !important;
+  border-radius: var(--radius-sm) !important;
+}
+
+.ant-dropdown .ant-dropdown-menu-item:hover {
+  background: var(--bg-surface-hover) !important;
+  color: var(--text-primary) !important;
+}
+
+.ant-dropdown .ant-dropdown-menu-item-danger {
+  color: var(--danger) !important;
+}
+
+.ant-dropdown .ant-dropdown-menu-item-divider {
+  background: var(--border-default) !important;
+}
+
+/* ── Ant Design Checkbox ── */
+.ant-checkbox-wrapper {
+  color: var(--text-secondary) !important;
+}
+
+/* ── Ant Design Badge ── */
+.ant-badge .ant-badge-dot {
+  box-shadow: none;
+}

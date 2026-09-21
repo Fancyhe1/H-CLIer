@@ -1,0 +1,88 @@
+/* ========================================
+ * H CLLer Design Tokens
+ * Dark Modern Developer Workbench
+ * ======================================== */
+
+:root {
+  /* ── Backgrounds ── */
+  --bg-base: #0B0D10;
+  --bg-surface: #111318;
+  --bg-surface-elevated: #15181E;
+  --bg-surface-hover: #1B2028;
+  --bg-surface-active: #1F2430;
+  --bg-topbar: #0F1115;
+  --bg-statusbar: #0F1115;
+
+  /* ── Borders ── */
+  --border-default: #252A33;
+  --border-strong: #303744;
+  --border-subtle: #1C2029;
+
+  /* ── Text ── */
+  --text-primary: #E8EAED;
+  --text-secondary: #949BA7;
+  --text-muted: #626975;
+  --text-disabled: #484E59;
+
+  /* ── Accent (Blue) ── */
+  --accent: #3B82F6;
+  --accent-hover: #60A5FA;
+  --accent-active: #2563EB;
+  --accent-bg: rgba(59, 130, 246, 0.08);
+  --accent-bg-hover: rgba(59, 130, 246, 0.14);
+  --accent-bg-strong: rgba(59, 130, 246, 0.20);
+  --accent-border: rgba(59, 130, 246, 0.40);
+
+  /* ── Status Colors ── */
+  --status-running: #22C55E;
+  --status-active: #3B82F6;
+  --status-idle: #626975;
+  --status-warning: #F59E0B;
+  --status-unread: #F59E0B;
+
+  /* ── Danger ── */
+  --danger: #EF4444;
+  --danger-hover: #F87171;
+  --danger-bg: rgba(239, 68, 68, 0.08);
+  --danger-bg-hover: rgba(239, 68, 68, 0.15);
+
+  /* ── Success ── */
+  --success: #22C55E;
+  --success-bg: rgba(34, 197, 94, 0.08);
+
+  /* ── Border Radius ── */
+  --radius-xs: 3px;
+  --radius-sm: 4px;
+  --radius-default: 6px;
+  --radius-card: 8px;
+  --radius-lg: 12px;
+
+  /* ── Spacing ── */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+
+  /* ── Typography ── */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', 'Monaco', monospace;
+
+  /* ── Shadows (subtle) ── */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+
+  /* ── Transitions ── */
+  --transition-fast: 0.12s ease;
+  --transition-normal: 0.2s ease;
+
+  /* ── Toolbar ── */
+  --toolbar-height: 48px;
+
+  /* ── Status Bar ── */
+  --statusbar-height: 36px;
+
+  /* ── Sidebar ── */
+  --sidebar-width: 280px;
+}

@@ -1,0 +1,144 @@
+.command-palette-modal .ant-modal-content {
+  padding: 0;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.command-palette-modal .ant-modal-body {
+  padding: 0;
+}
+
+.command-palette {
+  display: flex;
+  flex-direction: column;
+  max-height: 500px;
+}
+
+.command-input-wrapper {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid var(--border-default);
+  gap: 12px;
+}
+
+.command-search-icon {
+  font-size: 20px;
+  color: var(--text-disabled);
+}
+
+.command-input {
+  flex: 1;
+  font-size: 16px;
+}
+
+.command-input input {
+  font-size: 16px;
+}
+
+.command-shortcut-hint {
+  font-size: 12px;
+  color: var(--text-disabled);
+}
+
+.command-list {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 350px;
+}
+
+.command-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.command-item:hover,
+.command-item.selected,
+.command-list .ant-list-item:hover,
+.command-list .ant-list-item.selected {
+  background: var(--bg-surface-hover) !important;
+}
+
+.command-item-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+  font-size: 18px;
+  color: var(--text-disabled);
+}
+
+.command-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.command-item-title {
+  font-size: 14px;
+  margin-bottom: 2px;
+  color: var(--text-primary);
+}
+
+.command-item-desc {
+  font-size: 12px;
+  color: var(--text-disabled) !important;
+}
+
+.command-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 12px;
+}
+
+.command-type-action {
+  background: rgba(245, 158, 11, 0.1);
+  color: #FBBF24;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.command-shortcut {
+  padding: 2px 6px;
+  background: var(--bg-surface-elevated) !important;
+  border: 1px solid var(--border-default) !important;
+  border-radius: var(--radius-xs);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary) !important;
+}
+
+.command-footer {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border-default);
+  display: flex;
+  justify-content: center;
+  background: var(--bg-surface);
+}
+
+.command-footer kbd {
+  padding: 2px 6px;
+  background: var(--bg-surface-elevated) !important;
+  border: 1px solid var(--border-default) !important;
+  border-radius: var(--radius-xs);
+  font-family: var(--font-mono);
+  margin: 0 2px;
+  color: var(--text-secondary) !important;
+}
+
+.command-footer-text {
+  color: var(--text-disabled) !important;
+}
+
+/* Ant Design list overrides */
+.dark .command-palette-modal .ant-list-item:hover,
+.dark .command-palette-modal .ant-list-item.selected,
+.dark .ant-list-item:hover,
+.dark .ant-list-item.selected {
+  background: var(--bg-surface-hover) !important;
+}

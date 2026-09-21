@@ -1,0 +1,284 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 获取完整 git 历史，用于生成 changelog
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: aicoder/package-lock.json
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        working-directory: ./aicoder
+        run: npm ci
+
+      - name: Sync version to tag
+        shell: bash
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          echo "Syncing version to $VERSION"
+
+          # Update tauri.conf.json
+          jq ".version = \"$VERSION\"" aicoder/src-tauri/tauri.conf.json > tmp.json && mv tmp.json aicoder/src-tauri/tauri.conf.json
+
+          # Update Cargo.toml
+          sed -i "s/^version = .*/version = \"$VERSION\"/" aicoder/src-tauri/Cargo.toml
+
+          # Update package.json
+          jq ".version = \"$VERSION\"" aicoder/package.json > tmp.json && mv tmp.json aicoder/package.json
+
+          echo "=== Version sync result ==="
+          echo "tauri.conf.json:"
+          cat aicoder/src-tauri/tauri.conf.json | grep '"version"'
+          echo "Cargo.toml:"
+          cat aicoder/src-tauri/Cargo.toml | grep '^version'
+          echo "package.json:"
+          cat aicoder/package.json | grep '"version"'
+
+      - name: Build Tauri app
+        working-directory: ./aicoder
+        env:
+          APP_VERSION: ${{ github.ref_name }}
+        run: npm run tauri build
+
+      - name: Debug - list bundle contents
+        working-directory: ./aicoder
+        shell: bash
+        run: |
+          echo "=== Bundle directory contents ==="
+          ls -la src-tauri/target/release/bundle/nsis/
+
+      - name: Sign the installer
+        working-directory: ./aicoder
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          echo "=== Signing installer ==="
+          echo "TAURI_SIGNING_PRIVATE_KEY length: ${#TAURI_SIGNING_PRIVATE_KEY}"
+
+          # Get the exe path
+          EXE=$(ls src-tauri/target/release/bundle/nsis/*.exe 2>/dev/null | grep -v "_0.exe" | head -1)
+          if [ -z "$EXE" ]; then
+            echo "ERROR: No exe found"
+            exit 1
+          fi
+          echo "Found exe: $EXE"
+
+          # Write private key to file - clean and decode with proper error handling
+          CLEAN_KEY=$(printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" | tr -d '\r\n')
+          echo "Clean key length: ${#CLEAN_KEY}"
+
+          if echo "$CLEAN_KEY" | base64 -d > signing_key.pem 2>/dev/null && [ -s signing_key.pem ]; then
+            echo "Key decoded from base64 successfully"
+          else
+            echo "ERROR: Failed to decode private key from base64."
+            echo "Please ensure the secret contains a valid base64-encoded PEM key."
+            exit 1
+          fi
+          echo "Key file size: $(wc -c < signing_key.pem) bytes"
+          head -c 50 signing_key.pem
+
+          # Sign using npx tauri signer sign
+          echo "Running npx tauri signer sign..."
+          # IMPORTANT: unset TAURI_SIGNING_PRIVATE_KEY to avoid conflict with -f flag
+          unset TAURI_SIGNING_PRIVATE_KEY
+          npx tauri signer sign --private-key-path signing_key.pem --password "" "$EXE"
+
+          echo "=== Signing done ==="
+          ls -la "${EXE}.sig" 2>/dev/null || echo "No sig file created"
+
+      - name: Generate latest.json
+        working-directory: ./aicoder
+        shell: bash
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          BUNDLE_DIR="src-tauri/target/release/bundle/nsis"
+
+          echo "=== Looking for installer ==="
+          EXE_PATH=$(ls "$BUNDLE_DIR"/*_x64-setup.exe 2>/dev/null | head -1)
+          if [ -z "$EXE_PATH" ]; then
+            echo "ERROR: Installer exe not found in $BUNDLE_DIR"
+            ls -la "$BUNDLE_DIR" 2>/dev/null || echo "Directory not accessible"
+            exit 1
+          fi
+          EXE_NAME=$(basename "$EXE_PATH")
+          echo "Found EXE: $EXE_NAME"
+
+          # Replace spaces with dots to match GitHub's normalized filename
+          ENCODED_EXE_NAME=$(echo "$EXE_NAME" | sed 's/ /./g')
+          echo "Encoded EXE: $ENCODED_EXE_NAME"
+
+          SIG_PATH="${EXE_PATH}.sig"
+          echo "Looking for SIG: $SIG_PATH"
+          if [ ! -f "$SIG_PATH" ]; then
+            echo "ERROR: Signature file not found: $SIG_PATH"
+            exit 1
+          fi
+
+          SIGNATURE=$(cat "$SIG_PATH" | tr -d '\r\n')
+          echo "Signature length: ${#SIGNATURE}"
+
+          PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          cat > latest.json << JSONEOF
+          {
+            "version": "$VERSION",
+            "notes": "Release $VERSION",
+            "pub_date": "$PUB_DATE",
+            "platforms": {
+              "windows-x86_64": {
+                "signature": "$SIGNATURE",
+                "url": "https://github.com/Fancyhe1/H-CLIer/releases/download/${{ github.ref_name }}/$ENCODED_EXE_NAME"
+              }
+            }
+          }
+          JSONEOF
+
+          echo "=== latest.json ==="
+          cat latest.json
+
+      - name: Generate changelog
+        id: changelog
+        working-directory: ./aicoder
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          CURRENT_TAG="${{ github.ref_name }}"
+          VERSION="${CURRENT_TAG#v}"
+
+          echo "Current tag: $CURRENT_TAG"
+          echo "Version: $VERSION"
+
+          # 使用 gh CLI 获取上一个 release 的 tag
+          PREV_TAG=$(gh release list --repo Fancyhe1/H-CLIer --limit 2 --json tagName --jq '.[1].tagName' 2>/dev/null || echo "")
+
+          echo "Previous tag: $PREV_TAG"
+
+          # 生成 changelog
+          CHANGELOG=""
+
+          if [ -z "$PREV_TAG" ] || [ "$PREV_TAG" = "$CURRENT_TAG" ]; then
+            # 第一个版本或找不到上一个 tag，显示最近 30 条 commit
+            echo "No previous tag found, showing last 30 commits"
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges -30 || true)
+          else
+            # 获取两个 tag 之间的所有 commit
+            echo "Getting commits between $PREV_TAG and $CURRENT_TAG"
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges "${PREV_TAG}..HEAD" || true)
+          fi
+
+          echo "=== Raw changelog ==="
+          echo "$CHANGELOG"
+
+          # 如果 changelog 为空，使用默认信息
+          if [ -z "$CHANGELOG" ]; then
+            CHANGELOG="- 版本更新"
+          fi
+
+          # 分类整理 changelog
+          FEATURES=""
+          FIXES=""
+          OTHERS=""
+
+          while IFS= read -r line; do
+            if echo "$line" | grep -qiE "feat|新[增加]|功能|add|implement"; then
+              FEATURES="${FEATURES}${line}\n"
+            elif echo "$line" | grep -qiE "fix|修[复正]|bug|hotfix"; then
+              FIXES="${FIXES}${line}\n"
+            else
+              OTHERS="${OTHERS}${line}\n"
+            fi
+          done <<< "$CHANGELOG"
+
+          # 构建最终 notes
+          NOTES="## ${CURRENT_TAG}\n\n"
+
+          if [ -n "$FEATURES" ]; then
+            NOTES="${NOTES}### ✨ 新功能\n${FEATURES}\n"
+          fi
+
+          if [ -n "$FIXES" ]; then
+            NOTES="${NOTES}### 🐛 问题修复\n${FIXES}\n"
+          fi
+
+          if [ -n "$OTHERS" ]; then
+            NOTES="${NOTES}### 📦 其他更新\n${OTHERS}\n"
+          fi
+
+          NOTES="${NOTES}\n---\n**下载说明**: 下载 \`.exe\` 文件运行即可安装"
+
+          # 保存到文件
+          echo -e "$NOTES" > release_notes.md
+          echo "=== Release Notes ==="
+          cat release_notes.md
+
+      - name: Upload to H-CLIer Release
+        working-directory: ./aicoder
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          BUNDLE_DIR="src-tauri/target/release/bundle/nsis"
+
+          EXE_PATH=$(ls "$BUNDLE_DIR"/*_x64-setup.exe 2>/dev/null | head -1)
+          if [ -z "$EXE_PATH" ]; then
+            echo "ERROR: No exe found"
+            exit 1
+          fi
+
+          SIG_PATH="${EXE_PATH}.sig"
+          EXE_NAME=$(basename "$EXE_PATH")
+
+          echo "Creating or updating release and uploading $EXE_NAME..."
+
+          # 检查 release 是否已存在
+          if gh release view "${{ github.ref_name }}" --repo Fancyhe1/H-CLIer > /dev/null 2>&1; then
+            echo "Release already exists, updating..."
+            gh release edit "${{ github.ref_name }}" \
+              --repo Fancyhe1/H-CLIer \
+              --title "${{ github.ref_name }}" \
+              --notes-file release_notes.md
+          else
+            echo "Creating new release..."
+            gh release create "${{ github.ref_name }}" \
+              --repo Fancyhe1/H-CLIer \
+              --title "${{ github.ref_name }}" \
+              --notes-file release_notes.md \
+              --latest
+          fi
+
+          echo "Uploading exe..."
+          gh release upload "${{ github.ref_name }}" "$EXE_PATH" --repo Fancyhe1/H-CLIer --clobber
+
+          if [ -f "$SIG_PATH" ]; then
+            echo "Uploading sig..."
+            gh release upload "${{ github.ref_name }}" "$SIG_PATH" --repo Fancyhe1/H-CLIer --clobber
+          fi
+
+          echo "Uploading latest.json..."
+          gh release upload "${{ github.ref_name }}" "latest.json" --repo Fancyhe1/H-CLIer --clobber
+
+          echo "=== Done ==="

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #0f0f1a;
+            color: #0f0;
+            font-size: 14px;
+        }
+        .log { margin: 5px 0; }
+        .error { color: #f55; }
+        .success { color: #5f5; }
+    </style>
+</head>
+<body>
+    <h1>H CLIer Debug</h1>
+    <div id="logs"></div>
+
+    <script>
+        const logs = document.getElementById('logs');
+        function log(msg, type = 'info') {
+            const div = document.createElement('div');
+            div.className = 'log ' + type;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            logs.appendChild(div);
+        }
+
+        log('Page loaded');
+        log('User Agent: ' + navigator.userAgent);
+        log('Location: ' + window.location.href);
+
+        // 检查 Capacitor
+        if (window.Capacitor) {
+            log('Capacitor detected', 'success');
+            log('Platform: ' + window.Capacitor.getPlatform());
+        } else {
+            log('Capacitor NOT detected', 'error');
+        }
+
+        // 检查本地存储
+        try {
+            localStorage.setItem('test', 'test');
+            localStorage.removeItem('test');
+            log('localStorage: OK', 'success');
+        } catch (e) {
+            log('localStorage: FAILED - ' + e.message, 'error');
+        }
+
+        // 检查 fetch
+        fetch('./index.html')
+            .then(r => {
+                log('Fetch index.html: ' + r.status, r.ok ? 'success' : 'error');
+                return r.text();
+            })
+            .then(html => {
+                log('Index.html length: ' + html.length);
+                log('Has root div: ' + html.includes('id="root"'));
+            })
+            .catch(e => log('Fetch failed: ' + e.message, 'error'));
+
+        // 检查 JS 文件
+        fetch('./assets/index-CJqf7haI.js')
+            .then(r => {
+                log('Fetch JS: ' + r.status, r.ok ? 'success' : 'error');
+            })
+            .catch(e => log('Fetch JS failed: ' + e.message, 'error'));
+    </script>
+</body>
+</html>

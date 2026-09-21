@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+dist-portable/
+
+# Tauri build
+src-tauri/target/
+aicoder/src-tauri/target/
+
+# Executables
+*.exe
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
