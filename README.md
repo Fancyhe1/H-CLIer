@@ -8,7 +8,7 @@
 </div>
 <div align="center">
 
-**Windows 上 Claude Code CLI 的图形化管理工具**
+**Windows 上 Claude Code CLI 的GUI图形化管理工具**
 
 让 AI 编程助手从终端进入 IDE 级体验
 
